@@ -525,6 +525,7 @@ def ApiGetMyPermissions(request):
 @login_required(login_url='/login')
 @require_action('My Favorite Search')
 def ApiSaveMyFavoriteSearch(request):
+    
     if request.method == "POST":
         action = request.POST.get("action")
         user = request.user
