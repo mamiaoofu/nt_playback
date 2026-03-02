@@ -86,20 +86,20 @@
               </div>
 
               <div class="my-favorite-search">
+                
+                  <div class="d-flex justify-content-center" v-if="authStore.hasPermission('File Share')" style="padding-right: 12px;padding-left: 8px;">
+                      <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px;">
+                        <i class="fa-solid fa-share-nodes"></i> File Share
+                      </button>
+                     </div>
                 <div class="card">
                   <div class="card-body" style="padding: 8px;">
 
-                    <div class="d-flex justify-content-center" v-if="authStore.hasPermission('My Favorite Search')">
+                    <div class="d-flex justify-content-center" v-if="authStore.hasPermission('My Favorite Search')" >
                       <button class="btn btn-light" type="button" id="addFavorite" @click="showFavoriteModal = true" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 4px;">
                         <i class="fa-regular fa-bookmark"></i> My Favorite Search
                       </button>
                     </div>
-
-                     <div class="d-flex justify-content-center" v-if="authStore.hasPermission('My Favorite Search')">
-                        <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 4px;">
-                        <i class="fa-solid fa-share-nodes"></i> File Share
-                      </button>
-                     </div>
 
                     <div class="dropup d-flex justify-content-center" ref="recentWrap">
                       <button class="btn btn-light" type="button" @click.stop="toggleRecent" :aria-expanded="recentOpen" style="width: 100%;font-size: 12px;margin-bottom: 4px;">
@@ -149,7 +149,7 @@
                   <h5 class="card-title mb-2 mt-1">Audio Records</h5>
                 </div>
                 <div class="d-flex align-items-center">
-                    <button class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
+                    <button v-if="authStore.hasPermission('File Share')" class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                         <span v-if="selectedCount > 0" class="badge badge-danger" id="shareCount">{{ selectedCount }}</span>
                       </button>

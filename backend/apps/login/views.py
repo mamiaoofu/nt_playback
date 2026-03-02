@@ -8,6 +8,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from django.middleware.csrf import get_token
 from django.contrib.sessions.models import Session
+from django.utils import timezone
+
 from django.conf import settings
 
 # ปรับ Import ให้ตรงกับโครงสร้างไฟล์ใหม่ (apps/core/utils/function.py)
@@ -16,7 +18,7 @@ from apps.core.utils.function import create_user_log
 # ปรับ Import UserProfile (คาดว่าน่าจะอยู่ที่ apps.core.models หรือ apps.users.models)
 # หากยังไม่มีไฟล์ models ให้ตรวจสอบ path นี้อีกครั้ง
 try:
-    from apps.core.model.authorize.models import UserProfile, UserAuth
+    from apps.core.model.authorize.models import UserProfile, UserAuth, UserFileShare
 except ImportError:
     # Fallback หรือ Mock กรณีหาไม่เจอเพื่อป้องกัน Server Crash
     UserProfile = None
@@ -35,6 +37,26 @@ def index(request):
         
         if form.is_valid():
             user = form.get_user()
+            
+            try:
+                if 'UserFileShare' in globals() and UserFileShare:
+                    ticket = UserFileShare.objects.filter(user=user).first()
+                    if ticket and ticket.expire_at and timezone.now() > ticket.expire_at:
+                        ticket.status = 'f'
+                        ticket.save()
+                        user.is_active = False
+                        user.save()
+                        
+                        create_user_log(
+                            user=user,
+                            action="Login",
+                            detail=f"Login failed: Ticket expired for user {user.username}",
+                            status="error",
+                            request=request
+                        )
+                        return JsonResponse({'error': 'Your ticket has expired.'}, status=401)
+            except Exception as e:
+                print(f"Error checking ticket expiration: {e}")
             
             # Login เข้า Session (เผื่อกรณี Hybrid หรือ Admin)
             login(request, user)
