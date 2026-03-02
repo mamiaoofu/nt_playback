@@ -19,10 +19,10 @@ export function useTicketHistory() {
     const currentPage = ref(1)
 
     const filters = reactive({
-        ticket_id: [],
+        ticketID: [],
         full_name: [],
         action: [],
-        created_by: '',
+        createdBy: '',
         start_date: '',
         exprie_date: '',
         status: [],
@@ -39,21 +39,22 @@ export function useTicketHistory() {
     const records = ref([])
     const totalItems = ref(0)
     const loading = ref(false)
+    const ticketOptions = ref([])
+    const createdByOptions = ref([])
     
     const sortColumn = ref('')
     const sortDirection = ref('')
 
     const columns = [
         { key: 'index', label: '#', isIndex: true },
-        { key: 'ticket_id', label: 'Ticket ID' },
-        { key: 'full_name', label: 'Target User' },
-        { key: 'type', label: 'Type' },
-        { key: 'created_by', label: 'Created By' },
+        { key: 'code', label: 'Ticket ID' },
+        { key: 'email', label: 'Email', tooltip: true, labelKey: 'email_label' },
+        { key: 'create_by', label: 'Created By' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Exprie Date' },
-        { key: 'files_audio', label: 'Files Audio' },
+        { key: 'files_audio', label: 'Files Audio', tooltip: true, labelKey: 'files_audio_label' },
         { key: 'status', label: 'Status' },
-        { key: 'action', label: 'Action' }
+        // { key: 'action', label: 'Action' }
     ]
 
     const type = computed(() => 'ticket')
@@ -85,19 +86,93 @@ export function useTicketHistory() {
                 params.set('sort[0][dir]', sortDirection.value)
             }
 
-            if (filters.ticket_id && filters.ticket_id !== 'all' && filters.ticket_id.length > 0) params.set('ticket_id', filters.ticket_id)
-            if (filters.full_name && filters.full_name !== 'all' && filters.full_name.length > 0) params.set('full_name', filters.full_name)
-            if (filters.action && filters.action !== 'all' && filters.action.length > 0) params.set('action', filters.action)
-            if (filters.created_by) params.set('created_by', filters.created_by)
+            if (filters.ticketID && filters.ticketID !== 'all' && Array.isArray(filters.ticketID) && filters.ticketID.length > 0) params.set('ticket_id', filters.ticketID.join(','))
+            if (filters.full_name && filters.full_name !== 'all' && Array.isArray(filters.full_name) && filters.full_name.length > 0) params.set('full_name', filters.full_name.join(','))
+            if (filters.action && filters.action !== 'all' && Array.isArray(filters.action) && filters.action.length > 0) params.set('action', filters.action.join(','))
+            if (filters.createdBy) params.set('create_by', filters.createdBy)
             if (filters.start_date) params.set('start_date', filters.start_date)
-            if (filters.exprie_date) params.set('exprie_date', filters.exprie_date)
-            if (filters.status && filters.status !== 'all' && filters.status.length > 0) params.set('status', filters.status)
-            if (filters.files_audio && filters.files_audio !== 'all' && filters.files_audio.length > 0) params.set('files_audio', filters.files_audio)
+            if (filters.exprie_date) params.set('end_date', filters.exprie_date)
+            if (filters.status && filters.status !== 'all' && Array.isArray(filters.status) && filters.status.length > 0) params.set('status', filters.status.join(','))
+            if (filters.files_audio && filters.files_audio !== 'all' && Array.isArray(filters.files_audio) && filters.files_audio.length > 0) params.set('files_audio', filters.files_audio.join(','))
 
             const res = await fetch(`${API_GET_USER_TICKET(type.value)}?${params.toString()}`, { credentials: 'include' })
             if (!res.ok) throw new Error('Failed to fetch')
             const json = await res.json()
             records.value = json.data || json.user_management || []
+            // normalize tooltip & label for files and email
+            try {
+                if (Array.isArray(records.value)) {
+                    records.value = records.value.map(r => {
+                        const out = { ...r }
+
+                        // Files audio: backend returns comma-separated names or may be empty
+                        const rawFiles = (r.files_audio || '')
+                        let fileList = []
+                        if (Array.isArray(rawFiles)) fileList = rawFiles
+                        else if (typeof rawFiles === 'string') {
+                            // split by comma, then trim
+                            fileList = rawFiles.split(',').map(s => s.trim()).filter(Boolean)
+                        }
+                        const fcount = fileList.length
+                        if (fcount === 0 && rawFiles && typeof rawFiles === 'object') {
+                            // fallback if server returned object-like
+                            try { fileList = JSON.parse(String(rawFiles)) } catch (e) { }
+                        }
+                        const filesTooltip = fcount > 1 ? ('File name:\n' + fileList.map(x => `- ${x}`).join('\n')) : (fileList[0] || '')
+                        out.files_audio = filesTooltip
+                        out.files_audio_label = `Files Audio (${fcount})`
+
+                        // Email: may be stored like {"a","b"} or comma-separated
+                        const rawEmail = r.email || ''
+                        let emailList = []
+                        if (Array.isArray(rawEmail)) emailList = rawEmail
+                        else if (typeof rawEmail === 'string') {
+                            // remove surrounding braces and quotes then split
+                            const cleaned = rawEmail.replace(/[{}"]+/g, '')
+                            emailList = cleaned.split(/[,;\n\r]+/).map(s => s.trim()).filter(Boolean)
+                        }
+                        const ecount = emailList.length
+                        const emailTooltip = ecount > 1 ? ('Email:\n' + emailList.map(x => `- ${x}`).join('\n')) : (emailList[0] || rawEmail || '')
+                        out.email = emailTooltip
+                        out.email_label = ecount >= 1 ? `Email (${ecount})` : 'None'
+
+                        return out
+                    })
+                }
+            } catch (e) { console.error('normalize tooltip error', e) }
+
+            // Build ticketOptions and createdByOptions from returned records
+            try {
+                const ticketSet = new Set()
+                const creatorSet = new Set()
+                const tOpts = [{ label: 'All Tickets', value: 'all' }]
+                const cOpts = [{ label: 'All Create', value: 'all' }]
+                if (Array.isArray(records.value)) {
+                    for (const r of records.value) {
+                        const code = r.code || r.id || ''
+                        if (code && !ticketSet.has(code)) {
+                            ticketSet.add(code)
+                            tOpts.push({ label: String(code), value: code })
+                        }
+
+                        const creatorRaw = r.create_by || r.create_by || ''
+                        let creatorVal = ''
+                        if (creatorRaw && typeof creatorRaw === 'object') {
+                            creatorVal = creatorRaw.username || `${creatorRaw.first_name || ''} ${creatorRaw.last_name || ''}`.trim() || JSON.stringify(creatorRaw)
+                        } else {
+                            creatorVal = String(creatorRaw || '')
+                        }
+                        if (creatorVal && !creatorSet.has(creatorVal)) {
+                            creatorSet.add(creatorVal)
+                            cOpts.push({ label: creatorVal, value: creatorVal })
+                        }
+                    }
+                }
+                ticketOptions.value = tOpts
+                createdByOptions.value = cOpts
+            } catch (e) {
+                console.error('build options error', e)
+            }
             totalItems.value = json.recordsFiltered ?? json.recordsTotal ?? (Array.isArray(records.value) ? records.value.length : 0)
         } catch (e) {
             console.error('fetchData error', e)
@@ -144,10 +219,10 @@ export function useTicketHistory() {
 
     const resetFilters = () => {
         try {
-            filters.ticket_id = []
+            filters.ticketID = []
             filters.full_name = []
             filters.action = []
-            filters.created_by = ''
+            filters.createdBy = ''
             filters.start_date = ''
             filters.exprie_date = ''
             filters.status = []
@@ -208,6 +283,8 @@ export function useTicketHistory() {
         perPage,
         currentPage,
         filters,
+        ticketOptions,
+        createdByOptions,
         startInput,
         endInput,
         searchInputRef,

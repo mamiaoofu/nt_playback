@@ -48,7 +48,7 @@
 
                 <div class="permissions-grid-2">
                     <div v-if="selectionType === 'user'" class="input-group">
-                        <CustomSelect v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
+                        <CustomSelect class="select-checkbox" v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
                     </div>
 
                     <div v-else class="input-group" v-has-value>
@@ -121,7 +121,7 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear <strong style="color:#2563eb">{{ resultData.recipient }}</strong>,</p>
+                        <p style="margin:0 0 8px 0">Dear Sir,</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on NT Audio Search.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
@@ -145,7 +145,7 @@
                         <p style="margin:0">User <strong style="color:#2563eb">{{ resultData.recipient }}</strong> created successfully!</p>
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
-                        <p>Dear {{ resultData.recipient }},</p>
+                        <p>Dear Sir,</p>
                         <p>Files are shared so you can listen to specific audio records on <br> NT Audio Search.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div><strong>Valid Start:</strong> {{ resultData.validStart }}</div>
@@ -163,7 +163,8 @@
 
             <div v-if="resultType === 'ticket'">
                 <div class="modal-footer btn-file-share" style="justify-content: space-between;">
-                    <button class="btn-role btn-secondary" @click="sendResultByEmail"><i class="fa-regular fa-envelope" style="font-size: 12px;"></i>Send email</button>
+                    <button class="btn-role btn-secondary" @click="copyCardContent"><i class="fa-regular fa-copy" style="font-size: 12px;"></i> Copy form</button>
+                    <button class="btn-role btn-primary" @click="sendResultByEmail"><i class="fa-regular fa-envelope" style="font-size: 12px;"></i> Send email</button>
                 </div>
             </div>
             <div v-else>
@@ -329,10 +330,19 @@ function closeResult() {
 
 async function sendResultByEmail() {
     try {
+        // prefer explicit email input if user still has it
+        const source = emailTicket.value || resultData.value.recipient || ''
+        // split by comma, semicolon or newlines and trim
+        const recipients = source.split(/[,;\n\r]+/).map(s => s.trim()).filter(Boolean)
+        if (!recipients.length) {
+            await notify('Failed to send email', 'No recipient specified', 'error')
+            return closeResult()
+        }
+
         const payload = {
-                recipient: resultData.value.recipient,
-                subject: resultType.value === 'ticket' ? `Ticket ${resultData.value.ticketCode}` : 'Files shared with you',
-                body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`
+            recipient: recipients,
+            subject: resultType.value === 'ticket' ? `Ticket ${resultData.value.ticketCode}` : 'Files shared with you',
+            body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`
         }
             // prefer HTML content from the rendered card if present
             try {
@@ -358,6 +368,41 @@ async function sendResultByEmail() {
         console.error('sendResultByEmail error', e)
         await notify('Failed to send email', e.message, 'error')
         closeResult()
+    }
+}
+
+async function copyCardContent() {
+    try {
+        // Prefer the ticket card, fallback to generic card
+        const card = document.querySelector('#fileShareResult .card-detail-to') || document.querySelector('.card-detail-to') || document.querySelector('#fileShareResult .card') || document.querySelector('.card')
+        if (!card) {
+            await notify('No content', 'No card content to copy', 'error')
+            return
+        }
+
+        const text = card.innerText.trim()
+        if (!text) {
+            await notify('No content', 'Card is empty', 'error')
+            return
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text)
+        } else {
+            const ta = document.createElement('textarea')
+            ta.value = text
+            ta.style.position = 'fixed'
+            ta.style.left = '-9999px'
+            document.body.appendChild(ta)
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+        }
+
+        await notify('Copied', 'Form copied to clipboard', 'success')
+    } catch (e) {
+        console.error('copyCardContent error', e)
+        await notify('Failed to copy', e.message || String(e), 'error')
     }
 }
 

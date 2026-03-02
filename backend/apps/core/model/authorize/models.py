@@ -165,6 +165,7 @@ class UserFileShare(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='user_id', db_column='user_id', related_name='file_shares')
     type = models.CharField(max_length=255, verbose_name='type')
     code = models.CharField(max_length=255, verbose_name='code')
+    email = models.TextField(verbose_name='email')
     audiofile_id = models.TextField(verbose_name='audiofile_id')
     start_at = models.DateTimeField(verbose_name='start_at')
     expire_at = models.DateTimeField(verbose_name='expire_at')

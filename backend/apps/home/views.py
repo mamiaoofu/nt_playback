@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 import json
+import re
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 
@@ -75,15 +76,50 @@ def ApiSendShareEmail(request):
         html_message = data.get('html')
         if not recipient:
             return JsonResponse({'ok': False, 'error': 'recipient required'}, status=400)
+
+        # Normalize recipient(s) to a list of email strings
+        recipients = []
+        if isinstance(recipient, (list, tuple)):
+            recipients = [r for r in recipient if r]
+        elif isinstance(recipient, str):
+            # allow comma/semicolon/newline separated lists
+            parts = [p.strip() for p in re.split('[,;\n\r]+', recipient) if p.strip()]
+            recipients = parts
+        else:
+            return JsonResponse({'ok': False, 'error': 'invalid recipient format'}, status=400)
+
+        if not recipients:
+            return JsonResponse({'ok': False, 'error': 'no recipients found'}, status=400)
+
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', getattr(settings, 'EMAIL_HOST_USER', None))
 
-        if html_message:
-            # send multipart email with HTML alternative
-            msg = EmailMultiAlternatives(subject, text_message or '', from_email, [recipient])
-            msg.attach_alternative(html_message, 'text/html')
-            msg.send(fail_silently=False)
-        else:
-            send_mail(subject, text_message, from_email, [recipient], fail_silently=False)
+        # send emails in parallel to reduce total latency
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        errors = []
+
+        def _send_single(to_addr):
+            try:
+                if html_message:
+                    msg = EmailMultiAlternatives(subject, text_message or '', from_email, [to_addr])
+                    msg.attach_alternative(html_message, 'text/html')
+                    msg.send(fail_silently=False)
+                else:
+                    send_mail(subject, text_message, from_email, [to_addr], fail_silently=False)
+                return True, None
+            except Exception as e:
+                return False, str(e)
+
+        max_workers = min(10, len(recipients))
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(_send_single, r): r for r in recipients}
+            for fut in as_completed(futures):
+                ok, err = fut.result()
+                if not ok:
+                    errors.append({'recipient': futures[fut], 'error': err})
+
+        if errors:
+            return JsonResponse({'ok': False, 'errors': errors}, status=500)
 
         return JsonResponse({'ok': True})
     except Exception as e:
@@ -755,24 +791,52 @@ def ApiCreateFileShare(request):
         audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
 
         if target_type == 'user':
-            auth_user = User.objects.filter(username=target).first()
-            if not auth_user:
-                return JsonResponse({'ok': False, 'message': 'No user found in the system.'}, status=404)
+            # Accept single username or list of usernames (or delimited string)
+            targets = []
+            if isinstance(target, (list, tuple)):
+                targets = [t for t in target if t]
+            elif isinstance(target, str):
+                # try parse JSON list first
+                try:
+                    parsed = json.loads(target)
+                    if isinstance(parsed, list):
+                        targets = [str(t) for t in parsed if t]
+                    else:
+                        targets = [target]
+                except Exception:
+                    targets = [t.strip() for t in re.split('[,;\n\r]+', target) if t.strip()]
+            else:
+                return JsonResponse({'ok': False, 'message': 'Invalid target format'}, status=400)
 
+            if not targets:
+                return JsonResponse({'ok': False, 'message': 'No target specified'}, status=400)
+
+            missing = []
+            created_count = 0
             with transaction.atomic():
-                UserFileShare.objects.create(
-                    user=auth_user,
-                    type='user',
-                    code='',
-                    audiofile_id=audio_ids_str,
-                    start_at=start_dt or timezone.now(),
-                    expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
-                    status=1,
-                    dowload=bool(download),
-                    create_by=request.user
-                )
+                for uname in targets:
+                    auth_user = User.objects.filter(username=uname).first()
+                    if not auth_user:
+                        missing.append(uname)
+                        continue
 
-            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | file_id = {audio_ids_str} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+                    UserFileShare.objects.create(
+                        user=auth_user,
+                        type='user',
+                        code='',
+                        audiofile_id=audio_ids_str,
+                        start_at=start_dt or timezone.now(),
+                        expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                        status=1,
+                        dowload=bool(download),
+                        create_by=request.user
+                    )
+                    created_count += 1
+
+            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+
+            if missing:
+                return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'} )
 
             return JsonResponse({'ok': True, 'message': 'The file has been successfully shared with the users.'})
 
@@ -783,11 +847,24 @@ def ApiCreateFileShare(request):
                 return JsonResponse({'ok': False, 'message': 'Ticket information is incomplete. (ticketCode/password)'}, status=400)
 
             with transaction.atomic():
+                # normalize target which may contain multiple emails
+                recipients = []
+                if isinstance(target, str) and target.strip():
+                    recipients = [p.strip() for p in re.split('[,;\n\r]+', target) if p.strip()]
+
+                # build Postgres-style set string: {"a","b"}
+                if recipients:
+                    email_set = "{" + ",".join([f'"{r}"' for r in recipients]) + "}"
+                    primary_email = recipients[0]
+                else:
+                    email_set = target or ''
+                    primary_email = target or ''
+
                 new_user = User.objects.create(
                     username=ticket_code,
                     first_name=ticket_code,
                     last_name=ticket_code,
-                    email=target or '',
+                    email=primary_email,
                     is_active=True,
                     is_staff=False,
                     is_superuser=False
@@ -811,6 +888,7 @@ def ApiCreateFileShare(request):
                 UserFileShare.objects.create(
                     user=new_user,
                     type='ticket',
+                    email=email_set,
                     code=ticket_code,
                     audiofile_id=audio_ids_str,
                     start_at=start_dt or timezone.now(),
@@ -820,7 +898,7 @@ def ApiCreateFileShare(request):
                     create_by=request.user
                 )
 
-            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | file_id = {audio_ids_str} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
             return JsonResponse({'ok': True, 'message': 'Ticket created and file shared successfully.', 'ticketCode': ticket_code, 'password': password})
 
