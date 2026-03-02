@@ -139,7 +139,7 @@
         </div>
         <div :class="authStore.hasPermission('Query Audio') ? 'col-lg-10' : 'col-lg-12'">
           <div class="card">
-            <div class="card-body card-body-datatable">
+            <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
                 <div class="d-flex align-items-center">
                   <div class="d-flex align-items-center justify-content-center me-1"

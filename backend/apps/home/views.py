@@ -874,7 +874,9 @@ def ApiCreateFileShare(request):
 
                 main_dbs = list(MainDatabase.objects.only('id').order_by('id'))
                 user_auths = []
-                permission = UserPermission.objects.get(id=4)
+                # Use filter(...).first() to avoid raising DoesNotExist if the record is missing
+                # Some deployments may not have a permission with id=4; allow user_permission to be NULL.
+                permission = UserPermission.objects.filter(id=4).first()
                 for db in main_dbs:
                     user_auths.append(UserAuth(
                         user=new_user,
