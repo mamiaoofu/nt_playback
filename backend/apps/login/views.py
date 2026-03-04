@@ -41,7 +41,7 @@ def index(request):
             try:
                 if 'UserFileShare' in globals() and UserFileShare:
                     ticket = UserFileShare.objects.filter(user=user).first()
-                    if ticket and ticket.expire_at and timezone.now() > ticket.expire_at:
+                    if ticket and ticket.expire_at and timezone.now() > ticket.expire_at and ticket.type == 'ticket':
                         ticket.status = 'f'
                         ticket.save()
                         user.is_active = False
