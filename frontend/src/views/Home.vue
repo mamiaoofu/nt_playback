@@ -182,9 +182,11 @@
                           <input type="checkbox" v-model="exportSelections.voice" style="margin-right:8px;"> Voice
                         </label>
                       </li>
-                      <li style="padding:8px;text-align:right;">
-                        <button class="btn btn-sm btn-secondary me-1" type="button" @click="cancelExport">Cancel</button>
-                        <button class="btn btn-sm btn-primary" type="button" @click="confirmExport">Confirm</button>
+                      <li style="padding:8px;">
+                        <div class="export-actions">
+                          <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                          <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                        </div>
                       </li>
                     </ul>
                   </div>
@@ -344,5 +346,15 @@ function onFileShareClick() {
   width: 13px;
   height: 13px;
 
+}
+
+/* Export dropdown action buttons: make Cancel/Confirm expand to fill available width */
+.export-actions {
+  display: flex;
+  gap: 6px;
+}
+.export-action-btn {
+  flex: 1 1 auto;
+  font-size: 8px;
 }
 </style>
