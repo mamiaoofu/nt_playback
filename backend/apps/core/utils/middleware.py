@@ -24,7 +24,8 @@ class DynamicDBHostMiddleware(MiddlewareMixin):
 	_postgres_password = os.environ.get('POSTGRES_PASSWORD')
 
 	_postgres_host_dev = os.environ.get('POSTGRES_HOST_DEV') or 'host.docker.internal'
-	_postgres_password_dev = os.environ.get('POSTGRES_PASSWORD_DEV')
+	# _postgres_password_dev = os.environ.get('POSTGRES_PASSWORD_DEV')
+	_postgres_password_dev = ''
 
 	POSTGRES_PORT = os.environ.get('POSTGRES_PORT')
 
