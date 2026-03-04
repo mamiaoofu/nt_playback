@@ -161,3 +161,22 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user_code} - {self.user.first_name} {self.user.last_name}"
         
+class UserFileShare(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='user_id', db_column='user_id', related_name='file_shares')
+    type = models.CharField(max_length=255, verbose_name='type')
+    code = models.CharField(max_length=255, verbose_name='code')
+    email = models.TextField(verbose_name='email')
+    audiofile_id = models.TextField(verbose_name='audiofile_id')
+    start_at = models.DateTimeField(verbose_name='start_at')
+    expire_at = models.DateTimeField(verbose_name='expire_at')
+    status = models.BooleanField(verbose_name='status',default=True)
+    # phone = models.CharField(max_length=255, verbose_name='phone')
+    dowload = models.BooleanField(verbose_name='dowload',default=False)
+    create_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='create_by', db_column='create_by',related_name='created_file_shares')
+    create_at = models.DateTimeField(auto_now_add=True)
+    update_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'tb_file_share'
+        ordering = ['-update_at']
+        verbose_name = 'User File Share'

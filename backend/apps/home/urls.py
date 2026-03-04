@@ -13,5 +13,6 @@ urlpatterns = [
     path('api/get/csrf/', views.ApiGetCsrfToken, name='ApiGetCsrfToken'),
 	path('api/my-permissions/', views.ApiGetMyPermissions, name='ApiGetMyPermissions'),
 	path('api/send-share-email/', views.ApiSendShareEmail, name='ApiSendShareEmail'),
+	path('api/file-share/create/', views.ApiCreateFileShare, name='ApiCreateFileShare'),
 ]
 

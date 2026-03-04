@@ -32,7 +32,7 @@
                 <template v-else-if="col.tooltip">
                   <div class="file-name-cell" :class="{ 'is-active': tooltipIndex === idx }"
                     @mouseenter="onTooltipEnter($event, idx, r[col.key])" @mouseleave="onTooltipLeave">
-                    <span class="truncated">{{ truncate(r[col.key], 50) }}</span>
+                    <span class="truncated">{{ col.labelKey ? (r[col.labelKey] || '') : truncate(r[col.key], 50) }}</span>
                   </div>
                 </template>
                 <template v-else-if="callDirectionKey && col.key === callDirectionKey">
@@ -63,6 +63,17 @@
                     </button>
                   </div>
                 </template>
+                <template v-else-if="col.key === 'status'">
+                  <template v-if="r[col.key] === true || String(r[col.key]).toLowerCase() === 'true'">
+                    <span class="badge badge-success">Active</span>
+                  </template>
+                  <template v-else-if="r[col.key] === false || String(r[col.key]).toLowerCase() === 'false'">
+                    <span class="badge badge-danger">Expired</span>
+                  </template>
+                  <template v-else>
+                    {{ r[col.key] }}
+                  </template>
+                </template>
                 <template v-else>{{ r[col.key] }}</template>
               </slot>
             </td>
@@ -81,13 +92,16 @@
       :style="tooltipStyle" @mouseenter="cancelHide" @mouseleave="onTooltipLeave" @mousedown.stop @mouseup.stop
       @click.stop>
       <div class="tooltip-arrow"></div>
-      <div class="tooltip-inner d-flex align-items-center">
-        <span class="file-full me-2">{{ tooltipText }}</span>
-        <button class="btn btn-sm btn-outline-secondary btn-copy" @click="copyFileName(tooltipText, tooltipIndex)"
-          :aria-label="copiedIndex === tooltipIndex ? 'Copied' : 'Copy'">
-          <i :class="copiedIndex === tooltipIndex ? 'fa-solid fa-check' : 'fa-regular fa-copy'"></i>
-        </button>
-      </div>
+          <div class="tooltip-inner d-flex align-items-center">
+            <div class="file-content me-2">
+              <div v-if="tooltipHeader" class="file-name-header">{{ tooltipHeader }}</div>
+              <div class="file-full">{{ tooltipBody }}</div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary btn-copy" @click="copyFileName(tooltipText, tooltipIndex)"
+              :aria-label="copiedIndex === tooltipIndex ? 'Copied' : 'Copy'">
+              <i :class="copiedIndex === tooltipIndex ? 'fa-solid fa-check' : 'fa-regular fa-copy'"></i>
+            </button>
+          </div>
     </div>
   </teleport>
   <div class="d-flex justify-content-between align-items-center mt-2 pagination-div">
@@ -173,6 +187,26 @@ const tooltipEl = ref(null)
 const tooltipPlacement = ref('top')
 let hideTimer = null
 const copiedIndex = ref(null)
+
+const tooltipHeader = computed(() => {
+  const text = tooltipText.value || ''
+  if (!text) return ''
+  const parts = String(text).split(/\r?\n/)
+  const first = parts[0] || ''
+  const lower = first.toLowerCase()
+  if (parts.length > 1 && (lower.startsWith('file name') || lower.startsWith('email'))) return first
+  return ''
+})
+
+const tooltipBody = computed(() => {
+  const text = tooltipText.value || ''
+  if (!text) return ''
+  const parts = String(text).split(/\r?\n/)
+  const first = parts[0] || ''
+  const lower = first.toLowerCase()
+  if (parts.length > 1 && (lower.startsWith('file name') || lower.startsWith('email'))) return parts.slice(1).join('\n')
+  return text
+})
 
 // per-page dropdown state (local UI)
 const perWrap = ref(null)
@@ -515,9 +549,10 @@ const getSortIcon = (key) => {
   pointer-events: auto;
 }
 
-.file-name-tooltip .tooltip-inner {
+  .file-name-tooltip .tooltip-inner {
   max-width: 760px;
-  white-space: normal;
+  /* Preserve newlines and allow wrapping */
+  white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
   color: #fff;
@@ -526,6 +561,24 @@ const getSortIcon = (key) => {
   padding: 6px 8px;
   border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  /* Ensure text is left-aligned and breaks nicely */
+  text-align: left;
+  word-break: break-word;
+}
+
+.file-name-tooltip .file-full {
+  display: block;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 720px;
+}
+
+.file-name-tooltip .file-name-header {
+  font-weight: 700;
+  margin-bottom: 5px;
+  text-align: left;
+  font-size: 12px;
 }
 
 .file-name-tooltip .tooltip-arrow {

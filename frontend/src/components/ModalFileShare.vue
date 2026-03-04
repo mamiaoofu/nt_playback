@@ -48,7 +48,7 @@
 
                 <div class="permissions-grid-2">
                     <div v-if="selectionType === 'user'" class="input-group">
-                        <CustomSelect v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
+                        <CustomSelect class="select-checkbox" v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
                     </div>
 
                     <div v-else class="input-group" v-has-value>
@@ -62,12 +62,26 @@
                         <div v-show="errors.period" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This field is required.</div>
                     </div>
                 </div>
+
+                <div class="mt-3">
+                    <label class="form-label">Download</label>
+
+                    <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
+                            <label class="form-check-label" for="permissionsYesDownload">Yes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="permissionsNoDownload" value="false" v-model="permissions">
+                            <label class="form-check-label" for="permissionsNoDownload">No</label>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="modal-footer">
                 <button class="btn-role btn-secondary" @click="close"><i class="fas fa-times"></i> Cancel</button>
-                <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i
-                        class="fa-solid fa-plus"></i> Create</button>
+                <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i class="fa-solid fa-plus"></i> Create</button>
             </div>
         </div>
 
@@ -107,7 +121,7 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear <strong style="color:#2563eb">{{ resultData.recipient }}</strong>,</p>
+                        <p style="margin:0 0 8px 0">Dear Sir,</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on NT Audio Search.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
@@ -131,7 +145,7 @@
                         <p style="margin:0">User <strong style="color:#2563eb">{{ resultData.recipient }}</strong> created successfully!</p>
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
-                        <p>Dear {{ resultData.recipient }},</p>
+                        <p>Dear Sir,</p>
                         <p>Files are shared so you can listen to specific audio records on <br> NT Audio Search.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div><strong>Valid Start:</strong> {{ resultData.validStart }}</div>
@@ -147,19 +161,29 @@
                 </div>
             </div>
 
-            <div class="modal-footer btn-file-share" style="justify-content: space-between;">
-                <button class="btn-role btn-secondary" @click="sendResultByEmail"><i class="fa-regular fa-envelope" style="font-size: 12px;"></i>Send email</button>
-                <button class="btn-role btn-primary" @click="closeResult">OK</button>
+            <div v-if="resultType === 'ticket'">
+                <div class="modal-footer btn-file-share" style="justify-content: space-between;">
+                    <button class="btn-role btn-secondary" @click="copyCardContent"><i class="fa-regular fa-copy" style="font-size: 12px;"></i> Copy form</button>
+                    <button class="btn-role btn-primary" @click="sendResultByEmail"><i class="fa-regular fa-envelope" style="font-size: 12px;"></i> Send email</button>
+                </div>
             </div>
+            <div v-else>
+                <div class="modal-footer btn-file-share" style="justify-content: space-between;">
+                    <button class="btn-role btn-primary" @click="closeResult">OK</button>
+                </div>
+            </div>
+            
         </div>
     </div>
+
+    <!-- Modal Share error  -->
 </template>
 
 
 <script setup>
 import { defineProps, defineEmits, ref, reactive, onMounted, watch, nextTick } from 'vue'
 import CustomSelect from './CustomSelect.vue'
-import { API_GET_USER_ALL } from '../api/paths'
+import { API_GET_USER_ALL, API_CREATE_FILE_SHARE } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/css/modal-favorite.css'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
@@ -170,6 +194,7 @@ const emit = defineEmits(['update:modelValue', 'share'])
 const selectionType = ref('user')
 const shareUser = ref('')
 const userOptions = ref([])
+const permissions = ref('false')
 // fetch users to populate select
 const fetchUsers = async () => {
     try {
@@ -223,37 +248,80 @@ function genPassword() {
 
 function close() { emit('update:modelValue', false) }
 
-function onCreate() {
+async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
-    // emit for parent/backend
+    
+    if (!targetValue) {
+        showToast('Please specify a target.', 'warning')
+        return
+    }
+    if (!exp.period_start || !exp.period_end) {
+        errors.period = true
+        return
+    }
 
     const validStartRaw = exp.period_start 
     const validExpireRaw = exp.period_end 
 
-    emit('share', { files: props.files, targetType: selectionType.value, target: targetValue, start: validStartRaw, expire: validExpireRaw })
-
+    let tCode = ''
+    let tPass = ''
 
     if (selectionType.value === 'ticket') {
-        resultType.value = 'ticket'
-        resultData.value = {
-            recipient: emailTicket.value,
-            ticketCode: genTicketCode(),
-            password: genPassword(),
-            validStart: formatDateOnly(validStartRaw),
-            validExpire: formatDateOnly(validExpireRaw)
-        }
-    } else {
-        resultType.value = 'user'
-        resultData.value = {
-            recipient: shareUser.value,
-            validStart: formatDateOnly(validStartRaw),
-            validExpire: formatDateOnly(validExpireRaw)
-        }
+        tCode = genTicketCode()
+        tPass = genPassword()
     }
 
-    // close share input modal and open result
-    emit('update:modelValue', false)
-    showResult.value = true
+    const payload = {
+        files: props.files,
+        type: selectionType.value,
+        target: targetValue,
+        start: validStartRaw,
+        expire: validExpireRaw,
+        ticketCode: tCode,
+        password: tPass,
+        download: permissions.value === 'true'
+    }
+
+    try {
+        const res = await fetch(API_CREATE_FILE_SHARE(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken() || ''
+            },
+            body: JSON.stringify(payload)
+        })
+        const json = await res.json()
+
+        if (res.ok && json.ok) {
+            if (selectionType.value === 'ticket') {
+                resultType.value = 'ticket'
+                resultData.value = {
+                    recipient: emailTicket.value,
+                    ticketCode: tCode,
+                    password: tPass,
+                    validStart: formatDateOnly(validStartRaw),
+                    validExpire: formatDateOnly(validExpireRaw)
+                }
+            } else {
+                resultType.value = 'user'
+                resultData.value = {
+                    recipient: shareUser.value,
+                    validStart: formatDateOnly(validStartRaw),
+                    validExpire: formatDateOnly(validExpireRaw)
+                }
+            }
+            
+            emit('share', payload)
+            emit('update:modelValue', false)
+            showResult.value = true
+        } else {
+            showToast(json.message || 'Failed to share files', 'error')
+        }
+    } catch (e) {
+        console.error('onCreate share error', e)
+        showToast('An error occurred while sharing', 'error')
+    }
 }
 
 function closeResult() {
@@ -262,10 +330,19 @@ function closeResult() {
 
 async function sendResultByEmail() {
     try {
+        // prefer explicit email input if user still has it
+        const source = emailTicket.value || resultData.value.recipient || ''
+        // split by comma, semicolon or newlines and trim
+        const recipients = source.split(/[,;\n\r]+/).map(s => s.trim()).filter(Boolean)
+        if (!recipients.length) {
+            await notify('Failed to send email', 'No recipient specified', 'error')
+            return closeResult()
+        }
+
         const payload = {
-                recipient: resultData.value.recipient,
-                subject: resultType.value === 'ticket' ? `Ticket ${resultData.value.ticketCode}` : 'Files shared with you',
-                body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`
+            recipient: recipients,
+            subject: resultType.value === 'ticket' ? `Ticket ${resultData.value.ticketCode}` : 'Files shared with you',
+            body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`
         }
             // prefer HTML content from the rendered card if present
             try {
@@ -291,6 +368,41 @@ async function sendResultByEmail() {
         console.error('sendResultByEmail error', e)
         await notify('Failed to send email', e.message, 'error')
         closeResult()
+    }
+}
+
+async function copyCardContent() {
+    try {
+        // Prefer the ticket card, fallback to generic card
+        const card = document.querySelector('#fileShareResult .card-detail-to') || document.querySelector('.card-detail-to') || document.querySelector('#fileShareResult .card') || document.querySelector('.card')
+        if (!card) {
+            await notify('No content', 'No card content to copy', 'error')
+            return
+        }
+
+        const text = card.innerText.trim()
+        if (!text) {
+            await notify('No content', 'Card is empty', 'error')
+            return
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text)
+        } else {
+            const ta = document.createElement('textarea')
+            ta.value = text
+            ta.style.position = 'fixed'
+            ta.style.left = '-9999px'
+            document.body.appendChild(ta)
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+        }
+
+        await notify('Copied', 'Form copied to clipboard', 'success')
+    } catch (e) {
+        console.error('copyCardContent error', e)
+        await notify('Failed to copy', e.message || String(e), 'error')
     }
 }
 

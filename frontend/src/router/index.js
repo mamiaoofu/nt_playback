@@ -19,6 +19,7 @@ const routes = [
 	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Logs' } },
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
+	{ path: '/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
 
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },

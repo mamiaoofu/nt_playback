@@ -18,7 +18,7 @@ def get_user_actions(user):
         # fall back to normal path on any error
         pass
 
-    qs = UserAuth.objects.filter(user=user, allow=True, user_permission__isnull=False).select_related('user_permission')
+    qs = UserAuth.objects.filter(user=user, user_permission__isnull=False).select_related('user_permission')
     actions = set()
     for ua in qs:
         details = UserPermissionDetail.objects.filter(user_permission=ua.user_permission, status=True).values_list('action', flat=True)

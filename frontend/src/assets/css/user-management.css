@@ -147,15 +147,34 @@ div.dataTables_wrapper div.dataTables_paginate ul.pagination {
 
 .file-name-tooltip .tooltip-inner {
     max-width: 760px;
-    white-space: normal;
+    /* Preserve newlines and allow wrapping */
+    white-space: pre-wrap;
     overflow: visible;
     text-overflow: clip;
     color: #fff;
-    font-size: 10px;
+    font-size: 12px;
     background: rgba(0, 0, 0, 0.85);
     padding: 6px 8px;
     border-radius: 6px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    /* Ensure text is left-aligned and breaks nicely */
+    text-align: left;
+    word-break: break-word;
+}
+
+.file-name-tooltip .file-full {
+    display: block;
+    text-align: left;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-width: 720px;
+}
+
+.file-name-tooltip .file-name-header {
+    font-weight: 700;
+    margin-bottom: 5px;
+    text-align: left;
+    font-size: 12px;
 }
 
 .file-name-tooltip .tooltip-arrow {

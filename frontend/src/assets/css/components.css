@@ -348,7 +348,7 @@
 .filter-card {
   overflow-x: auto;
   max-height: 70%;
-  height: calc(100vh - 346px);
+  height: calc(100vh - 396px);
   padding-right: 6px; /* reserve space so scrollbar doesn't overlap inputs */
   padding-left: 4px;
   scrollbar-gutter: stable; /* reserve scrollbar gutter when supported */

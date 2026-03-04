@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 import json
+import re
 from django.core.mail import send_mail
 from django.core.mail import EmailMultiAlternatives
 
@@ -16,14 +17,17 @@ from django.utils import timezone
 from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
-from apps.core.utils.function import create_user_log, get_user_os_browser_architecture
+from apps.core.utils.function import create_user_log
 
 from apps.core.utils.permissions import get_user_actions, require_action
 # models
-from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserLog,UserProfile,Agent
+from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
+from django.contrib.auth.models import User
+from django.db import transaction
 from .models import FavoriteSearch, SetColumnAudioRecord, ConfigKey
 from .serializers import FavoriteSearchSerializer
+from apps.configuration.models import UserPermission
 
 #serializer
 from apps.core.model.authorize.serializers import MainDatabaseSerializer
@@ -72,15 +76,50 @@ def ApiSendShareEmail(request):
         html_message = data.get('html')
         if not recipient:
             return JsonResponse({'ok': False, 'error': 'recipient required'}, status=400)
+
+        # Normalize recipient(s) to a list of email strings
+        recipients = []
+        if isinstance(recipient, (list, tuple)):
+            recipients = [r for r in recipient if r]
+        elif isinstance(recipient, str):
+            # allow comma/semicolon/newline separated lists
+            parts = [p.strip() for p in re.split('[,;\n\r]+', recipient) if p.strip()]
+            recipients = parts
+        else:
+            return JsonResponse({'ok': False, 'error': 'invalid recipient format'}, status=400)
+
+        if not recipients:
+            return JsonResponse({'ok': False, 'error': 'no recipients found'}, status=400)
+
         from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', getattr(settings, 'EMAIL_HOST_USER', None))
 
-        if html_message:
-            # send multipart email with HTML alternative
-            msg = EmailMultiAlternatives(subject, text_message or '', from_email, [recipient])
-            msg.attach_alternative(html_message, 'text/html')
-            msg.send(fail_silently=False)
-        else:
-            send_mail(subject, text_message, from_email, [recipient], fail_silently=False)
+        # send emails in parallel to reduce total latency
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        errors = []
+
+        def _send_single(to_addr):
+            try:
+                if html_message:
+                    msg = EmailMultiAlternatives(subject, text_message or '', from_email, [to_addr])
+                    msg.attach_alternative(html_message, 'text/html')
+                    msg.send(fail_silently=False)
+                else:
+                    send_mail(subject, text_message, from_email, [to_addr], fail_silently=False)
+                return True, None
+            except Exception as e:
+                return False, str(e)
+
+        max_workers = min(10, len(recipients))
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(_send_single, r): r for r in recipients}
+            for fut in as_completed(futures):
+                ok, err = fut.result()
+                if not ok:
+                    errors.append({'recipient': futures[fut], 'error': err})
+
+        if errors:
+            return JsonResponse({'ok': False, 'errors': errors}, status=500)
 
         return JsonResponse({'ok': True})
     except Exception as e:
@@ -122,7 +161,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Query Audio')
+@require_action('Playback Audio')
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
@@ -142,10 +181,13 @@ def ApiGetAudioList(request):
     set_audio = SetAudio.objects.filter(user=request.user).first()
     main_db_id = UserAuth.objects.filter(user=request.user, allow=True).values_list("maindatabase_id", flat=True)
 
-    audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer") \
-        .filter(main_db__in=main_db_id)
+    # Check for file_share parameter or ticket user
+    is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
     
-    # audio_list = ViewAudio.objects.all()
+    if is_ticket :
+        audio_list = AudioInfo.objects.filter()
+    else :
+        audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(main_db__in=main_db_id)
 
     # ฟิลเตอร์จาก request.form หรือ request.GET
     database_name = request.POST.get("database_name") or request.GET.get("database_name")  
@@ -164,6 +206,33 @@ def ApiGetAudioList(request):
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
+    
+
+
+    if is_ticket or (request.POST.get("file_share") == 'true' or request.GET.get("file_share") == 'true'):
+        try:
+            valid_shares = UserFileShare.objects.filter(user=request.user, expire_at__gte=timezone.now())
+            shared_ids = []
+            
+            for share in valid_shares:
+                if share.audiofile_id:
+                    try:
+                        # Convert {"1","2"} to ["1","2"] for json.loads
+                        json_str = share.audiofile_id.replace('{', '[').replace('}', ']')
+                        ids = json.loads(json_str)
+                        shared_ids.extend(ids)
+                    except Exception:
+                        continue
+            
+            if shared_ids:
+                print("shared_ids:", shared_ids)
+                audio_list = audio_list.filter(audiofile__id__in=shared_ids)
+            else:
+                audio_list = audio_list.none()
+                
+            print("audio_list:", audio_list.query)    
+        except Exception:
+            audio_list = audio_list.none()
     
     now = datetime.now()
     if time_type:
@@ -467,7 +536,7 @@ def ApiGetAudioList(request):
             "agent": agent_display,
             "full_name": full_name,
             "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
-            # "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
+            "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
             "set_audio": set_audio.audio_path if set_audio else None,
             "custom_field_1": custom_field
         })
@@ -492,6 +561,7 @@ def ApiGetMyPermissions(request):
 @login_required(login_url='/login')
 @require_action('My Favorite Search')
 def ApiSaveMyFavoriteSearch(request):
+    
     if request.method == "POST":
         action = request.POST.get("action")
         user = request.user
@@ -624,32 +694,16 @@ def ApiGetCredentials(request):
     try:
         # ดึงข้อมูลโดยใช้ 'type' เพื่อระบุว่าเป็น username หรือ password
         config_key = ConfigKey.objects.get(type='player_connect')
-        info = get_user_os_browser_architecture(request)
-
         credentials = {
             "username": encrypt_credential(config_key.key_username),
             "password": encrypt_credential(config_key.key_password)
         }
         return JsonResponse(credentials)
     except ConfigKey.DoesNotExist:
-        UserLog.objects.create(
-            user=request.user,
-            action="Credentials",
-            detail={"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in ConfigKey."},
-            status="error",
-            client_type=f"{info['os']} / {info['browser']}",
-            ip_address=server_ip,  
-        )
+        create_user_log(user=request.user, action="Credentials", detail={"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in ConfigKey."}, status="error", request=request)
         return JsonResponse({"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in ConfigKey."}, status=500)
     except Exception as e:
-        UserLog.objects.create(
-            user=request.user,
-            action="Credentials",
-            detail={"error": str(e)},
-            status="error",
-            client_type=f"{info['os']} / {info['browser']}",
-            ip_address=server_ip,  
-        )
+        create_user_log(user=request.user, action="Credentials",  detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({"error": str(e)}, status=500)
     
 @login_required
@@ -660,28 +714,12 @@ def ApiLogPlayAudio(request):
     API endpoint สำหรับรับ Log การเล่นไฟล์เสียงจาก Frontend
     """
     try:
-        info = get_user_os_browser_architecture(request)
         data = json.loads(request.body)
-
-        UserLog.objects.create(
-            user=request.user,
-            action="Playback Audio",
-            detail=data.get('detail', ''),
-            status=data.get('status', ''),
-            client_type=f"{info['os']} / {info['browser']}",
-            ip_address=server_ip,  
-        )
+        create_user_log(user=request.user, action="Playback Audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
 
         return JsonResponse({"message": "Log received"}, status=201)
     except Exception as e:
-        UserLog.objects.create(
-            user=request.user,
-            action="Playback Audio",
-            detail={"error": str(e)},
-            status="error",
-            client_type=f"{info['os']} / {info['browser']}",
-            ip_address=server_ip,  
-        )
+        create_user_log(user=request.user, action="Playback Audio", detail={"error": str(e)}, status="error", request=request)
         
         return JsonResponse({"error": str(e)}, status=400)
 
@@ -692,28 +730,183 @@ def ApiLogSaveFile(request):
     try:
         data = json.loads(request.body)
         detail = data.get('detail', '')
-        info = get_user_os_browser_architecture(request)
-        UserLog.objects.create(
-            user=request.user,
-            action="Save file",
-            detail=detail,
-            status="success",
-            client_type=f"{info['os']} / {info['browser']}",
-            ip_address=server_ip
-        )
+        create_user_log(user=request.user, action="Save file", detail=detail, status="success", request=request)
         return JsonResponse({"status": "ok"})
     except Exception as e:
         try:
-            info = get_user_os_browser_architecture(request)
-            UserLog.objects.create(
-                user=request.user,
-                action="Save file",
-                detail={"error": str(e)},
-                status="error",
-                client_type=f"{info['os']} / {info['browser']}",
-                ip_address=server_ip
-            )
+            create_user_log(user=request.user, action="Save file", detail={"error": str(e)}, status="error", request=request)
         except Exception:
             # swallow secondary errors when logging fails
             pass
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+    
+@login_required
+@require_POST
+def ApiCreateFileShare(request):
+    try:
+        body = request.body.decode('utf-8') or '{}'
+        data = json.loads(body)
+
+        files = data.get('files', [])
+        target_type = data.get('targetType') or data.get('type')
+        target = data.get('target')
+        start_raw = data.get('start')
+        expire_raw = data.get('expire')
+        download = data.get('download', False)
+
+        if not target_type or not target:
+            return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
+
+        def parse_dt(s):
+            if not s:
+                return None
+            try:
+                dt = datetime.strptime(s, '%Y-%m-%d %H:%M')
+            except Exception:
+                try:
+                    dt = datetime.strptime(s, '%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    try:
+                        dt = datetime.fromisoformat(s)
+                    except Exception:
+                        return None
+            try:
+                if timezone.is_naive(dt):
+                    dt = timezone.make_aware(dt)
+            except Exception:
+                pass
+            return dt
+
+        start_dt = parse_dt(start_raw)
+        expire_dt = parse_dt(expire_raw)
+
+        audio_ids = []
+        for f in files:
+            try:
+                fid = f.get('file_id') if isinstance(f, dict) else f
+                audio_ids.append(int(fid))
+            except Exception:
+                continue
+
+        audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
+
+        if target_type == 'user':
+            # Accept single username or list of usernames (or delimited string)
+            targets = []
+            if isinstance(target, (list, tuple)):
+                targets = [t for t in target if t]
+            elif isinstance(target, str):
+                # try parse JSON list first
+                try:
+                    parsed = json.loads(target)
+                    if isinstance(parsed, list):
+                        targets = [str(t) for t in parsed if t]
+                    else:
+                        targets = [target]
+                except Exception:
+                    targets = [t.strip() for t in re.split('[,;\n\r]+', target) if t.strip()]
+            else:
+                return JsonResponse({'ok': False, 'message': 'Invalid target format'}, status=400)
+
+            if not targets:
+                return JsonResponse({'ok': False, 'message': 'No target specified'}, status=400)
+
+            missing = []
+            created_count = 0
+            with transaction.atomic():
+                for uname in targets:
+                    auth_user = User.objects.filter(username=uname).first()
+                    if not auth_user:
+                        missing.append(uname)
+                        continue
+
+                    UserFileShare.objects.create(
+                        user=auth_user,
+                        type='user',
+                        code='',
+                        audiofile_id=audio_ids_str,
+                        start_at=start_dt or timezone.now(),
+                        expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                        status=1,
+                        dowload=bool(download),
+                        create_by=request.user
+                    )
+                    created_count += 1
+
+            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+
+            if missing:
+                return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'} )
+
+            return JsonResponse({'ok': True, 'message': 'The file has been successfully shared with the users.'})
+
+        if target_type == 'ticket':
+            ticket_code = data.get('ticketCode') or data.get('code')
+            password = data.get('password')
+            if not ticket_code or not password:
+                return JsonResponse({'ok': False, 'message': 'Ticket information is incomplete. (ticketCode/password)'}, status=400)
+
+            with transaction.atomic():
+                # normalize target which may contain multiple emails
+                recipients = []
+                if isinstance(target, str) and target.strip():
+                    recipients = [p.strip() for p in re.split('[,;\n\r]+', target) if p.strip()]
+
+                # build Postgres-style set string: {"a","b"}
+                if recipients:
+                    email_set = "{" + ",".join([f'"{r}"' for r in recipients]) + "}"
+                    primary_email = recipients[0]
+                else:
+                    email_set = target or ''
+                    primary_email = target or ''
+
+                new_user = User.objects.create(
+                    username=ticket_code,
+                    first_name=ticket_code,
+                    last_name=ticket_code,
+                    email=primary_email,
+                    is_active=True,
+                    is_staff=False,
+                    is_superuser=False
+                )
+                new_user.set_password(password)
+                new_user.save()
+
+                main_dbs = list(MainDatabase.objects.only('id').order_by('id'))
+                user_auths = []
+                # Use filter(...).first() to avoid raising DoesNotExist if the record is missing
+                # Some deployments may not have a permission with id=4; allow user_permission to be NULL.
+                permission = UserPermission.objects.filter(id=4).first()
+                for db in main_dbs:
+                    user_auths.append(UserAuth(
+                        user=new_user,
+                        maindatabase=db,
+                        allow=False,
+                        user_permission=permission
+                    ))
+                if user_auths:
+                    UserAuth.objects.bulk_create(user_auths)
+
+                UserFileShare.objects.create(
+                    user=new_user,
+                    type='ticket',
+                    email=email_set,
+                    code=ticket_code,
+                    audiofile_id=audio_ids_str,
+                    start_at=start_dt or timezone.now(),
+                    expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                    status=True,
+                    dowload=bool(download),
+                    create_by=request.user
+                )
+
+            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+
+            return JsonResponse({'ok': True, 'message': 'Ticket created and file shared successfully.', 'ticketCode': ticket_code, 'password': password})
+
+        create_user_log(user=request.user, action="Create File Share", detail=f"Failed to create file share: Invalid targetType {target_type}", status="error", request=request)
+        return JsonResponse({'ok': False, 'message': 'targetType incorrect'}, status=400)
+    except Exception as e:
+        create_user_log(user=request.user, action="Create File Share", detail=f"Error creating file share: {str(e)}", status="error", request=request)
+        return JsonResponse({'ok': False, 'message': f'error: {str(e)}'}, status=500)
+    
