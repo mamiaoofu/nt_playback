@@ -161,10 +161,31 @@
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
-                    <ul v-show="exportOpen" class="export-dropdown">
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('pdf')">PDF</button></li>
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('excel')">Excel</button></li>
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('csv')">CSV</button></li>
+                    <ul v-show="exportOpen" class="export-dropdown" @click.stop>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.voice" style="margin-right:8px;"> Voice
+                        </label>
+                      </li>
+                      <li style="padding:8px;text-align:right;">
+                        <button class="btn btn-sm btn-secondary me-1" type="button" @click="cancelExport">Cancel</button>
+                        <button class="btn btn-sm btn-primary" type="button" @click="confirmExport">Confirm</button>
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -245,6 +266,7 @@ const {
   durationInput,
   exportWrap,
   exportOpen,
+  exportSelections,
   recentWrap,
   recentOpen,
   recentList,
@@ -284,6 +306,8 @@ const {
   editFavorite,
   deleteFavorite,
   onExportFormat,
+  confirmExport,
+  cancelExport,
   onRowDblClick,
   onRowEdit,
   onRowDelete,

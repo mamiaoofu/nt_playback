@@ -2,7 +2,7 @@ from django.shortcuts import  redirect
 from functools import wraps
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse,HttpResponse
 from django.views.decorators.http import require_POST
 import json
 import re
@@ -18,6 +18,12 @@ from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
 from apps.core.utils.function import create_user_log
+
+import io
+import os
+import mimetypes
+import traceback
+import socket
 
 from apps.core.utils.permissions import get_user_actions, require_action
 # models
@@ -705,6 +711,107 @@ def ApiGetCredentials(request):
     except Exception as e:
         create_user_log(user=request.user, action="Credentials",  detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url='/login')
+@require_action('Playback Audio')
+def ApiProxyAudio(request):
+    """
+    Proxy endpoint to stream audio files from a network share (SMB).
+    Query parameter: file=<file name>
+    """
+    try:
+        fname = request.GET.get('file') or request.POST.get('file')
+        if not fname:
+            return JsonResponse({'error': 'file parameter required'}, status=400)
+
+        # sanitize filename (no path traversal)
+        base = os.path.basename(str(fname))
+        if base != fname and ('..' in fname or '/' in fname or '\\' in fname):
+            # ensure we only allow simple file names
+            base = os.path.basename(base)
+
+        # SMB share configuration (use env/settings with sensible defaults)
+        smb_host = getattr(settings, 'NT_SHARE_HOST')
+        smb_share = getattr(settings, 'NT_SHARE_SHARE')
+        smb_user = getattr(settings, 'NT_SHARE_USER')
+        smb_pass = getattr(settings, 'NT_SHARE_PASS')
+
+        print(f"Proxying audio file: {base} from SMB share {smb_host}/{smb_share} as user {smb_user}")
+
+        # remote path within the share (no leading slash)
+        remote_path = f"Administrator/Desktop/Music/{base}"
+        print(f"Constructed remote path: {remote_path}")
+
+        try:
+            from smb.SMBConnection import SMBConnection
+        except Exception as e:
+            return JsonResponse({'error': 'pysmb not installed on server: ' + str(e)}, status=500)
+
+        # Use a fixed or configurable client name instead of socket.gethostname()
+        client_name = getattr(settings, 'NT_SMB_CLIENT_NAME', 'nt_playback')
+        try:
+            conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
+            connected = conn.connect(smb_host, 445, timeout=10)
+        except Exception as e:
+            tb = traceback.format_exc()
+            err = f'Failed to establish SMB connection: {repr(e)}'
+            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "trace": tb}, status="error", request=request)
+            return JsonResponse({'error': err}, status=502)
+        if not connected:
+            err = 'Failed to connect to SMB host (connect returned False)'
+            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err}, status="error", request=request)
+            return JsonResponse({'error': err}, status=502)
+
+        bio = None
+        attempts = []
+        try:
+            # Try the configured share first, then fall back to admin C$ share
+            shares_to_try = []
+            if smb_share:
+                shares_to_try.append(smb_share)
+            if 'C$' not in [s.upper() for s in shares_to_try]:
+                shares_to_try.append('C$')
+
+            for share in shares_to_try:
+                try:
+                    tmp = io.BytesIO()
+                    # retrieveFile expects path within share without leading slashes
+                    # When connecting to the admin C$ share we must include the top-level folder (e.g. Users/Administrator/...)
+                    if str(share).upper() == 'C$':
+                        rp = remote_path.lstrip('/\\')
+                        if not rp.lower().startswith('users/'):
+                            path_in_share = f'Users/{rp}'
+                        else:
+                            path_in_share = rp
+                    else:
+                        path_in_share = remote_path.lstrip('/\\')
+                    conn.retrieveFile(share, path_in_share, tmp)
+                    tmp.seek(0)
+                    bio = tmp
+                    create_user_log(user=request.user, action="Proxy Audio", detail={"info": f"Read file from share {share}"}, status="success", request=request)
+                    break
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    attempts.append({'share': share, 'error': repr(e), 'trace': tb})
+                    create_user_log(user=request.user, action="Proxy Audio", detail={"error": f"Failed reading from share {share}", "trace": tb}, status="error", request=request)
+            
+            if bio is None:
+                err = f'Failed to read remote file from any share. Attempts: {json.dumps([{"share": a["share"], "error": a["error"]} for a in attempts])}'
+                create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "attempts": attempts}, status="error", request=request)
+                return JsonResponse({'error': err, 'attempts': attempts}, status=502)
+        finally:
+            try: conn.close()
+            except Exception: pass
+
+        bio.seek(0)
+        ctype = mimetypes.guess_type(base)[0] or 'application/octet-stream'
+        response = HttpResponse(bio.read(), content_type=ctype)
+        response['Content-Disposition'] = f'attachment; filename="{base}"'
+        return response
+    except Exception as e:
+        create_user_log(user=request.user, action="Proxy Audio", detail={"error": str(e)}, status="error", request=request)
+        return JsonResponse({'error': str(e)}, status=500)
     
 @login_required
 @require_POST

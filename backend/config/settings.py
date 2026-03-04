@@ -201,6 +201,13 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Network share (SMB) settings used for server-side proxying of audio files
+# Configure these in backend/.env
+NT_SHARE_HOST = os.environ.get('NT_SHARE_HOST')
+NT_SHARE_SHARE = os.environ.get('NT_SHARE_SHARE')
+NT_SHARE_USER = os.environ.get('NT_SHARE_USER')
+NT_SHARE_PASS = os.environ.get('NT_SHARE_PASS')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

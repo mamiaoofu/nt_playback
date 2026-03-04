@@ -173,6 +173,7 @@ export function notification (title, text, icon, showCancelButton){
 
 export async function exportTableToFormat(format, type = 'audio', opts = {}) {
   try {
+    const returnBlob = !!(opts && opts.returnBlob)
     const rows = Array.isArray(opts.rows) ? opts.rows : []
     const columns = Array.isArray(opts.columns) ? opts.columns : []
     const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : 0
@@ -252,6 +253,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const blob = new Blob([html], { type: 'application/vnd.ms-excel' })
       const dateStr = new Date().toISOString().slice(0, 10)
       const fileName = fileTypeName + dateStr + '_' + rangeStart + '-' + rangeEnd + '.xls'
+      if (returnBlob) return { blob, fileName }
       if (window.navigator && window.navigator.msSaveOrOpenBlob) window.navigator.msSaveOrOpenBlob(blob, fileName)
       else {
         const url = URL.createObjectURL(blob)
@@ -283,6 +285,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const dateStr = new Date().toISOString().slice(0, 10)
       const fileName = fileTypeName + dateStr + '_' + rangeStart + '-' + rangeEnd + '.csv'
+      if (returnBlob) return { blob, fileName }
       if (window.navigator && window.navigator.msSaveOrOpenBlob) window.navigator.msSaveOrOpenBlob(blob, fileName)
       else {
         const url = URL.createObjectURL(blob)
@@ -367,6 +370,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
 
       const dateStr = new Date().toISOString().slice(0, 10)
       const fileName = fileTypeName + dateStr + '_' + rangeStart + '-' + rangeEnd + '.pdf'
+      if (returnBlob) {
+        try {
+          const blob = doc.output && typeof doc.output === 'function' ? doc.output('blob') : null
+          if (blob) return { blob, fileName }
+        } catch (e) { console.warn('pdf blob output failed', e) }
+        // fallback to save and return nothing
+      }
       doc.save(fileName)
       return
     }

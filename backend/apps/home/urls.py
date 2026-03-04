@@ -9,6 +9,7 @@ urlpatterns = [
 	path('api/home/edit/my-favorite-search/<int:myfavoriteId>/', views.ApiIndexHome, name='ApiEditMyFavoriteSearch'),
 	path('api/log/play-audio/', views.ApiLogPlayAudio, name='ApiLogPlayAudio'),
 	path('api/get/credentials/', views.ApiGetCredentials, name='ApiGetCredentials'),
+    path('api/audio/proxy/', views.ApiProxyAudio, name='ApiProxyAudio'),
     path('api/log/save-file/', views.ApiLogSaveFile, name='ApiLogSaveFile'),
     path('api/get/csrf/', views.ApiGetCsrfToken, name='ApiGetCsrfToken'),
 	path('api/my-permissions/', views.ApiGetMyPermissions, name='ApiGetMyPermissions'),

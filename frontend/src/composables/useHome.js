@@ -1,10 +1,11 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_CREATE_FILE_SHARE } from '../api/paths'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_CREATE_FILE_SHARE,API_PROXY_AUDIO } from '../api/paths'
 import { ensureCsrf, getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
+import '../assets/js/jszip.min.js'
 import { exportTableToFormat, getCookie, showToast } from '../assets/js/function-all'
 
 export function useHome() {
@@ -47,6 +48,7 @@ export function useHome() {
   const durationInput = ref(null)
   const exportWrap = ref(null)
   const exportOpen = ref(false)
+  const exportSelections = reactive({ pdf: false, excel: false, csv: false, voice: false })
   const recentWrap = ref(null)
   const recentOpen = ref(false)
   const recentList = ref([])
@@ -799,14 +801,216 @@ export function useHome() {
     }
   }
 
-  const onExportFormat = (format) => {
+  const resetExportSelections = () => {
+    exportSelections.pdf = false
+    exportSelections.excel = false
+    exportSelections.csv = false
+    exportSelections.voice = false
+  }
+
+  const onExportFormat = async (formatOrFormats) => {
     if (!canExport.value) return
-    exportTableToFormat(format, 'audio', {
-      rows: paginatedRecords.value || [],
-      columns: columns.value || [],
-      startIndex: startIndex.value || 0,
-      fileNamePrefix: 'audio-records'
-    })
+    let formats = []
+    if (typeof formatOrFormats === 'string') formats = [formatOrFormats]
+    else if (Array.isArray(formatOrFormats)) formats = formatOrFormats
+    else formats = []
+
+    // if voice is requested, ensure at least one row is selected
+    const wantVoice = formats.indexOf('voice') !== -1
+    const selected = selectedFiles.value || []
+    if (wantVoice && (!selected || selected.length === 0)) {
+      showToast('Please select a row to file audio', 'warning')
+      return
+    }
+
+    // Determine whether to use folder-like prefix (best-effort)
+    const multipleOutput = (selected && selected.length > 1) || (formats.length > 1)
+
+    // fileTypeName used for non-audio exports
+    let fileTypeName = 'audio-records_'
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const rangeStart = (startIndex.value || 0) + 1
+    const rangeEnd = (startIndex.value || 0) + (paginatedRecords.value ? (paginatedRecords.value.length || 0) : 0)
+
+    try {
+      // handle voice downloads (non-voice exports will be included in ZIP when possible)
+      if (wantVoice) {
+        const base = getApiBase().replace(/\/$/, '')
+
+        // helper to load external script (JSZip) when needed
+        const loadScript = (src, markerAttr) => new Promise((resolve, reject) => {
+          try {
+            if (window.JSZip) return resolve()
+            if (document.querySelector(`script[${markerAttr}]`)) return resolve()
+            const s = document.createElement('script')
+            s.src = src
+            s.setAttribute(markerAttr, '1')
+            s.onload = () => resolve()
+            s.onerror = () => reject(new Error('Failed to load script: ' + src))
+            document.head.appendChild(s)
+          } catch (e) { reject(e) }
+        })
+
+        // if multiple outputs or many selected files, package into a zip
+        if (multipleOutput && (selected.length > 1)) {
+          try {
+            await import('../assets/js/jszip.min.js')
+          } catch (e) {
+            console.error('Failed to load local JSZip', e)
+            showToast('Failed to prepare ZIP download (library load error)', 'error')
+          }
+
+          if (window.JSZip) {
+            try {
+              const zip = new window.JSZip()
+              let anyFailed = false
+              // include non-voice exports into zip when possible
+              try {
+                const nonVoice = formats.filter(f => f !== 'voice')
+                for (const fmt of nonVoice) {
+                  try {
+                    const res = await exportTableToFormat(fmt, 'audio', {
+                      rows: paginatedRecords.value || [],
+                      columns: columns.value || [],
+                      startIndex: startIndex.value || 0,
+                      fileNamePrefix: 'audio-records',
+                      returnBlob: true
+                    })
+                    if (res && res.blob && res.fileName) {
+                      zip.file(res.fileName, res.blob)
+                    } else {
+                      // fallback: trigger normal download for this format
+                      anyFailed = true
+                      await exportTableToFormat(fmt, 'audio', {
+                        rows: paginatedRecords.value || [],
+                        columns: columns.value || [],
+                        startIndex: startIndex.value || 0,
+                        fileNamePrefix: 'audio-records'
+                      })
+                    }
+                  } catch (e) {
+                    anyFailed = true
+                    console.error('nonVoice export into zip failed', e)
+                  }
+                }
+              } catch (e) {
+                console.error('including non-voice into zip failed', e)
+              }
+              for (const f of selected) {
+                const fname = f.file_name || f.fileName || ''
+                if (!fname) continue
+                const url = API_PROXY_AUDIO(fname)
+                try {
+                  const resp = await fetch(url, { credentials: 'include' })
+                  if (!resp.ok) {
+                    anyFailed = true
+                    console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
+                    continue
+                  }
+                  const blob = await resp.blob()
+                  // attempt to get filename from headers
+                  let outName = fname
+                  try {
+                    const cd = resp.headers.get('content-disposition') || ''
+                    const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
+                    if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
+                  } catch (e) {}
+                  zip.file(outName, blob)
+                } catch (err) {
+                  anyFailed = true
+                  console.error('voice fetch failed for zip', err)
+                }
+              }
+              const zipBlob = await zip.generateAsync({ type: 'blob' })
+              const zipName = `audio-records_${dateStr}_${rangeStart}-${rangeEnd}.zip`
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(zipBlob)
+              a.download = zipName
+              document.body.appendChild(a)
+              a.click()
+              a.remove()
+              setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+              if (anyFailed) showToast('Some files failed to download into ZIP', 'warning')
+            } catch (e) {
+              console.error('ZIP creation failed', e)
+              showToast('Failed to create ZIP', 'error')
+            }
+            return
+          }
+          // if JSZip not available, fall back to individual downloads
+          // ensure non-voice formats are at least downloaded separately
+          try {
+            const nonVoiceFallback = formats.filter(f => f !== 'voice')
+            for (const fmt of nonVoiceFallback) {
+              try {
+                await exportTableToFormat(fmt, 'audio', {
+                  rows: paginatedRecords.value || [],
+                  columns: columns.value || [],
+                  startIndex: startIndex.value || 0,
+                  fileNamePrefix: 'audio-records'
+                })
+              } catch (e) { console.error('nonVoice fallback export failed', e) }
+            }
+          } catch (e) { console.error('nonVoice fallback loop failed', e) }
+        }
+
+        // fallback or single-file download behavior
+        for (const f of selected) {
+          const fname = f.file_name || f.fileName || ''
+          if (!fname) continue
+          const url = API_PROXY_AUDIO(fname)
+          try {
+            const resp = await fetch(url, { credentials: 'include' })
+            if (!resp.ok) {
+              console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
+              showToast(`Failed to download ${fname} (status ${resp.status})`, 'error')
+              continue
+            }
+            const blob = await resp.blob()
+            let outName = fname
+            try {
+              const cd = resp.headers.get('content-disposition') || ''
+              const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
+              if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
+            } catch (e) {}
+            const safePrefix = (multipleOutput) ? (`audio-records_${dateStr}_${rangeStart}-${rangeEnd}_`) : ''
+            const a = document.createElement('a')
+            a.href = URL.createObjectURL(blob)
+            a.download = safePrefix + outName
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+          } catch (err) {
+            console.error('voice download error', err)
+            showToast(`Failed to download ${fname}`, 'error')
+          }
+        }
+      }
+    } catch (err) {
+      console.error('onExportFormat error', err)
+      showToast('Export failed', 'error')
+    }
+  }
+
+  const confirmExport = async () => {
+    const picks = []
+    if (exportSelections.pdf) picks.push('pdf')
+    if (exportSelections.excel) picks.push('excel')
+    if (exportSelections.csv) picks.push('csv')
+    if (exportSelections.voice) picks.push('voice')
+    if (picks.length === 0) {
+      showToast('Please select an export format', 'warning')
+      return
+    }
+    exportOpen.value = false
+    await onExportFormat(picks)
+    resetExportSelections()
+  }
+
+  const cancelExport = () => {
+    resetExportSelections()
+    exportOpen.value = false
   }
 
   const callDirectionClass = (dir) => {
@@ -872,7 +1076,7 @@ export function useHome() {
     if (['wav','mp3','ogg','flac'].includes(ext)) {
       try {
         const base = getApiBase().replace(/\/$/, '')
-        audioSrc.value = `${base}/media/audio/${encodeURIComponent(fileName)}`
+        audioSrc.value = API_PROXY_AUDIO(fileName)
         audioMetadata.fileName = fileName
         audioMetadata.duration = row.duration || ''
         audioMetadata.customerNumber = row.customer_number || row.customerNumber || ''
@@ -1061,6 +1265,7 @@ export function useHome() {
     durationInput,
     exportWrap,
     exportOpen,
+    exportSelections,
     recentWrap,
     recentOpen,
     recentList,
@@ -1096,6 +1301,8 @@ export function useHome() {
     applyRecentRange,
     applyLatestRecent,
     toggleExport,
+    confirmExport,
+    cancelExport,
     changePage,
     onSearch,
     onReset,
