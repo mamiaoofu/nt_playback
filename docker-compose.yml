@@ -9,7 +9,7 @@ services:
     volumes:
       - ./backend:/app
     env_file:
-      - .env
+      - ./backend/.env
     ports:
       - "8000:8000"
     restart: always
@@ -24,7 +24,7 @@ services:
     ports:
       - "8001:8001"
     env_file:
-      - .env
+      - ./backend/.env
     restart: always
 
   proxy:
