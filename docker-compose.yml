@@ -1,18 +1,19 @@
 services:
   backend:
     build: ./backend
-    #PROD ONLY
-    # command: >
-    #   sh -c "echo 'Starting Daphne ASGI server' && python -m daphne -b 0.0.0.0 -p 8000 config.asgi:application"
-    #DEV ONLY
-    command: sh -c "python manage.py runserver 0.0.0.0:8000"
+    # Use Daphne (ASGI) so WebSocket/Channels work reliably behind a proxy
+    command: sh -c "echo 'Starting Daphne ASGI server' && python -m daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     volumes:
       - ./backend:/app
     env_file:
       - ./backend/.env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
     ports:
       - "8000:8000"
     restart: always
+    depends_on:
+      - redis
 
   frontend:
     build: ./frontend
@@ -40,6 +41,11 @@ services:
       - backend
       - frontend
     restart: always
+
+  redis:
+    image: redis:6-alpine
+    restart: unless-stopped
+    # no volumes/networks required for simple dev setup
 
 volumes:
   frontend_node_modules:

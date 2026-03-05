@@ -87,10 +87,11 @@
 
               <div class="my-favorite-search">
                 
-                  <div class="d-flex justify-content-center" v-if="authStore.hasPermission('File Share')" style="padding-right: 12px;padding-left: 8px;">
-                      <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px;">
+                  <div class="d-flex justify-content-center" v-if="authStore.hasPermission('File Share')" style="padding-right: 12px;padding-left: 8px; position: relative;">
+                      <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px; position: relative;">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                       </button>
+                      <span v-if="showFileShareNotification" id="notiFileShare" class="badge badge-danger" style="position: absolute; top: -6px; right: 8px;width: 16px;"><i class="fa-solid fa-exclamation"></i></span>
                      </div>
                 <div class="card">
                   <div class="card-body" style="padding: 8px;">
@@ -177,7 +178,7 @@
                           <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
                         </label>
                       </li>
-                      <li>
+                      <li v-if="authStore.hasPermission('Download Audio')">
                         <label class="dropdown-item">
                           <input type="checkbox" v-model="exportSelections.voice" style="margin-right:8px;"> Voice
                         </label>
@@ -293,6 +294,7 @@ const {
   selectedCount,
   selectAllChecked,
   showShareModal,
+  showFileShareNotification,
   onTyping,
   clearSearchQuery,
   setPerPage,
@@ -322,6 +324,13 @@ const {
 
 function onFileShareClick() {
   filters.file_share = 'true'
+  // hide notification badge when user opens File Share
+  try {
+    showFileShareNotification.value = false
+  } catch (e) {
+    // safe fallback if it's not a ref
+    showFileShareNotification = false
+  }
   onSearch()
 }
 

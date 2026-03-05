@@ -34,6 +34,8 @@ from django.db import transaction
 from .models import FavoriteSearch, SetColumnAudioRecord, ConfigKey
 from .serializers import FavoriteSearchSerializer
 from apps.configuration.models import UserPermission
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 #serializer
 from apps.core.model.authorize.serializers import MainDatabaseSerializer
@@ -206,18 +208,16 @@ def ApiGetAudioList(request):
     agent_id = request.POST.get("agent_id") or request.GET.get("agent_id")
     agent_group = request.POST.get("agent_group") or request.GET.get("agent_group")
     time_type = request.POST.get("type") or request.GET.get("type")
-    
     call_direction = request.POST.get("call_direction") or request.GET.get("call_direction")
     extension = request.POST.get("extension") or request.GET.get("extension")
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
-    
-
 
     if is_ticket or (request.POST.get("file_share") == 'true' or request.GET.get("file_share") == 'true'):
         try:
             valid_shares = UserFileShare.objects.filter(user=request.user, expire_at__gte=timezone.now())
+            UserFileShare.objects.filter(user=request.user).update(view=True)
             shared_ids = []
             
             for share in valid_shares:
@@ -231,12 +231,10 @@ def ApiGetAudioList(request):
                         continue
             
             if shared_ids:
-                print("shared_ids:", shared_ids)
                 audio_list = audio_list.filter(audiofile__id__in=shared_ids)
             else:
                 audio_list = audio_list.none()
                 
-            print("audio_list:", audio_list.query)    
         except Exception:
             audio_list = audio_list.none()
     
@@ -252,7 +250,6 @@ def ApiGetAudioList(request):
             start_date = now - timedelta(days=365)
         start_date = start_date.strftime("%Y-%m-%d %H:%M:%S")
         end_date = now.strftime("%Y-%m-%d %H:%M:%S")
-        
 
     if database_name and database_name != "all":
         parts = [p.strip() for p in str(database_name).split(',') if p.strip()]
@@ -361,10 +358,10 @@ def ApiGetAudioList(request):
                 except Exception:
                     pass
         else:
-            # single duration value - keep previous behavior (upper bound)
+            # single duration value - treat as lower bound (>=)
             td = parse_duration_to_timedelta(dur_str)
             if td is not None:
-                audio_list = audio_list.filter(audiofile__duration__lte=td)
+                audio_list = audio_list.filter(audiofile__duration__gte=td)
             else:
                 try:
                     audio_list = audio_list.filter(audiofile__duration__icontains=duration)
@@ -684,6 +681,9 @@ def ApiCheckMyFavoriteName(request):
     
 # --- Encryption Helper (Simple XOR + Base64) ---
 SECRET_KEY = b"9Xv2M4p7Q8r1Z3w5Y6t8B0n2V4c6X8m0L2k4J6h8F0d2S4a" # (ต้องตรงกับ Wrapper exe)
+# NT_SECRET_KEY = os.getenv("NT_SECRET_KEY").encode("utf-8")
+# NT_KEY_USERNAME = os.getenv("NT_KEY_USERNAME")
+# NT_KEY_PASSWORD = os.getenv("NT_KEY_PASSWORD")
 
 def encrypt_credential(text):
     if not text: return ""
@@ -940,6 +940,28 @@ def ApiCreateFileShare(request):
                     )
                     created_count += 1
 
+            # notify affected users via channel layer (if available)
+            try:
+                layer = get_channel_layer()
+                if layer is not None:
+                    for uname in targets:
+                        u = User.objects.filter(username=uname).first()
+                        if not u: continue
+                        async_to_sync(layer.group_send)(f'user_{u.id}', {
+                            'type': 'file.share',
+                            'ok': True,
+                            'message': 'You have a new file share',
+                            'data': {'audio_ids': audio_ids}
+                        })
+                        try:
+                            create_user_log(user=request.user, action="Create File Share Notify", detail={"notified_user": u.username, "audio_ids": audio_ids}, status="info", request=request)
+                        except Exception:
+                            # don't break notification loop if logging fails
+                            pass
+            except Exception as e:
+                # don't fail request if notification cannot be sent
+                create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
+
             create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
             if missing:
@@ -1007,6 +1029,19 @@ def ApiCreateFileShare(request):
                     create_by=request.user
                 )
 
+                # notify the created ticket user (if channel layer available)
+                try:
+                    layer = get_channel_layer()
+                    if layer is not None:
+                        async_to_sync(layer.group_send)(f'user_{new_user.id}', {
+                            'type': 'file.share',
+                            'ok': True,
+                            'message': 'You have a new file share',
+                            'data': {'audio_ids': audio_ids}
+                        })
+                except Exception as e:
+                    create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
+
             create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
             return JsonResponse({'ok': True, 'message': 'Ticket created and file shared successfully.', 'ticketCode': ticket_code, 'password': password})
@@ -1017,3 +1052,9 @@ def ApiCreateFileShare(request):
         create_user_log(user=request.user, action="Create File Share", detail=f"Error creating file share: {str(e)}", status="error", request=request)
         return JsonResponse({'ok': False, 'message': f'error: {str(e)}'}, status=500)
     
+def ApiCheckFileShare(request):
+    view_file_share = UserFileShare.objects.filter(view=False, user_id=request.user.id).first()
+    
+    if view_file_share:
+        return JsonResponse({'ok': True, 'message': 'You have a new file share.'})
+    return JsonResponse({'ok': False, 'message': 'No new file share.'})

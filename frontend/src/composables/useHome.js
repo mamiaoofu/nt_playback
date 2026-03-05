@@ -1,12 +1,12 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_CREATE_FILE_SHARE,API_PROXY_AUDIO } from '../api/paths'
-import { ensureCsrf, getCsrfToken } from '../api/csrf'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase,API_PROXY_AUDIO,API_CHECK_FILE_SHARE } from '../api/paths'
+import { getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
 import '../assets/js/jszip.min.js'
-import { exportTableToFormat, getCookie, showToast } from '../assets/js/function-all'
+import { exportTableToFormat, showToast } from '../assets/js/function-all'
 
 export function useHome() {
   const authStore = useAuthStore()
@@ -59,6 +59,9 @@ export function useHome() {
   
   const processedSaveLogs = new Set()
   let saveLogsInterval = null
+  // file-share notification (WebSocket-only; polling removed)
+  const showFileShareNotification = ref(false)
+  let fileShareWs = null
 
   const records = ref([])
   const totalItems = ref(0)
@@ -625,6 +628,16 @@ export function useHome() {
         }
       } catch (e) { console.warn('clear toInput failed', e) }
 
+      try {
+        if (durationInput.value) {
+          const inst = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
+          if (inst && typeof inst.clear === 'function') {
+            inst.clear()
+          } else {
+            durationInput.value.value = ''
+          }
+        }
+      } catch (e) { console.warn('clear durationInput failed', e) }
       try {
         const wrap = document.querySelector('.filter-card')
         if (wrap) {
@@ -1228,13 +1241,76 @@ export function useHome() {
     document.addEventListener('click', onDocClick)
     try {
       pollSaveLogs()
-      saveLogsInterval = setInterval(pollSaveLogs, 3000)
+      // saveLogsInterval = setInterval(pollSaveLogs, 3000)
     } catch (e) { console.warn('start pollSaveLogs failed', e) }
+    // file-share: WebSocket-only (server push). Polling removed.
+    const checkFileShare = async () => {
+      try {
+        const res = await fetch(API_CHECK_FILE_SHARE(), { credentials: 'include' })
+        if (!res.ok) {
+          showFileShareNotification.value = false
+          return
+        }
+        const j = await res.json()
+        showFileShareNotification.value = !!(j && j.ok)
+      } catch (err) {
+        console.error('checkFileShare error', err)
+        showFileShareNotification.value = false
+      }
+    }
+
+    const setupWebSocket = () => {
+      try {
+        // Prefer same-origin websocket (works when frontend is reverse-proxied to backend)
+        let wsUrl = null
+        try {
+          const loc = window.location
+          const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
+          wsUrl = `${proto}//${loc.host}/ws/notifications/`
+        } catch (e) {
+          const base = getApiBase().replace(/\/$/, '')
+          wsUrl = base.replace(/^http/, 'ws') + '/ws/notifications/'
+        }
+        console.debug('Connecting FileShare WS ->', wsUrl)
+        fileShareWs = new WebSocket(wsUrl)
+        fileShareWs.onopen = () => {
+          // connected
+        }
+        fileShareWs.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data)
+            if (data && (data.type === 'file_share' || data.type === 'file.share' || data.type === 'file_share')) {
+              showFileShareNotification.value = !!data.ok
+            }
+          } catch (e) { /* ignore malformed */ }
+        }
+        fileShareWs.onclose = () => {
+          showFileShareNotification.value = false
+          // attempt a simple reconnect after a short delay
+          setTimeout(() => {
+            try { setupWebSocket() } catch (e) {}
+          }, 5000)
+        }
+        fileShareWs.onerror = () => {
+          try { fileShareWs.close() } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('setupWebSocket failed', e)
+      }
+    }
+
+    try {
+      // initial API check when Home is opened
+      checkFileShare().catch(() => {})
+      setupWebSocket()
+    } catch (e) { console.warn('start fileShare mechanism failed', e) }
   })
 
   onBeforeUnmount(() => {
     document.removeEventListener('click', onDocClick)
     try { if (saveLogsInterval) clearInterval(saveLogsInterval) } catch (e) {}
+    // polling removed; ensure websocket closed
+    try { if (fileShareWs) { fileShareWs.close(); fileShareWs = null } } catch (e) {}
   })
 
   const showShareModal = ref(false)
@@ -1290,6 +1366,7 @@ export function useHome() {
     selectedCount,
     selectAllChecked,
     showShareModal,
+    showFileShareNotification,
   }
 
   const actions = {

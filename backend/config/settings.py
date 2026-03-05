@@ -68,6 +68,7 @@ SESSION_COOKIE_DOMAIN = None  # ให้ Django ใช้ host จาก reques
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -143,6 +144,24 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+# Channels layer configuration - prefer Redis if REDIS_URL env is set, otherwise use in-memory layer for dev
+if os.environ.get('REDIS_URL'):
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [os.environ.get('REDIS_URL')]
+            }
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer'
+        }
+    }
 
 
 # Database
@@ -222,6 +241,11 @@ EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true',
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL')
+
+# Config key Nice player
+NT_KEY_USERNAME = os.environ.get('NT_KEY_USERNAME')
+NT_KEY_PASSWORD = os.environ.get('NT_KEY_PASSWORD')
+NT_SECRET_KEY = os.environ.get('NT_SECRET_KEY')
 
 # ถ้าต้องการส่ง Cookie/Token ข้าม Domain
 CORS_ALLOW_CREDENTIALS = True
