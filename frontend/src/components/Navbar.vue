@@ -86,10 +86,10 @@
               <li class="menu-item" v-if="store.hasPermission('User Management')">
                 <router-link to="/user-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> User</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Delegate Management')">
+              <li class="menu-item" v-if="store.hasPermission('File Share')">
                 <router-link to="/delegate-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Delegate</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Ticket Management')">
+              <li class="menu-item" v-if="store.hasPermission('File Share')">
                 <router-link to="/ticket-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket</router-link>
               </li>
             </ul>
