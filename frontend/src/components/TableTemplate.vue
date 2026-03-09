@@ -164,7 +164,7 @@ const filteredColumns = computed(() => {
   return props.columns.filter(col => col.key !== 'selection' || props.showSelection)
 })
 
-const emit = defineEmits(['edit', 'delete', 'page-change', 'per-change', 'row-dblclick', 'row-click', 'sort-change'])
+const emit = defineEmits(['edit', 'delete', 'reset', 'page-change', 'per-change', 'row-dblclick', 'row-click', 'sort-change'])
 
 // Pinia auth store instance (used for permission checks in template)
 const store = useAuthStore()

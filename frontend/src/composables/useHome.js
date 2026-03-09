@@ -67,6 +67,12 @@ export function useHome() {
   const totalItems = ref(0)
   const loading = ref(false)
 
+  // download modal state
+  const downloading = ref(false)
+  const downloadProgress = ref(0) // percent 0-100
+  const downloadSpeed = ref('0 MB/s')
+  const downloadRemaining = ref('')
+
   const sortColumn = ref('')
   const sortDirection = ref('')
 
@@ -108,12 +114,10 @@ export function useHome() {
       try { const copy = { ..._selectedFilesMap.value }; delete copy[key]; _selectedFilesMap.value = copy } catch (e) {}
       row.checked = false
     } else {
-      const entry = {
-        file_id: row.file_id ?? row.id ?? row.fileId ?? key,
-        file_name: row.file_name ?? row.fileName ?? '',
-        customer_number: row.customer_number ?? row.customerNumber ?? '',
-        start_datetime: (row.start_datetime ?? row.startDatetime ?? row.start) || ''
-      }
+      // store the full row object for exports so exported files contain all available fields
+      const entry = { ...(row || {}) }
+      // ensure a stable file_id exists on the stored entry
+      entry.file_id = entry.file_id ?? entry.id ?? entry.fileId ?? key
       _selectedFilesMap.value = { ..._selectedFilesMap.value, [key]: entry }
       row.checked = true
     }
@@ -189,6 +193,17 @@ export function useHome() {
   }
 
   const applyRecent = async (r) => {
+    // helper to finish downloading UI, guaranteeing minimum display time
+    const finishDownloading = () => {
+      try {
+        const minMs = 30000
+        const elapsed = Math.max(0, Date.now() - startTime)
+        const wait = Math.max(0, minMs - elapsed)
+        downloadProgress.value = 100
+        setTimeout(() => { downloading.value = false }, wait)
+      } catch (e) { downloading.value = false }
+    }
+
     try {
       const raw = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data || '{}') : (r.raw_data || null)
       if (raw) {
@@ -488,12 +503,9 @@ export function useHome() {
         try {
           const k = _makeKey(r)
             if (!Object.prototype.hasOwnProperty.call(copy, k)) {
-            copy[k] = {
-              file_id: r.file_id ,
-              file_name: r.file_name ,
-              customer_number: r.customer_number ,
-              start_datetime: (r.start_datetime ) 
-            }
+            // store full row data so exports include all fields for selected rows
+            copy[k] = { ...(r || {}) }
+            copy[k].file_id = copy[k].file_id ?? copy[k].id ?? copy[k].fileId ?? k
           }
           r.checked = true
         } catch (e) { /* ignore per-row errors */ }
@@ -831,6 +843,8 @@ export function useHome() {
     // if voice is requested, ensure at least one row is selected
     const wantVoice = formats.indexOf('voice') !== -1
     const selected = selectedFiles.value || []
+    const rowsToExport = (selected && selected.length > 0) ? selected : (paginatedRecords.value || [])
+    const exportColumns = (columns.value || []).filter(c => c && c.key !== 'checked')
     if (wantVoice && (!selected || selected.length === 0)) {
       showToast('Please select a row to file audio', 'warning')
       return
@@ -842,10 +856,73 @@ export function useHome() {
     // fileTypeName used for non-audio exports
     let fileTypeName = 'audio-records_'
     const dateStr = new Date().toISOString().slice(0, 10)
+    // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
+    const fmtTimestamp = (d) => {
+      const yy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      const ss = String(d.getSeconds()).padStart(2, '0')
+      return `${yy}${mm}${dd}${hh}${mi}${ss}`
+    }
+    const timestampForName = fmtTimestamp(new Date())
     const rangeStart = (startIndex.value || 0) + 1
-    const rangeEnd = (startIndex.value || 0) + (paginatedRecords.value ? (paginatedRecords.value.length || 0) : 0)
+    const rangeEnd = (startIndex.value || 0) + (rowsToExport ? (rowsToExport.length || 0) : 0)
+
+    // setup download progress helpers
+    let startTime = 0
+    let totalBytes = 0
+    let completedTasks = 0
+    const nonVoiceFormats = formats.filter(f => f !== 'voice')
+    const totalTasks = nonVoiceFormats.length + (wantVoice ? Math.max(1, selected.length || 0) : 0) || 1
+    const markTaskDone = (bytes) => {
+      try {
+        completedTasks += 1
+        if (bytes && typeof bytes === 'number') totalBytes += bytes
+        const pct = Math.round((completedTasks / totalTasks) * 100)
+        downloadProgress.value = Math.min(100, pct)
+        const elapsed = Math.max(0.001, (Date.now() - startTime) / 1000)
+        const speed = totalBytes / elapsed // bytes/sec
+        const mbps = speed / (1024 * 1024)
+        if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+        const avgPerTask = elapsed / completedTasks
+        const remainSec = Math.max(0, Math.round(avgPerTask * (totalTasks - completedTasks)))
+        const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+        const ss = String(remainSec % 60).padStart(2, '0')
+        downloadRemaining.value = `${mm}:${ss} min.`
+      } catch (e) { console.warn('markTaskDone failed', e) }
+    }
+
+    // ensure the downloading modal stays visible at least `minDisplayMs`
+    const finishDownloading = (minDisplayMs = 3000) => {
+      try {
+        const elapsed = Math.max(0, Date.now() - startTime)
+        const wait = Math.max(0, minDisplayMs - elapsed)
+        setTimeout(() => {
+          try {
+            // compute a sensible final percentage based on completed tasks
+            try {
+              const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+              downloadProgress.value = Math.min(100, Math.max(0, pct))
+            } catch (e) {
+              downloadProgress.value = Math.min(100, downloadProgress.value ?? 100)
+            }
+            downloadRemaining.value = ''
+            downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+            downloading.value = false
+          } catch (e) { /* ignore */ }
+        }, wait)
+      } catch (e) { console.warn('finishDownloading failed', e) }
+    }
 
     try {
+      // initialize downloading UI
+      downloading.value = true
+      downloadProgress.value = 0
+      downloadSpeed.value = '0 MB/s'
+      downloadRemaining.value = ''
+      startTime = Date.now()
       // handle voice downloads (non-voice exports will be included in ZIP when possible)
       if (wantVoice) {
         const base = getApiBase().replace(/\/$/, '')
@@ -864,8 +941,8 @@ export function useHome() {
           } catch (e) { reject(e) }
         })
 
-        // if multiple outputs or many selected files, package into a zip
-        if (multipleOutput && (selected.length > 1)) {
+        // if multiple outputs (multiple formats or multiple selected files), package into a zip
+        if (multipleOutput) {
           try {
             await import('../assets/js/jszip.min.js')
           } catch (e) {
@@ -883,33 +960,36 @@ export function useHome() {
                 for (const fmt of nonVoice) {
                   try {
                     const res = await exportTableToFormat(fmt, 'audio', {
-                      rows: paginatedRecords.value || [],
-                      columns: columns.value || [],
+                      rows: rowsToExport || [],
+                      columns: exportColumns,
                       startIndex: startIndex.value || 0,
                       fileNamePrefix: 'audio-records',
                       returnBlob: true
                     })
                     if (res && res.blob && res.fileName) {
                       zip.file(res.fileName, res.blob)
+                      try { markTaskDone(res.blob.size) } catch (e) {}
                     } else {
                       // fallback: trigger normal download for this format
                       anyFailed = true
-                      await exportTableToFormat(fmt, 'audio', {
-                        rows: paginatedRecords.value || [],
-                        columns: columns.value || [],
+                      const r2 = await exportTableToFormat(fmt, 'audio', {
+                        rows: rowsToExport || [],
+                        columns: exportColumns,
                         startIndex: startIndex.value || 0,
                         fileNamePrefix: 'audio-records'
                       })
+                      try { if (r2 && r2.blob) markTaskDone(r2.blob.size); else markTaskDone() } catch (e) {}
                     }
                   } catch (e) {
                     anyFailed = true
                     console.error('nonVoice export into zip failed', e)
+                    try { markTaskDone() } catch (er) {}
                   }
                 }
               } catch (e) {
                 console.error('including non-voice into zip failed', e)
               }
-              for (const f of selected) {
+                for (const f of selected) {
                 const fname = f.file_name || f.fileName || ''
                 if (!fname) continue
                 const url = API_PROXY_AUDIO(fname)
@@ -929,13 +1009,15 @@ export function useHome() {
                     if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
                   } catch (e) {}
                   zip.file(outName, blob)
+                  try { markTaskDone(blob.size) } catch (er) {}
                 } catch (err) {
                   anyFailed = true
                   console.error('voice fetch failed for zip', err)
+                  try { markTaskDone() } catch (er) {}
                 }
               }
               const zipBlob = await zip.generateAsync({ type: 'blob' })
-              const zipName = `audio-records_${dateStr}_${rangeStart}-${rangeEnd}.zip`
+              const zipName = `Audio record${timestampForName}.zip`
               const a = document.createElement('a')
               a.href = URL.createObjectURL(zipBlob)
               a.download = zipName
@@ -956,15 +1038,54 @@ export function useHome() {
             const nonVoiceFallback = formats.filter(f => f !== 'voice')
             for (const fmt of nonVoiceFallback) {
               try {
-                await exportTableToFormat(fmt, 'audio', {
-                  rows: paginatedRecords.value || [],
-                  columns: columns.value || [],
+                const res = await exportTableToFormat(fmt, 'audio', {
+                  rows: rowsToExport || [],
+                  columns: exportColumns,
                   startIndex: startIndex.value || 0,
                   fileNamePrefix: 'audio-records'
                 })
-              } catch (e) { console.error('nonVoice fallback export failed', e) }
+                try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+              } catch (e) { console.error('nonVoice fallback export failed', e); try { markTaskDone() } catch (er) {} }
             }
           } catch (e) { console.error('nonVoice fallback loop failed', e) }
+        }
+
+        // ensure non-voice exports are handled even when voice is requested
+        const nonVoice = formats.filter(f => f !== 'voice')
+        if (nonVoice.length > 0) {
+          try {
+            for (const fmt of nonVoice) {
+              try {
+                const res = await exportTableToFormat(fmt, 'audio', {
+                  rows: rowsToExport || [],
+                  columns: exportColumns,
+                  startIndex: startIndex.value || 0,
+                  fileNamePrefix: 'audio-records',
+                  returnBlob: true
+                })
+                if (res && res.blob) {
+                  try {
+                    const url = URL.createObjectURL(res.blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                    const ext = extMap[fmt] || fmt
+                    a.download = res.fileName || `Audio record${timestampForName}.${ext}`
+                    document.body.appendChild(a)
+                    a.click()
+                    a.remove()
+                    setTimeout(() => URL.revokeObjectURL(url), 3000)
+                  } catch (e) { console.warn('trigger blob download failed for nonVoice in voice flow', e) }
+                  try { markTaskDone(res.blob.size) } catch (e) {}
+                } else {
+                  try { markTaskDone() } catch (e) {}
+                }
+              } catch (e) {
+                console.error('non-voice export (voice flow) failed', fmt, e)
+                try { markTaskDone() } catch (er) {}
+              }
+            }
+          } catch (e) { console.error('processing nonVoice in voice flow failed', e) }
         }
 
         // fallback or single-file download behavior
@@ -986,7 +1107,7 @@ export function useHome() {
               const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
               if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
             } catch (e) {}
-            const safePrefix = (multipleOutput) ? (`audio-records_${dateStr}_${rangeStart}-${rangeEnd}_`) : ''
+            const safePrefix = (multipleOutput) ? (`Audio record${timestampForName}_`) : ''
             const a = document.createElement('a')
             a.href = URL.createObjectURL(blob)
             a.download = safePrefix + outName
@@ -994,15 +1115,105 @@ export function useHome() {
             a.click()
             a.remove()
             setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+            try { markTaskDone(blob.size) } catch (er) {}
           } catch (err) {
             console.error('voice download error', err)
             showToast(`Failed to download ${fname}`, 'error')
+            try { markTaskDone() } catch (er) {}
           }
         }
+      }
+      // If voice is not requested, handle non-voice exports directly
+      if (!wantVoice) {
+        try {
+          // when multipleOutput (multiple formats or multiple rows), package non-voice exports into a ZIP
+          if (multipleOutput) {
+            try {
+              try {
+                await import('../assets/js/jszip.min.js')
+              } catch (e) { /* ignore, try window.JSZip */ }
+
+              if (window.JSZip) {
+                const zip = new window.JSZip()
+                let anyFailed = false
+                for (const fmt of formats) {
+                  try {
+                    const res = await exportTableToFormat(fmt, 'audio', {
+                      rows: rowsToExport || [],
+                      columns: exportColumns,
+                      startIndex: startIndex.value || 0,
+                      fileNamePrefix: 'audio-records',
+                      returnBlob: true
+                    })
+                    if (res && res.blob) {
+                      const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                      const ext = extMap[fmt] || fmt
+                      const name = res.fileName || `Audio record${timestampForName}.${ext}`
+                      zip.file(name, res.blob)
+                      try { markTaskDone(res.blob.size) } catch (e) {}
+                    } else {
+                      anyFailed = true
+                      try { markTaskDone() } catch (e) {}
+                    }
+                  } catch (e) {
+                    anyFailed = true
+                    console.error('non-voice export into zip failed', e)
+                    try { markTaskDone() } catch (er) {}
+                  }
+                }
+                const zipBlob = await zip.generateAsync({ type: 'blob' })
+                const zipName = `Audio record${timestampForName}.zip`
+                const a = document.createElement('a')
+                a.href = URL.createObjectURL(zipBlob)
+                a.download = zipName
+                document.body.appendChild(a)
+                a.click()
+                a.remove()
+                setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+                if (anyFailed) showToast('Some exports failed while creating ZIP', 'warning')
+                finishDownloading()
+                return
+              }
+            } catch (e) {
+              console.error('ZIP creation for non-voice failed', e)
+            }
+            // if JSZip not available or failed, fall through to individual downloads
+          }
+
+          // per-format downloads (single-output case or JSZip fallback)
+          for (const fmt of formats) {
+            try {
+              const res = await exportTableToFormat(fmt, 'audio', {
+                rows: rowsToExport || [],
+                columns: exportColumns,
+                startIndex: startIndex.value || 0,
+                fileNamePrefix: 'audio-records'
+              })
+              try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+            } catch (e) {
+              console.error('non-voice export failed', fmt, e)
+              try { showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+            }
+          }
+        } catch (e) {
+          console.error('handle non-voice exports failed', e)
+          try { showToast('Export failed', 'error') } catch (er) {}
+        }
+        // finish progress for non-voice-only flows (ensure min display time)
+        finishDownloading()
+        return
       }
     } catch (err) {
       console.error('onExportFormat error', err)
       showToast('Export failed', 'error')
+    }
+    finally {
+      // ensure downloading is turned off after operations finish
+      try {
+        if (downloading.value) {
+          finishDownloading()
+        }
+      } catch (e) {}
     }
   }
 
@@ -1367,6 +1578,10 @@ export function useHome() {
     selectAllChecked,
     showShareModal,
     showFileShareNotification,
+    downloading,
+    downloadProgress,
+    downloadSpeed,
+    downloadRemaining,
   }
 
   const actions = {

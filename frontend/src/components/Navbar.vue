@@ -43,7 +43,7 @@
           </div>
           <div class="menu-user-details">
             <div class="menu-user-name">{{ displayName }}</div>
-            <div class="menu-user-role">{{ store.roleName || 'Administrator'}}</div>
+            <div class="menu-user-role">{{ roleName }}</div>
           </div>
         </div>
         <label class="switch">
@@ -219,6 +219,8 @@ const initials = computed(() => {
     .join("")
     .toUpperCase();
 });
+
+const roleName = computed(() => store.roleName() || "Other");
 
 const handleLogout = () => {
   try { store.logout() } catch (e) { store.clear(); router.push('/login') }

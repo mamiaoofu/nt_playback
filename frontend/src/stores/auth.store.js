@@ -7,7 +7,6 @@ import router from '../router'
 export const useAuthStore = defineStore('auth', () => {
 	// Initialize state from localStorage to enable persistence
 	const user = ref(JSON.parse(localStorage.getItem('user')))
-	// console.log('Initial user from localStorage:', user.value)
 	const token = ref(localStorage.getItem('token'))
     const permissions = ref(JSON.parse(localStorage.getItem('permissions') || '[]'))
 
@@ -57,8 +56,12 @@ export const useAuthStore = defineStore('auth', () => {
 
 	const fullName = () => {
 		if (!user.value) return null
-		// Adjusted to prioritize username as it's what the new backend provides
 		return user.value.username || null
+	}
+
+	const roleName = () => {
+		if (!user.value) return null
+		return user.value.role || null
 	}
 
 	async function login(username, password) {
@@ -82,7 +85,7 @@ export const useAuthStore = defineStore('auth', () => {
 			const data = await response.json()
 			setToken(data.access)
 			// store whatever user info the login returned (may include id)
-			if (data && data.username) setUser({ username: data.username, id: data.id || null })
+			if (data && data.username) setUser({ username: data.username, id: data.id || null, role: data.role || null })
 
 			// Quick check: calling the home index may return 403 when the user
 			// authenticates but lacks the required "Audio Recording" permission.
@@ -160,5 +163,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission }
+	return { user, token, permissions, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName }
 })

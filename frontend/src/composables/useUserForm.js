@@ -371,7 +371,13 @@ export function useUserForm(props) {
                         }
                         localStorage.setItem('pending_user', JSON.stringify(pendingUser))
                     } catch (e) { }
-                    try { router.push('/user-management') } catch (e) { router.back() }
+                    try {
+                        if (mode && mode.value === 'edit') {
+                            try { window.location.reload() } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
+                        } else {
+                            try { router.push('/user-management') } catch (e) { router.back() }
+                        }
+                    } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
                 } catch (e) { console.error('redirect error', e) }
                 return
             } else {

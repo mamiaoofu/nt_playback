@@ -2,6 +2,7 @@
   <MainLayout>
     <div class="main-wrapper container-fluid-home py-3">
       <Breadcrumbs :items="[{ text: 'Home', to: '/' }]" />
+      <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       
       <div class="row col-lg-12">
         <div v-if="authStore.hasPermission('Query Audio')" class="col-lg-2">
@@ -89,7 +90,7 @@
                 
                   <div class="d-flex justify-content-center" v-if="authStore.hasPermission('File Share')" style="padding-right: 12px;padding-left: 8px; position: relative;">
                       <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px; position: relative;">
-                        <i class="fa-solid fa-share-nodes"></i> File Share
+                        <i class="fa-solid fa-share-nodes"></i> Delegate file 
                       </button>
                       <span v-if="showFileShareNotification" id="notiFileShare" class="badge badge-danger" style="position: absolute; top: -6px; right: 8px;width: 16px;"><i class="fa-solid fa-exclamation"></i></span>
                      </div>
@@ -246,6 +247,7 @@ import TableTemplate from '../components/TableTemplate.vue'
 import SearchInput from '../components/SearchInput.vue'
 import AudioPlayer from '../components/AudioPlayer.vue'
 import ModalFileShare from '../components/ModalFileShare.vue'
+import ModalDowload from '../components/ModalDowload.vue'
 import { useHome } from '../composables/useHome'
 import { ref } from 'vue'
 
@@ -295,6 +297,10 @@ const {
   selectAllChecked,
   showShareModal,
   showFileShareNotification,
+  downloading,
+  downloadProgress,
+  downloadSpeed,
+  downloadRemaining,
   onTyping,
   clearSearchQuery,
   setPerPage,
