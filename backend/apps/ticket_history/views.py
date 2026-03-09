@@ -16,13 +16,17 @@ from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
 from apps.core.utils.function import create_user_log
+from django.contrib.auth import get_user_model
+from django.utils.crypto import get_random_string
 
 from apps.core.utils.permissions import get_user_actions, require_action
 # models
 from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
 
-def ApiGetTicketHistory(request):
+User = get_user_model()
+
+def ApiGetTicketHistory(request,type):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
     length = int(request.GET.get("length", 25))
@@ -39,7 +43,7 @@ def ApiGetTicketHistory(request):
     status = request.POST.get("status") or request.GET.get("status")
     
     
-    ticket_history_list = UserFileShare.objects.filter(type="ticket")
+    ticket_history_list = UserFileShare.objects.filter(type=type)
     records_total = ticket_history_list.count()
     
     # filter by ticket_id (frontend sends comma-separated values)
@@ -120,7 +124,7 @@ def ApiGetTicketHistory(request):
         files_audio_display = ', '.join(file_names) if file_names else ''
 
         data.append({
-            "id": idx,
+            "id": ticket_history.id,
             "email": ticket_history.email,
             "code": ticket_history.code,
             "create_by": creator_val,
@@ -128,7 +132,8 @@ def ApiGetTicketHistory(request):
             "start_date": ticket_history.start_at.strftime("%Y-%m-%d") if ticket_history.start_at else '',
             "exprie_date": ticket_history.expire_at.strftime("%Y-%m-%d") if ticket_history.expire_at else '',
             "status": ticket_history.status,
-            "created_at": created_at_str
+            "created_at": created_at_str,
+            "user_id" : ticket_history.user_id
         })
         
     return JsonResponse({
@@ -137,6 +142,72 @@ def ApiGetTicketHistory(request):
         "recordsFiltered": records_filtered,
         "data": data
     })
-            
+
+@login_required
+@require_action('Change Status')
+@require_POST    
+def ApiChangeFileShareStatus(request, user_id, type):
+    try:
+        user = User.objects.get(id=user_id)
+        
+        user_file_id = request.POST.get('user_file_id')
+        user_file_share = UserFileShare.objects.get(id=user_file_id)
+        
+        if type == "ticket":
+            user.is_active = not user.is_active
+            user.save()
+            user_file_share.status = not user_file_share.status
+            user_file_share.save()
+        elif type == "delegate":
+            user_file_share.status = not user_file_share.status
+            user_file_share.save()
+        
+        
+        status_msg = 'Active' if user.is_active else 'Inactive'
+        create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user.username} to {status_msg}", status="success", request=request)
+        return JsonResponse({'status': 'success', 'message': f'User {user.username} is now {status_msg}.'})
+    except User.DoesNotExist:
+        create_user_log(user=request.user, action="Change User Status", detail=f"message : User not found", status="error", request=request)
+        return JsonResponse({'status': 'error', 'message': 'User not found.'})
+    except Exception as e:
+        create_user_log(user=request.user, action="Change User Status", detail=f"message : {str(e)}", status="error", request=request)
+        return JsonResponse({'status': 'error', 'message': str(e)})
+
+@login_required
+@require_POST
+def ApiGenFormTicket(request):
+    try:
+        user_file_id = request.POST.get('user_file_id') or request.GET.get('user_file_id')
+        user_id = request.POST.get('user_id') or request.GET.get('user_id')
+        if not user_file_id or not user_id:
+            return JsonResponse({'status': 'error', 'message': 'Missing parameters'})
+
+        user_file_share = UserFileShare.objects.get(id=user_file_id)
+        user = User.objects.get(id=user_id)
+
+        # Cannot reverse an MD5 hash to plain text. Instead generate a new
+        # temporary password (6 chars from the requested charset), set it on
+        # the user (using Django's set_password) and return the plain
+        # temporary password to the frontend.
+        allowed = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+        temp_pw = get_random_string(6, allowed)
+        user.set_password(temp_pw)
+        user.save()
+
+        result = {
+            'email': user_file_share.email,
+            'code': user_file_share.code,
+            'password': temp_pw,
+            'start_at': user_file_share.start_at.strftime("%Y-%m-%d") if getattr(user_file_share, 'start_at', None) else '',
+            'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d") if getattr(user_file_share, 'expire_at', None) else ''
+        }
+        create_user_log(user=request.user, action="Gen Ticket", detail=f"Generated ticket {user_file_share.code} for user {user.username}", status="success", request=request)
+        return JsonResponse(result)
+    except UserFileShare.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'UserFileShare not found'})
+    except User.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'User not found'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
 
                      

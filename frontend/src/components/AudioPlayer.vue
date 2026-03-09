@@ -84,7 +84,7 @@
         </div>
 
         <div class="footer-styled">
-          <button v-if="canDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
+          <button v-if="showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
           <button class="btn-gray-block" @click="close">Close</button>
         </div>
       </div>
@@ -120,6 +120,13 @@ const audioUrl = ref(null)
 
 const authStore = useAuthStore()
 const canDownload = computed(() => authStore.hasPermission('Download Audio'))
+
+const showDownload = computed(() => {
+  const d = metadata.value && metadata.value.download
+  if (d === true) return true
+  if (d === null || d === undefined) return canDownload.value
+  return false
+})
 
 // Local download modal state
 const showDownloadModal = ref(false)

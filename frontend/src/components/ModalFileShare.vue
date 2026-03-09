@@ -48,7 +48,7 @@
 
                 <div class="permissions-grid-2">
                     <div v-if="selectionType === 'user'" class="input-group">
-                        <CustomSelect class="select-checkbox" v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
+                        <CustomSelect class="select-search select-checkbox" v-model="shareUser" :options="userOptions"  placeholder="User" name="shareUser" />
                     </div>
 
                     <div v-else class="input-group" v-has-value>
@@ -234,9 +234,19 @@ const showResult = ref(false)
 const resultType = ref('')
 const resultData = ref({})
 
-function genTicketCode() {
-    const n = Math.floor(Math.random() * 900000) + 100000
-    return `TKT-${n}`
+async function genTicketCode() {
+    try {
+        const res = await fetch('/api/file-share/generate-ticket/', { credentials: 'include' })
+        if (!res.ok) throw new Error('Failed to get ticket code')
+        const j = await res.json()
+        if (j && j.ok && j.ticketCode) return j.ticketCode
+        throw new Error(j && j.error ? j.error : 'Invalid response')
+    } catch (e) {
+        console.error('genTicketCode error', e)
+        // fallback to local generation if server fails
+        const n = Math.floor(Math.random() * 900000) + 100000
+        return `TKT-${n}`
+    }
 }
 
 function genPassword() {
@@ -251,7 +261,7 @@ function close() { emit('update:modelValue', false) }
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
     
-    if (!targetValue) {
+    if (!targetValue && selectionType.value === 'user') {
         showToast('Please specify a target.', 'warning')
         return
     }
@@ -266,61 +276,86 @@ async function onCreate() {
     let tCode = ''
     let tPass = ''
 
-    if (selectionType.value === 'ticket') {
-        tCode = genTicketCode()
-        tPass = genPassword()
-    }
+    // If ticket flow, attempt loop: get server ticket code, try create; retry on 409 (collision)
+    const MAX_TRIES = 5
+    let attempt = 0
+    let created = false
+    let lastError = null
 
-    const payload = {
-        files: props.files,
-        type: selectionType.value,
-        target: targetValue,
-        start: validStartRaw,
-        expire: validExpireRaw,
-        ticketCode: tCode,
-        password: tPass,
-        download: permissions.value === 'true'
-    }
+    while (attempt < MAX_TRIES && !created) {
+        attempt += 1
 
-    try {
-        const res = await fetch(API_CREATE_FILE_SHARE(), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken() || ''
-            },
-            body: JSON.stringify(payload)
-        })
-        const json = await res.json()
-
-        if (res.ok && json.ok) {
-            if (selectionType.value === 'ticket') {
-                resultType.value = 'ticket'
-                resultData.value = {
-                    recipient: emailTicket.value,
-                    ticketCode: tCode,
-                    password: tPass,
-                    validStart: formatDateOnly(validStartRaw),
-                    validExpire: formatDateOnly(validExpireRaw)
-                }
-            } else {
-                resultType.value = 'user'
-                resultData.value = {
-                    recipient: shareUser.value,
-                    validStart: formatDateOnly(validStartRaw),
-                    validExpire: formatDateOnly(validExpireRaw)
-                }
-            }
-            
-            emit('share', payload)
-            emit('update:modelValue', false)
-            showResult.value = true
-        } else {
-            showToast(json.message || 'Failed to share files', 'error')
+        if (selectionType.value === 'ticket') {
+            tCode = await genTicketCode()
+            tPass = genPassword()
         }
-    } catch (e) {
-        console.error('onCreate share error', e)
-        showToast('An error occurred while sharing', 'error')
+
+        const payload = {
+            files: props.files,
+            type: selectionType.value,
+            target: targetValue,
+            start: validStartRaw,
+            expire: validExpireRaw,
+            ticketCode: tCode,
+            password: tPass,
+            download: permissions.value === 'true'
+        }
+
+        try {
+            const res = await fetch(API_CREATE_FILE_SHARE(), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken() || ''
+                },
+                body: JSON.stringify(payload)
+            })
+
+            const json = await res.json().catch(() => ({}))
+
+            if (res.ok && json.ok) {
+                // success — use server-confirmed ticketCode if provided
+                if (selectionType.value === 'ticket') {
+                    resultType.value = 'ticket'
+                    resultData.value = {
+                        recipient: emailTicket.value,
+                        ticketCode: json.ticketCode || tCode,
+                        password: tPass,
+                        validStart: formatDateOnly(validStartRaw),
+                        validExpire: formatDateOnly(validExpireRaw)
+                    }
+                } else {
+                    resultType.value = 'user'
+                    resultData.value = {
+                        recipient: shareUser.value,
+                        validStart: formatDateOnly(validStartRaw),
+                        validExpire: formatDateOnly(validExpireRaw)
+                    }
+                }
+
+                emit('share', payload)
+                emit('update:modelValue', false)
+                showResult.value = true
+                created = true
+                break
+            } else if (res.status === 409) {
+                // collision — retry (frontend will get a fresh code next loop)
+                lastError = json.message || 'Ticket code collision, retrying'
+                continue
+            } else {
+                showToast(json.message || 'Failed to share files', 'error')
+                lastError = json.message || 'Failed to share files'
+                break
+            }
+        } catch (e) {
+            console.error('onCreate share error', e)
+            lastError = e.message || String(e)
+            break
+        }
+    }
+
+    if (!created) {
+        showToast(lastError || 'Failed to create ticket after retries', 'error')
     }
 }
 

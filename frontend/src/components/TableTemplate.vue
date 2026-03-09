@@ -63,6 +63,15 @@
                     </button>
                   </div>
                 </template>
+                <template v-else-if="col.key === 'download'">
+                  <i v-if="r[col.key] === true || String(r[col.key]).toLowerCase() === 'true'" class="fa-solid fa-check" style="color: #2ea44f; font-size: 12px;"></i>
+                  <i v-else class="fa-solid fa-xmark" style="color: #d73a49; font-size: 12px;"></i>
+                </template>
+
+                <template v-else-if="col.key === 'expire_at'">
+                  {{ formatDateOnly(r[col.key]) }}
+                </template>
+
                 <template v-else-if="col.key === 'status'">
                   <template v-if="r[col.key] === true || String(r[col.key]).toLowerCase() === 'true'">
                     <span class="badge badge-success">Active</span>
@@ -395,6 +404,21 @@ function getActionId(row) {
     return getByPath(row, props.actionIdKey)
   } catch (e) {
     return undefined
+  }
+}
+
+function formatDateOnly(v) {
+  if (v === null || v === undefined) return ''
+  try {
+    const s = String(v)
+    // common backend format: YYYY-MM-DD HH:MM:SS
+    const m = s.match(/^\d{4}-\d{2}-\d{2}/)
+    if (m) return m[0]
+    const d = new Date(s)
+    if (!isNaN(d)) return d.toISOString().slice(0, 10)
+    return s.slice(0, 10)
+  } catch (e) {
+    return v
   }
 }
 

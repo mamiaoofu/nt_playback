@@ -1521,6 +1521,26 @@ hr {
     transform: scale(1.1);
 }
 
+.group-send-btn {
+    background: transparent;
+    color: #10b981;
+    border: 1px solid #91eecf;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.group-send-btn:hover {
+    background: #fef2f2;
+    border-color: #36aa83;
+    transform: scale(1.1);
+}
+
 .swal2-container {
   font-family: "THSarabun";
 }

@@ -20,7 +20,8 @@ export function useHome() {
     callDirection: '',
     customerNumber: '',
     agent: '',
-    file_share: ''
+    file_share: '',
+    is_ticket: ''
   })
 
   const searchQuery = ref('')
@@ -93,6 +94,53 @@ export function useHome() {
   ]
 
   const columns = ref([...defaultColumns])
+
+  // when viewing delegated/file_share results, inject the share-specific columns
+  watch(() => filters.file_share, (v) => {
+    try {
+      if (v === 'true') {
+        if (!columns.value.find(c => c.key === 'created_by')) {
+          columns.value = [
+            ...defaultColumns,
+            { key: 'created_by', label: 'Created by' },
+            { key: 'expire_at', label: 'Expire' },
+            { key: 'download', label: 'Download', sortable: false }
+          ]
+        }
+      } else {
+        // only revert to default when ticket mode is not active
+        if (filters.is_ticket !== 'true') {
+          // revert to default columns (fetchActiveColumns may override later)
+          columns.value = [...defaultColumns]
+        }
+      }
+    } catch (e) {
+      console.error('update columns for file_share error', e)
+    }
+  })
+
+  // when viewing ticket results, inject the same share-specific columns
+  watch(() => filters.is_ticket, (v) => {
+    try {
+      if (v === 'true') {
+        if (!columns.value.find(c => c.key === 'created_by')) {
+          columns.value = [
+            ...defaultColumns,
+            { key: 'created_by', label: 'Created by' },
+            { key: 'expire_at', label: 'Expire' },
+            { key: 'download', label: 'Download', sortable: false }
+          ]
+        }
+      } else {
+        // only revert to default when file_share mode is not active
+        if (filters.file_share !== 'true') {
+          columns.value = [...defaultColumns]
+        }
+      }
+    } catch (e) {
+      console.error('update columns for is_ticket error', e)
+    }
+  })
 
   // selection state for file sharing (keyed map to avoid duplicates across pages)
   const _selectedFilesMap = ref({})
@@ -443,6 +491,15 @@ export function useHome() {
       const res = await fetch(`${API_AUDIO_LIST()}?${params.toString()}`, { credentials: 'include' })
       if (!res.ok) throw new Error('Failed to fetch')
       const json = await res.json()
+      // sync server-provided flags into filters (use string 'true' for compatibility)
+      try {
+        if (typeof json.is_ticket !== 'undefined') {
+          filters.is_ticket = json.is_ticket ? 'true' : ''
+        }
+        if (typeof json.file_share !== 'undefined') {
+          filters.file_share = json.file_share ? 'true' : ''
+        }
+      } catch (e) { /* ignore */ }
       records.value = (json.data || []).map(r => {
         try {
           // if this row was previously selected (by key), preserve checked state
@@ -1309,6 +1366,13 @@ export function useHome() {
         audioMetadata.callDirection = row.call_direction || ''
         audioMetadata.from = row.from || row.start_datetime || ''
         audioMetadata.to = row.to || row.end_datetime || ''
+        // set download flag for AudioPlayer: true/false or null when not provided
+        if (typeof row.download === 'undefined') {
+          audioMetadata.download = null
+        } else {
+          const v = row.download
+          audioMetadata.download = (v === true)
+        }
         showAudioModal.value = true
         const csrfToken = getCsrfToken()
         fetch(API_LOG_PLAY_AUDIO(), {

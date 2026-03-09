@@ -143,12 +143,15 @@
           <div class="card">
             <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
-                <div class="d-flex align-items-center">
+                  <div class="d-flex align-items-center">
                   <div class="d-flex align-items-center justify-content-center me-1"
                     style="width:35px;height:35px;background-color: #D9E2F6;border-radius: 10px !important;">
                     <i class="fa-solid fa-file-audio" style="color:#2b6cb0;font-size:18px"></i>
                   </div>
-                  <h5 class="card-title mb-2 mt-1">Audio Records</h5>
+                  <h5 class="card-title mb-2 mt-1">Audio Records
+                    <span v-if="filters.is_ticket === 'true'"> - Ticket</span>
+                    <span v-else-if="filters.file_share === 'true'"> - Delegate</span>
+                  </h5>
                 </div>
                 <div class="d-flex align-items-center">
                     <button v-if="authStore.hasPermission('File Share')" class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
@@ -159,7 +162,7 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="authStore.hasPermission('Export Recordings')" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="authStore.hasPermission('Export Recordings') && filters.file_share !== 'true'" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
@@ -249,7 +252,6 @@ import AudioPlayer from '../components/AudioPlayer.vue'
 import ModalFileShare from '../components/ModalFileShare.vue'
 import ModalDowload from '../components/ModalDowload.vue'
 import { useHome } from '../composables/useHome'
-import { ref } from 'vue'
 
 const {
   authStore,

@@ -219,10 +219,13 @@ def ApiChangeUserStatus(request, user_id):
         user.is_active = not user.is_active
         user.save()
         status_msg = 'Active' if user.is_active else 'Inactive'
+        create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user.username} to {status_msg}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': f'User {user.username} is now {status_msg}.'})
     except User.DoesNotExist:
+        create_user_log(user=request.user, action="Change User Status", detail=f"message : User not found", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': 'User not found.'})
     except Exception as e:
+        create_user_log(user=request.user, action="Change User Status", detail=f"message : {str(e)}", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')

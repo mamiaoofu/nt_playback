@@ -18,6 +18,7 @@ from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
 from apps.core.utils.function import create_user_log
+import secrets
 
 import io
 import os
@@ -30,7 +31,7 @@ from apps.core.utils.permissions import get_user_actions, require_action
 from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
 from django.contrib.auth.models import User
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from .models import FavoriteSearch, SetColumnAudioRecord, ConfigKey
 from .serializers import FavoriteSearchSerializer
 from apps.configuration.models import UserPermission
@@ -169,7 +170,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Query Audio')
+@require_action('Query Audio','Audio Recording')
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
@@ -191,6 +192,7 @@ def ApiGetAudioList(request):
 
     # Check for file_share parameter or ticket user
     is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
+    file_share_mode = False
     
     if is_ticket :
         audio_list = AudioInfo.objects.filter()
@@ -213,25 +215,54 @@ def ApiGetAudioList(request):
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
+    file_share = request.POST.get("file_share") or request.GET.get("file_share")
 
-    if is_ticket or (request.POST.get("file_share") == 'true' or request.GET.get("file_share") == 'true'):
+    if is_ticket or file_share == "true":
         try:
             valid_shares = UserFileShare.objects.filter(user=request.user, expire_at__gte=timezone.now())
             UserFileShare.objects.filter(user=request.user).update(view=True)
             shared_ids = []
             
+            # build a mapping of audiofile id -> list of share entries so we can attach one entry per share
+            share_map = {}
+            share_entries = []
             for share in valid_shares:
                 if share.audiofile_id:
                     try:
                         # Convert {"1","2"} to ["1","2"] for json.loads
                         json_str = share.audiofile_id.replace('{', '[').replace('}', ']')
                         ids = json.loads(json_str)
+                        # preserve original order and duplicates in shared_ids
                         shared_ids.extend(ids)
+                        for aid in ids:
+                            try:
+                                key = str(int(aid))
+                            except Exception:
+                                key = str(aid)
+                            entry = {
+                                'created_by': str(share.create_by) if getattr(share, 'create_by', None) else None,
+                                'expire_at': share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'expire_at', None) else None,
+                                'expire_at_dt': share.expire_at if getattr(share, 'expire_at', None) else None,
+                                'download': bool(getattr(share, 'dowload', False)),
+                                'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
+                                'share_id': share.id
+                            }
+                            if key in share_map:
+                                share_map[key].append(entry)
+                            else:
+                                share_map[key] = [entry]
+                            # keep ordered list of entries (one per share reference) for pagination
+                            share_entries.append({'audiofile_id': key, 'share': entry})
                     except Exception:
                         continue
-            
-            if shared_ids:
-                audio_list = audio_list.filter(audiofile__id__in=shared_ids)
+            # query audio info for the unique set of referenced ids, preserve duplicates in share_entries
+            unique_ids = list({str(x) for x in shared_ids})
+            if unique_ids:
+                try:
+                    audio_list = audio_list.filter(audiofile__id__in=[int(x) for x in unique_ids])
+                except Exception:
+                    audio_list = audio_list.filter(audiofile__id__in=unique_ids)
+                file_share_mode = True
             else:
                 audio_list = audio_list.none()
                 
@@ -510,39 +541,110 @@ def ApiGetAudioList(request):
         audio_list = audio_list.order_by('-start_datetime')
 
 
-    # count after applying filters
-    records_total = audio_list.count()
-
-    # Pagination (slice)
-    audio_page = audio_list[start:start + length]
-
     data = []
-    for idx, audio in enumerate(audio_page, start=start+1):
-        main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
-        start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'start_datetime', None) else "-"
-        end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'end_datetime', None) else "-"
-        file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
-        duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
-        agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
-        full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
+    if file_share_mode and 'share_entries' in locals():
+        # build lookup of audiofile id -> AudioInfo object
+        try:
+            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=[int(x) for x in unique_ids])
+        except Exception:
+            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=unique_ids)
+        audio_map = { str(a.audiofile.id): a for a in audio_objs if getattr(a, 'audiofile', None) }
 
-        data.append({
-            "no": idx,
-            "main_db": main_db_display,
-            "start_datetime": start_dt,
-            "end_datetime": end_dt,
-            "file_name": file_name,
-            "duration": duration_val,
-            "call_direction": audio.call_direction,
-            "customer_number": audio.customer_number,
-            "extension": audio.extension,
-            "agent": agent_display,
-            "full_name": full_name,
-            "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
-            "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
-            "set_audio": set_audio.audio_path if set_audio else None,
-            "custom_field_1": custom_field
-        })
+        records_total = len(share_entries)
+        page_entries = share_entries[start:start + length]
+        for idx_offset, ent in enumerate(page_entries):
+            idx = start + idx_offset + 1
+            afid = ent.get('audiofile_id')
+            audio = audio_map.get(str(afid))
+
+            main_db_display = str(audio.main_db) if audio and hasattr(audio, 'main_db') else ''
+            start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if audio and getattr(audio, 'start_datetime', None) else "-"
+            end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if audio and getattr(audio, 'end_datetime', None) else "-"
+            file_name = audio.audiofile.file_name if audio and getattr(audio, 'audiofile', None) else "-"
+            duration_val = str(audio.audiofile.duration) if (audio and getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+            agent_display = str(audio.agent) if audio and getattr(audio, 'agent', None) else "-"
+            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if audio and getattr(audio, 'agent', None) else "-"
+
+            share_info = ent.get('share') or {}
+
+            data.append({
+                "no": idx,
+                "main_db": main_db_display,
+                "start_datetime": start_dt,
+                "end_datetime": end_dt,
+                "file_name": file_name,
+                "duration": duration_val,
+                "call_direction": audio.call_direction if audio else None,
+                "customer_number": audio.customer_number if audio else None,
+                "extension": audio.extension if audio else None,
+                "agent": agent_display,
+                "full_name": full_name,
+                "file_path": audio.audiofile.file_path if audio and getattr(audio, 'audiofile', None) else None,
+                "file_id": audio.audiofile.id if audio and getattr(audio, 'audiofile', None) else afid,
+                "set_audio": set_audio.audio_path if set_audio else None,
+                "custom_field_1": custom_field,
+                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
+                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                "download": share_info.get('download') if isinstance(share_info, dict) else False
+            })
+    else:
+        # count after applying filters
+        records_total = audio_list.count()
+
+        # Pagination (slice)
+        audio_page = audio_list[start:start + length]
+
+        for idx, audio in enumerate(audio_page, start=start+1):
+            main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
+            start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'start_datetime', None) else "-"
+            end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'end_datetime', None) else "-"
+            file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
+            duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+            agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
+            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
+
+            # try to attach share metadata for this audio (if any)
+            share_info = {}
+            try:
+                afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
+                if afid is not None and 'share_map' in locals():
+                    lst = share_map.get(str(afid), []) or []
+                    if isinstance(lst, list) and len(lst) > 0:
+                        try:
+                            best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
+                        except Exception:
+                            best = lst[0]
+                        share_info = {
+                            'created_by': best.get('created_by'),
+                            'expire_at': best.get('expire_at'),
+                            'download': best.get('download', False)
+                        }
+                    else:
+                        share_info = {}
+            except Exception:
+                share_info = {}
+
+            data.append({
+                "no": idx,
+                "main_db": main_db_display,
+                "start_datetime": start_dt,
+                "end_datetime": end_dt,
+                "file_name": file_name,
+                "duration": duration_val,
+                "call_direction": audio.call_direction,
+                "customer_number": audio.customer_number,
+                "extension": audio.extension,
+                "agent": agent_display,
+                "full_name": full_name,
+                "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
+                "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
+                "set_audio": set_audio.audio_path if set_audio else None,
+                "custom_field_1": custom_field,
+                # share metadata (present when viewing delegate / file_share mode)
+                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
+                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                "download": share_info.get('download') if isinstance(share_info, dict) else False
+            })
         
 
 
@@ -550,7 +652,9 @@ def ApiGetAudioList(request):
         "draw": draw,
         "recordsTotal": records_total,
         "recordsFiltered": records_total,
-        "data": data
+        "data": data,
+        "is_ticket": bool(is_ticket),
+        "file_share": bool(file_share)
     })
 
 @login_required(login_url='/login')
@@ -861,8 +965,8 @@ def ApiCreateFileShare(request):
         expire_raw = data.get('expire')
         download = data.get('download', False)
 
-        if not target_type or not target:
-            return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
+        # if not target_type or not target:
+        #     return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
 
         def parse_dt(s):
             if not s:
@@ -920,6 +1024,15 @@ def ApiCreateFileShare(request):
 
             missing = []
             created_count = 0
+
+            def _generate_unique_code():
+                while True:
+                    # generate 6-digit number not starting with 0
+                    num = secrets.randbelow(900000) + 100000
+                    code = f"DLG-{num}"
+                    if not UserFileShare.objects.filter(code=code).exists():
+                        return code
+
             with transaction.atomic():
                 for uname in targets:
                     auth_user = User.objects.filter(username=uname).first()
@@ -927,10 +1040,12 @@ def ApiCreateFileShare(request):
                         missing.append(uname)
                         continue
 
+                    code_val = _generate_unique_code()
+
                     UserFileShare.objects.create(
                         user=auth_user,
-                        type='user',
-                        code='',
+                        type='delegate',
+                        code=code_val,
                         audiofile_id=audio_ids_str,
                         start_at=start_dt or timezone.now(),
                         expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
@@ -989,17 +1104,27 @@ def ApiCreateFileShare(request):
                     email_set = target or ''
                     primary_email = target or ''
 
-                new_user = User.objects.create(
-                    username=ticket_code,
-                    first_name=ticket_code,
-                    last_name=ticket_code,
-                    email=primary_email,
-                    is_active=True,
-                    is_staff=False,
-                    is_superuser=False
-                )
-                new_user.set_password(password)
-                new_user.save()
+                # Do NOT generate or replace ticket codes here. Frontend must request a server-generated
+                # code via the dedicated endpoint before calling this API. If the provided code already
+                # exists, return 409 so the frontend can re-generate and retry.
+                if not ticket_code or User.objects.filter(username=ticket_code).exists() or UserFileShare.objects.filter(code=ticket_code).exists():
+                    return JsonResponse({'ok': False, 'message': 'Ticket code already exists, please re-generate'}, status=409)
+
+                try:
+                    new_user = User.objects.create(
+                        username=ticket_code,
+                        first_name=ticket_code,
+                        last_name=ticket_code,
+                        email=primary_email,
+                        is_active=True,
+                        is_staff=False,
+                        is_superuser=False
+                    )
+                    new_user.set_password(password)
+                    new_user.save()
+                except IntegrityError:
+                    # Collision/race occurred — tell frontend to retry obtaining a fresh code
+                    return JsonResponse({'ok': False, 'message': 'Ticket code collision during create, please retry'}, status=409)
 
                 main_dbs = list(MainDatabase.objects.only('id').order_by('id'))
                 user_auths = []
@@ -1058,3 +1183,21 @@ def ApiCheckFileShare(request):
     if view_file_share:
         return JsonResponse({'ok': True, 'message': 'You have a new file share.'})
     return JsonResponse({'ok': False, 'message': 'No new file share.'})
+
+
+@login_required(login_url='/login')
+def ApiGenerateTicketCode(request):
+    """Return a server-generated unique TKT-###### code."""
+    try:
+        def _generate_unique_ticket_code():
+            for _ in range(100):
+                num = secrets.randbelow(900000) + 100000
+                code = f"TKT-{num}"
+                if not User.objects.filter(username=code).exists() and not UserFileShare.objects.filter(code=code).exists():
+                    return code
+            raise Exception('Unable to generate unique ticket code')
+
+        code = _generate_unique_ticket_code()
+        return JsonResponse({'ok': True, 'ticketCode': code})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)

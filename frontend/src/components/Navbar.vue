@@ -74,11 +74,26 @@
 
       <!-- Menu List -->
       <ul class="menu-list">
-        <li class="menu-item" v-if="store.hasPermission('User Management')">
-          <router-link to="/user-management" class="menu-link">
-            <i class="fa-solid fa-user-lock"></i>
-            <span data-translate="set_permissions">User Management</span>
-          </router-link>
+        <li class="menu-item" v-if="store.hasPermission('User Management') || store.hasPermission('Delegate Management') || store.hasPermission('Ticket Management')">
+          <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isManagementOpen }"
+            @click.prevent="isManagementOpen = !isManagementOpen" role="button" aria-expanded="false">
+            <i class="fa-solid fa-briefcase"></i>
+            <span>Management</span>
+            <i class="fa-solid fa-chevron-down ms-auto" :style="{ transform: isManagementOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }" style="font-size: 12px; margin-left: auto"></i>
+          </a>
+          <div v-show="isManagementOpen" id="collapseManagement">
+            <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
+              <li class="menu-item" v-if="store.hasPermission('User Management')">
+                <router-link to="/user-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> User</router-link>
+              </li>
+              <li class="menu-item" v-if="store.hasPermission('Delegate Management')">
+                <router-link to="/delegate-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Delegate</router-link>
+              </li>
+              <li class="menu-item" v-if="store.hasPermission('Ticket Management')">
+                <router-link to="/ticket-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket</router-link>
+              </li>
+            </ul>
+          </div>
         </li>
 
         <li class="menu-item" v-if="store.hasPermission('Add User')">
@@ -208,6 +223,7 @@ onBeforeUnmount(() => {
 const isLogsOpen = ref(false);
 const isConfigOpen = ref(false);
 const isSetColumnOpen = ref(false);
+const isManagementOpen = ref(false);
 
 const displayName = computed(() => store.fullName() ?? "Guest User");
 const initials = computed(() => {

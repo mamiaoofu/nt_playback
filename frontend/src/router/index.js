@@ -20,6 +20,10 @@ const routes = [
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
 	{ path: '/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
+	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share Management' } },
+	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share Management' } },
+
+
 
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },
