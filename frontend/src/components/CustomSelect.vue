@@ -7,7 +7,8 @@
     </button>
     <label class="floating-label">{{ placeholder }}</label>
 
-    <ul v-if="open" class="options" role="listbox">
+    <teleport to="body">
+      <ul v-if="open" ref="menuRef" :class="['options', { up: up }]" :style="menuStyle" role="listbox">
         <li v-if="searchable" class="option option-search">
           <div class="search-input-wrap">
             <i class="fa-solid fa-magnifying-glass search-icon" aria-hidden="true"></i>
@@ -42,7 +43,8 @@
         </li>
       </div>
 
-    </ul>
+      </ul>
+    </teleport>
   </div>
 </template>
 
@@ -66,6 +68,8 @@ const searchable = ref(false)
 const checkboxable = ref(false)
 const searchTerm = ref('')
 const searchInputRef = ref(null)
+const menuRef = ref(null)
+const menuStyle = ref({})
 
 // Normalize props.options into a flat list that may include group headers.
 // Supported input shapes:
@@ -141,42 +145,19 @@ function computeUp() {
   if (props.alwaysUp) { up.value = true; return } else if (props.alwaysUp === false) { up.value = false; return }
   if (!root.value) return
   const rect = root.value.getBoundingClientRect()
-
-  // Find nearest ancestor that can clip/contain the dropdown (overflow auto|scroll|hidden).
-  function findClippingAncestor(el) {
-    let parent = el.parentElement
-    while (parent && parent !== document.documentElement) {
-      const style = getComputedStyle(parent)
-      const overflowY = style.overflowY || ''
-      const overflowX = style.overflowX || ''
-      if (/(auto|scroll|hidden)/.test(overflowY) || /(auto|scroll|hidden)/.test(overflowX)) {
-        return parent
-      }
-      parent = parent.parentElement
-    }
-    return document.documentElement
-  }
-
-  const clip = findClippingAncestor(root.value)
-  let containerRect
-  if (clip === document.documentElement) {
-    containerRect = { top: 0, bottom: window.innerHeight }
-  } else {
-    containerRect = clip.getBoundingClientRect()
-  }
-
-  const spaceBelow = containerRect.bottom - rect.bottom
-  const spaceAbove = rect.top - containerRect.top
+  // Use viewport space to decide. Prefer opening downward; only open up when below doesn't fit but above does.
+  const viewportHeight = window.innerHeight
+  const spaceBelow = viewportHeight - rect.bottom
+  const spaceAbove = rect.top
   const estimatedMenuHeight = Math.min(400, normalizedOptions.value.length * 40 + 12)
 
-  // Prefer opening downward unless not enough space; open upward when above has more space.
   if (spaceBelow >= estimatedMenuHeight) {
     up.value = false
   } else if (spaceAbove >= estimatedMenuHeight) {
     up.value = true
   } else {
-    // choose the side with more space
-    up.value = spaceAbove > spaceBelow
+    // default to down; we'll clamp position later to keep it inside viewport
+    up.value = false
   }
 }
 
@@ -184,14 +165,69 @@ watch(open, async (val) => {
   if (val) {
     await nextTick()
     computeUp()
-    window.addEventListener('resize', computeUp)
-    window.addEventListener('scroll', computeUp, true)
+    await nextTick()
+    // compute position after DOM rendered
+    computePosition()
+    window.addEventListener('resize', computePosition)
+    window.addEventListener('scroll', computePosition, true)
   } else {
     up.value = false
-    window.removeEventListener('resize', computeUp)
-    window.removeEventListener('scroll', computeUp, true)
+    window.removeEventListener('resize', computePosition)
+    window.removeEventListener('scroll', computePosition, true)
   }
 })
+
+async function computePosition() {
+  if (!root.value) return
+  const rect = root.value.getBoundingClientRect()
+  const width = rect.width
+  const left = rect.left + window.scrollX
+
+  // initial top (prefer down), we'll correct after measuring actual menu height
+  let top = rect.bottom + window.scrollY
+
+  menuStyle.value = {
+    position: 'absolute',
+    top: `${top}px`,
+    left: `${left}px`,
+    width: `${width}px`,
+    zIndex: 9999
+  }
+
+  await nextTick()
+  const m = menuRef.value
+  if (m) {
+    const mrect = m.getBoundingClientRect()
+    const menuHeight = mrect.height
+    if (up.value) {
+      top = rect.top + window.scrollY - menuHeight
+    } else {
+      top = rect.bottom + window.scrollY
+    }
+
+    // Clamp within viewport with small margin
+    const viewportTop = window.scrollY
+    const viewportBottom = window.scrollY + window.innerHeight
+    if (top + menuHeight > viewportBottom - 8) {
+      top = viewportBottom - menuHeight - 8
+    }
+    if (top < viewportTop + 8) {
+      top = viewportTop + 8
+    }
+
+    // Also clamp left/right if needed
+    let leftClamped = left
+    const menuRight = leftClamped + mrect.width
+    const viewportRight = window.scrollX + window.innerWidth
+    if (menuRight > viewportRight - 8) {
+      leftClamped = Math.max(8 + window.scrollX, viewportRight - mrect.width - 8)
+    }
+
+    menuStyle.value.top = `${top}px`
+    menuStyle.value.left = `${leftClamped}px`
+    menuStyle.value.width = `${Math.min(width, window.innerWidth - 16)}px`
+  }
+}
 function select(v) {
   if (checkboxable.value) {
     const current = Array.isArray(props.modelValue) ? [...props.modelValue] : []
@@ -225,7 +261,12 @@ function onOptionClick(v) {
   select(v)
 }
 
-function onDocClick(e) { if (!root.value.contains(e.target)) open.value = false }
+function onDocClick(e) {
+  const target = e.target
+  if (root.value && root.value.contains(target)) return
+  if (menuRef.value && menuRef.value.contains && menuRef.value.contains(target)) return
+  open.value = false
+}
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   if (root.value) {
@@ -243,8 +284,8 @@ function clearSearch() {
 }
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
-  window.removeEventListener('resize', computeUp)
-  window.removeEventListener('scroll', computeUp, true)
+  window.removeEventListener('resize', computePosition)
+  window.removeEventListener('scroll', computePosition, true)
 })
 </script>
 

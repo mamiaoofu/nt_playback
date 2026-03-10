@@ -48,7 +48,7 @@
 
                 <div class="permissions-grid-2">
                     <div v-if="selectionType === 'user'" class="input-group">
-                        <CustomSelect class="select-search select-checkbox" v-model="shareUser" :options="userOptions"  placeholder="User" name="shareUser" />
+                        <CustomSelect class="select-search select-checkbox" v-model="shareUser" :always-up="true" :options="userOptions"  placeholder="User" name="shareUser" />
                     </div>
 
                     <div v-else class="input-group" v-has-value>
@@ -545,4 +545,5 @@ strong {
     align-items: center;
     justify-content: center;
 }
+
 </style>
