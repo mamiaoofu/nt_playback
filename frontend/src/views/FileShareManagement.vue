@@ -29,7 +29,7 @@
               <form v-if="canView" id="filterForm" class="filter-row">
 
                 <div class="input-group" >
-                  <CustomSelect class="select-search select-checkbox" v-model="filters.ticketID" :options="ticketOptions" placeholder="Ticket ID" name="ticketID" />
+                  <CustomSelect class="select-search select-checkbox" v-model="filters.ticketID" :options="ticketOptions" :placeholder="typeUrl === 'delegate' ? 'Delegate ID' : 'Ticket ID'" name="ticketID" />
                 </div>
 
                 <div class="input-group" >

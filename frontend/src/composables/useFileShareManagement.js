@@ -65,6 +65,15 @@ export function useFileShareManagement() {
 
     const columns = computed(() => {
         const cols = [...baseColumns]
+        // If we're on the delegate page, show "Delegate ID" instead of "Ticket ID"
+        if (typeUrl.value === 'delegate') {
+            for (const c of cols) {
+                if (c && c.key === 'code') {
+                    c.label = 'Delegate ID'
+                    break
+                }
+            }
+        }
         if (typeUrl.value === 'ticket') cols.push({ key: 'action', label: 'Action' })
         return cols
     })
