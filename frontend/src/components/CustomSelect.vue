@@ -184,7 +184,7 @@ async function computePosition() {
   const left = rect.left + window.scrollX
 
   // initial top (prefer down), we'll correct after measuring actual menu height
-  let top = rect.bottom + window.scrollY
+  let top = rect.bottom + window.scrollY 
 
   menuStyle.value = {
     position: 'absolute',
@@ -202,7 +202,7 @@ async function computePosition() {
     if (up.value) {
       top = rect.top + window.scrollY - menuHeight
     } else {
-      top = rect.bottom + window.scrollY
+      top = rect.bottom + window.scrollY + 6
     }
 
     // Clamp within viewport with small margin

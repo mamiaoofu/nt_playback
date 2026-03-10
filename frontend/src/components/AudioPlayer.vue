@@ -101,8 +101,8 @@ import ModalDowload from './ModalDowload.vue'
 import { useAuthStore } from '../stores/auth.store'
 
 // --- Script ส่วนใหญ่ยังคงเดิม ---
-const props = defineProps({ modelValue: Boolean, src: String, metadata: { type: Object, default: () => ({}) } })
-const { modelValue, src, metadata } = toRefs(props)
+const props = defineProps({ modelValue: Boolean, src: String, metadata: { type: Object, default: () => ({}) }, filters: { type: Object, default: () => ({}) } })
+const { modelValue, src, metadata, filters } = toRefs(props)
 const emit = defineEmits(['update:modelValue'])
 const audioRef = ref(null)
 const playing = ref(false)
@@ -123,8 +123,14 @@ const canDownload = computed(() => authStore.hasPermission('Download Audio'))
 
 const showDownload = computed(() => {
   const d = metadata.value && metadata.value.download
+  const isTicket = !!(filters && filters.value && (filters.value.is_ticket === 'true' || filters.value.is_ticket === true))
+  const isFileShare = !!(filters && filters.value && (filters.value.file_share === 'true' || filters.value.file_share === true))
+  console.log('Download metadata:', d, 'isTicket:', isTicket, 'isFileShare:', isFileShare)
   if (d === true) return true
-  if (d === null || d === undefined) return canDownload.value
+  if (d === null || d === undefined) {
+    if (isTicket || isFileShare) return false
+    return !!(canDownload && canDownload.value)
+  }
   return false
 })
 

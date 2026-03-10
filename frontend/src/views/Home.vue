@@ -238,7 +238,7 @@
   </MainLayout>
   <ModalHome v-if="authStore.hasPermission('My Favorite Search')" v-model="showFavoriteModal" :favorites="favoriteSearchAll" :mainDbOptions="mainDbOptions" :agentOptions="agentOptions" @apply="applyFavorite" @edit="editFavorite" @delete="deleteFavorite" />
   <ModalFileShare v-model="showShareModal" :files="selectedFiles" @share="onCreate" />
-  <AudioPlayer v-model="showAudioModal" :src="audioSrc" :metadata="audioMetadata" />
+  <AudioPlayer v-model="showAudioModal" :src="audioSrc" :metadata="audioMetadata" :filters="filters" />
 </template>
 
 <script setup>
