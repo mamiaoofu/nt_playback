@@ -567,17 +567,17 @@ const dependencyMap = {
     'Delete User': ['User Management'],
     'Change Status': ['User Management'],
     'Access Role & Permissions': ['User Management'],
-    'Edit Base Role': ['User Management'],
-    'Add Custom Role': ['User Management'],
-    'Edit Custom Role': ['User Management'],
-    'Delete Custom Role': ['User Management'],
     'Access Group & Team': ['User Management'],
-    'Add Group': ['User Management'],
-    'Edit Group': ['User Management'],
-    'Delete Group': ['User Management'],
-    'Add Team': ['User Management'],
-    'Edit Team': ['User Management'],
-    'Delete Team': ['User Management'],
+    'Edit Base Role': ['User Management' , 'Access Role & Permissions'],
+    'Add Custom Role': ['User Management' , 'Access Role & Permissions'],
+    'Edit Custom Role': ['User Management' , 'Access Role & Permissions'],
+    'Delete Custom Role': ['User Management', 'Access Role & Permissions'],
+    'Add Group': ['User Management', 'Access Group & Team'],
+    'Edit Group': ['User Management', 'Access Group & Team'],
+    'Delete Group': ['User Management', 'Access Group & Team'],
+    'Add Team': ['User Management', 'Access Group & Team'],
+    'Edit Team': ['User Management', 'Access Group & Team'],
+    'Delete Team': ['User Management', 'Access Group & Team'],
 
     // LOGS
     'Audit Logs': ['User Logs'],
@@ -592,6 +592,20 @@ const nameToAction = computed(() => {
         if (p && p.name) m[String(p.name).trim()] = p.action
     })
     return m
+})
+
+// Reverse map: access-name -> list of permission names that depend on it
+const reverseDependencyMap = computed(() => {
+    const rev = {}
+    Object.keys(dependencyMap).forEach(name => {
+        const deps = dependencyMap[name] || []
+        deps.forEach(d => {
+            const key = String(d).trim()
+            if (!rev[key]) rev[key] = []
+            if (rev[key].indexOf(name) === -1) rev[key].push(name)
+        })
+    })
+    return rev
 })
 
 const _syncingDeps = ref(false)
@@ -618,28 +632,43 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
             })
         })
 
-        // Handle removals: remove access permission only if no other selected permission requires it
+        // Handle removals:
+        // 1) If a non-access permission is removed, remove any now-unneeded access permissions
+        // 2) If an access permission (e.g. "Audio Recording") is removed, also remove dependent permissions
         removed.forEach(actionValue => {
             const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
             if (!perm || !perm.name) return
+
+            // (A) Remove access permissions that are no longer required by any remaining selected permission
             const deps = dependencyMap[String(perm.name).trim()]
-            if (!deps || deps.length === 0) return
-            deps.forEach(accessName => {
-                const accessAction = nameToAction.value[String(accessName).trim()]
-                if (!accessAction) return
-                // check if any remaining selected permission requires this access
-                const stillRequired = (rolePermissions.value || []).some(selectedAction => {
-                    // skip the accessAction itself
-                    if (selectedAction === accessAction) return false
-                    const sPerm = (allPermissions.value || []).find(p => p && p.action === selectedAction)
-                    if (!sPerm || !sPerm.name) return false
-                    const sDeps = dependencyMap[String(sPerm.name).trim()] || []
-                    return sDeps.indexOf(accessName) !== -1
+            if (deps && deps.length) {
+                deps.forEach(accessName => {
+                    const accessAction = nameToAction.value[String(accessName).trim()]
+                    if (!accessAction) return
+                    const stillRequired = (rolePermissions.value || []).some(selectedAction => {
+                        if (selectedAction === accessAction) return false
+                        const sPerm = (allPermissions.value || []).find(p => p && p.action === selectedAction)
+                        if (!sPerm || !sPerm.name) return false
+                        const sDeps = dependencyMap[String(sPerm.name).trim()] || []
+                        return sDeps.indexOf(accessName) !== -1
+                    })
+                    if (!stillRequired) {
+                        rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
+                    }
                 })
-                if (!stillRequired) {
-                    rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
-                }
-            })
+            }
+
+            // (B) If this removed permission is an access-type, remove any dependent permissions that require it
+            const revDeps = reverseDependencyMap.value[String(perm.name).trim()] || []
+            if (revDeps && revDeps.length) {
+                revDeps.forEach(depName => {
+                    const depAction = nameToAction.value[String(depName).trim()]
+                    if (!depAction) return
+                    if ((rolePermissions.value || []).includes(depAction)) {
+                        rolePermissions.value = (rolePermissions.value || []).filter(a => a !== depAction)
+                    }
+                })
+            }
         })
     } finally {
         _syncingDeps.value = false
