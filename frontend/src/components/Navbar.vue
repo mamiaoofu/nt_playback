@@ -129,7 +129,7 @@
       <div class="menu-divider" v-if="store.hasPermission('User Management') || store.hasPermission('Add User') || store.hasPermission('System Logs') || store.hasPermission('Audit Logs')"></div>
 
       <ul class="menu-list">
-        <li class="menu-item" v-if="store.hasPermission('Access Role & Permissions') || store.hasPermission('Access Group & Team')">
+        <li class="menu-item" v-if="store.hasPermission('Role & Permissions') || store.hasPermission('Group & Team')">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isConfigOpen }"
             @click.prevent="isConfigOpen = !isConfigOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-sliders"></i>
@@ -138,10 +138,10 @@
           </a>
           <div v-show="isConfigOpen" id="collapseConfig">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission('Access Role & Permissions')">
+              <li class="menu-item" v-if="store.hasPermission('Role & Permissions')">
                 <router-link to="/configuration/role" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Role & Permissions</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Access Group & Team')">
+              <li class="menu-item" v-if="store.hasPermission('Group & Team')">
                 <router-link to="/configuration/group" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Group & Team</router-link>
               </li>
             </ul>
@@ -165,7 +165,7 @@
         </li>
       </ul>
 
-      <div class="menu-divider" v-if="store.hasPermission('Access Role & Permissions') || store.hasPermission('Access Group & Team') || store.hasPermission('Edit Column')"></div>
+      <div class="menu-divider" v-if="store.hasPermission('Role & Permissions') || store.hasPermission('Group & Team') || store.hasPermission('Edit Column')"></div>
 
       <button @click="handleLogout" class="logout-btn">
         <i class="fa-solid fa-right-from-bracket"></i>
