@@ -125,12 +125,9 @@ const showDownload = computed(() => {
   const d = metadata.value && metadata.value.download
   const isTicket = !!(filters && filters.value && (filters.value.is_ticket === 'true' || filters.value.is_ticket === true))
   const isFileShare = !!(filters && filters.value && (filters.value.file_share === 'true' || filters.value.file_share === true))
-  console.log('Download metadata:', d, 'isTicket:', isTicket, 'isFileShare:', isFileShare)
   if (d === true) return true
-  if (d === null || d === undefined) {
-    if (isTicket || isFileShare) return false
-    return !!(canDownload && canDownload.value)
-  }
+  if (isTicket === false && isFileShare === false) return canDownload
+  
   return false
 })
 
