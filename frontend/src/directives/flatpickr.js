@@ -32,6 +32,8 @@ export default {
     const instance = fp(el, opts)
 
     if (instance && instance.config && Array.isArray(instance.config.onChange)) {
+      // Ensure flatpickr uses the desired range separator for duration ranges
+      try { if (isDurationRange) instance.config.rangeSeparator = ' - ' } catch (e) {}
       // Track whether the current value has been explicitly applied by the user
       let applied = !!(el && el.value)
       // Keep last applied value so we can restore it if flatpickr writes a default (00:00:00) on close
@@ -45,7 +47,8 @@ export default {
         const actionBtn = document.createElement('button')
         actionBtn.type = 'button'
         actionBtn.className = 'flatpickr-action-btn'
-        actionBtn.textContent = applied ? ' ' : 'Apply'
+        // If a value is already applied, show "Clear" so user can remove it.
+        actionBtn.textContent = applied ? 'Clear' : 'Apply'
         actionBtn.dataset.state = applied ? 'clear' : 'apply'
 
         actions.appendChild(actionBtn)
@@ -144,6 +147,39 @@ export default {
             wrapper.appendChild(rowTo)
             el._flatpickrToContainer = toTimeContainer // Store ref
 
+            // If the input already has a value like "HH:MM:SS - HH:MM:SS", initialize
+            // both the cloned "To" inputs and the original "From" time inputs.
+            try {
+              const curVal = (el && (el.value || lastAppliedValue)) ? String(el.value || lastAppliedValue) : ''
+              if (curVal && curVal.includes(' - ')) {
+                const parts = curVal.split(' - ')
+                const fromPart = parts[0] || ''
+                const toPart = parts[1] || ''
+
+                // populate From (original timeContainer)
+                try {
+                  const [fh, fm, fs] = (fromPart || '').split(':')
+                  const fromInputs = timeContainer.querySelectorAll('input')
+                  if (fromInputs && fromInputs.length) {
+                    if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
+                    if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
+                    if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
+                  }
+                } catch (e) {}
+
+                // populate To (cloned toTimeContainer)
+                try {
+                  const [h, m, s] = (toPart || '').split(':')
+                  const inputs = toTimeContainer.querySelectorAll('input')
+                  if (inputs && inputs.length) {
+                    if (inputs[0]) inputs[0].value = (h || '00').padStart(2, '0')
+                    if (inputs[1]) inputs[1].value = (m || '00').padStart(2, '0')
+                    if (inputs[2]) inputs[2].value = (s || '00').padStart(2, '0')
+                  }
+                } catch (e) {}
+              }
+            } catch (e) {}
+
             // Align actions to left
             actions.style.display = 'flex'
             actions.style.justifyContent = 'center'
@@ -185,30 +221,47 @@ export default {
             finalStr = el.value || (instance && instance.selectedDates && instance.selectedDates.length ? instance.formatDate(instance.selectedDates[0], instance.config.dateFormat) : '')
           }
 
+          // normalize any commas into ' - '
+          try { finalStr = String(finalStr).replace(/\s*,\s*/g, ' - ') } catch (e) {}
           if (target && key) try { target[key] = finalStr } catch(e){}
           el.value = finalStr
+          try { el.parentNode && el.parentNode.classList.add('has-value') } catch(e) {}
           applied = true
           lastAppliedValue = finalStr
-          // actionBtn.textContent = 'Clear'
-          // actionBtn.dataset.state = 'clear'
+          actionBtn.textContent = 'Clear'
+          actionBtn.dataset.state = 'clear'
           try { instance.close() } catch(e){}
         }
 
         const doClear = () => {
+          // Mark cleared first so any onClose/onChange triggered by clear
+          // won't restore the previous value using lastAppliedValue.
+          try { applied = false } catch (e) {}
+          try { lastAppliedValue = '' } catch (e) {}
+
           try { instance.clear() } catch(e){}
+
+          // For duration ranges, fully clear any cloned "To" inputs so no
+          // residual time remains visible. Use empty string and dispatch a
+          // change event so listeners update preview/state immediately.
           if (isDurationRange && el._flatpickrToContainer) {
             const inputs = el._flatpickrToContainer.querySelectorAll('input')
-            inputs.forEach(i => i.value = '00')
+            inputs.forEach(i => {
+              try { i.value = '' } catch (e) {}
+              try { i.dispatchEvent(new Event('change')) } catch (e) {}
+            })
           }
+
           if (target && key) try { target[key] = '' } catch(e){}
           el.value = ''
-          applied = false
-          lastAppliedValue = ''
+          try { el.parentNode && el.parentNode.classList.remove('has-value') } catch(e) {}
+
           // Remove visual has-value state from the input wrapper (for from-to duration range)
           try {
             const parent = el && el.parentNode
             parent && parent.classList.remove('has-value')
           } catch (e) {}
+
           actionBtn.textContent = 'Apply'
           actionBtn.dataset.state = 'apply'
           try { instance.close() } catch(e){}
@@ -248,6 +301,7 @@ export default {
 
             if ((instance && instance.isOpen) || applied) {
               el.value = preview
+              try { el.parentNode && el.parentNode.classList.toggle('has-value', (preview || '').toString().trim() !== '') } catch(e) {}
             } else {
               // preserve existing input value until explicit Apply
             }
@@ -269,9 +323,9 @@ export default {
             actionBtn.dataset.state = 'apply'
           }
 
-          // If binding.value was a function, call it directly
+          // If binding.value was a function, call it directly with our preview
           if (typeof userOnChange === 'function') {
-            try { userOnChange(selectedDates, dateStr) } catch (e) {}
+            try { userOnChange(selectedDates, preview || dateStr) } catch (e) {}
           }
         })
 
@@ -280,18 +334,32 @@ export default {
           instance.config.onClose = Array.isArray(instance.config.onClose) ? instance.config.onClose : []
           instance.config.onClose.push((selectedDates, dateStr) => {
             try {
-              // If the user hasn't applied the pending change and flatpickr wrote a default value
-              // (e.g. "00:00:00"), restore the last applied value instead of overwriting it.
+              // If the user hasn't applied the pending change, always restore the
+              // last applied value (do not commit the preview to the input on close).
               if (!applied) {
-                const val = el && el.value
-                const isDefaultTime = val && typeof val === 'string' && /^0{1,2}(:0{2}){1,2}$/.test(val)
-                if (!val || isDefaultTime) {
-                  if (el) el.value = lastAppliedValue || ''
-                }
-              }
+                    try {
+                      // Only restore a previous applied value if we actually have one.
+                      // If lastAppliedValue is empty (user cleared), leave the input empty.
+                      if (lastAppliedValue && String(lastAppliedValue).trim() !== '') {
+                        const v = lastAppliedValue
+                        // normalize separator just in case
+                        const norm = String(v).replace(/\s*,\s*/g, ' - ')
+                        if (el) el.value = norm
+                        try { el.parentNode && el.parentNode.classList.toggle('has-value', (norm || '').toString().trim() !== '') } catch(e) {}
+                        // some other handlers may write after onClose; enforce again next tick
+                        setTimeout(() => {
+                          try { if (el) el.value = (lastAppliedValue || '').replace(/\s*,\s*/g, ' - ') } catch (e) {}
+                        }, 0)
+                      } else {
+                        // ensure empty state is enforced when there is no last applied value
+                        try { if (el) el.value = '' } catch (e) {}
+                        try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+                      }
+                    } catch (e) {}
+                  }
 
               // Sync "To" picker for visual consistency, but do NOT mark as applied.
-              if (el && el.value) {
+                if (el && el.value) {
                 if (isDurationRange && el.value.includes(' - ') && el._flatpickrToContainer) {
                   const parts = el.value.split(' - ')
                   if (parts[1]) {
@@ -316,6 +384,56 @@ export default {
                 actionBtn.textContent = 'Apply'
                 actionBtn.dataset.state = 'apply'
               }
+            } catch (e) {}
+          })
+        } catch (e) {}
+
+        try {
+          instance.config.onOpen = Array.isArray(instance.config.onOpen) ? instance.config.onOpen : []
+          instance.config.onOpen.push(() => {
+            try {
+              if (isDurationRange && el && el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
+                const parts = String(el.value).split(' - ')
+                const fromPart = parts[0] || ''
+                const toPart = parts[1] || ''
+
+                // populate From (original time container)
+                try {
+                  const [fh, fm, fs] = (fromPart || '').split(':')
+                  const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
+                  const fromInputs = fromContainer ? fromContainer.querySelectorAll('input') : []
+                  if (fromInputs && fromInputs.length) {
+                    if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
+                    if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
+                    if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
+                  }
+                } catch (e) {}
+
+                // populate To (cloned toTimeContainer)
+                try {
+                  const [h, m, s] = (toPart || '').split(':')
+                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                  if (inputs && inputs.length) {
+                    if (inputs[0]) inputs[0].value = (h || '00').padStart(2, '0')
+                    if (inputs[1]) inputs[1].value = (m || '00').padStart(2, '0')
+                    if (inputs[2]) inputs[2].value = (s || '00').padStart(2, '0')
+                  }
+                } catch (e) {}
+
+                // ensure the preview/input shows normalized separator
+                el.value = String(el.value).replace(/\s*,\s*/g, ' - ')
+              }
+              // Ensure action button reflects whether a value is already applied
+              try {
+                applied = !!(el && el.value) || !!lastAppliedValue
+                if (applied) {
+                  actionBtn.textContent = 'Clear'
+                  actionBtn.dataset.state = 'clear'
+                } else {
+                  actionBtn.textContent = 'Apply'
+                  actionBtn.dataset.state = 'apply'
+                }
+              } catch (e) {}
             } catch (e) {}
           })
         } catch (e) {}
@@ -369,13 +487,31 @@ export default {
          instance.config.onOpen.push(() => {
             if (el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
                 const parts = el.value.split(' - ')
-                if (parts[1]) {
-                  const [h, m, s] = parts[1].split(':')
-                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
-                  if (inputs[0]) inputs[0].value = h || '00'
-                  if (inputs[1]) inputs[1].value = m || '00'
-                  if (inputs[2]) inputs[2].value = s || '00'
-                }
+                const fromPart = parts[0] || ''
+                const toPart = parts[1] || ''
+
+                // populate From
+                try {
+                  const [fh, fm, fs] = (fromPart || '').split(':')
+                  const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
+                  const fromInputs = fromContainer ? fromContainer.querySelectorAll('input') : []
+                  if (fromInputs && fromInputs.length) {
+                    if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
+                    if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
+                    if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
+                  }
+                } catch (e) {}
+
+                // populate To
+                try {
+                  if (toPart) {
+                    const [h, m, s] = (toPart || '').split(':')
+                    const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                    if (inputs[0]) inputs[0].value = (h || '00')
+                    if (inputs[1]) inputs[1].value = (m || '00')
+                    if (inputs[2]) inputs[2].value = (s || '00')
+                  }
+                } catch (e) {}
             }
          })
        }

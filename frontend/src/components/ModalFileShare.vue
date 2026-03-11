@@ -58,7 +58,7 @@
                     <div class="input-group" v-has-value>
                         <input ref="fromInput" v-flatrangepickr="{ target: exp, key: 'period' }" required type="text" name="period" autocomplete="off" :class="['input', { 'form-input-modal': errors.period }]">
                         <label class="title-label">Period*</label>
-                        <span class="calendar-icon"><i class="fa-regular fa-calendar"></i></span>
+                        <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                         <div v-show="errors.period" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This field is required.</div>
                     </div>
                 </div>

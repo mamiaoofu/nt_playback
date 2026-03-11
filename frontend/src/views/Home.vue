@@ -30,16 +30,13 @@
                   <input ref="fromInput" v-flatpickr="{ target: filters, key: 'from' }" required type="text" name="from"
                     autocomplete="off" class="input">
                   <label class="floating-label">From</label>
-                  <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i
-                      class="fa-regular fa-calendar"></i></span>
+                  <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
 
                 <div class="input-group" v-has-value>
-                  <input ref="toInput" v-flatpickr="{ target: filters, key: 'to' }" required type="text" name="to"
-                    autocomplete="off" class="input">
+                  <input ref="toInput" v-flatpickr="{ target: filters, key: 'to' }" required type="text" name="to" autocomplete="off" class="input">
                   <label class="floating-label">To</label>
-                  <span class="calendar-icon" @click="toInput && toInput.focus()"><i
-                      class="fa-regular fa-calendar"></i></span>
+                  <span class="calendar-icon" @click="toInput && toInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
 
                 <div class="input-group" v-has-value>

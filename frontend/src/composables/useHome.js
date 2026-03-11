@@ -20,6 +20,9 @@ export function useHome() {
     callDirection: '',
     customerNumber: '',
     agent: '',
+    extension: '',
+    fullName: '',
+    customField: '',
     file_share: '',
     is_ticket: ''
   })
@@ -666,11 +669,13 @@ export function useHome() {
   }
 
   const onReset = async () => {
+    // Reset all UI state to initial values (like a page reload), without reloading
     try {
+      // Reset filter model
       filters.databaseServer = []
       filters.from = ''
       filters.to = ''
-      filters.duration = []
+      filters.duration = ''
       filters.fileName = ''
       filters.callDirection = []
       filters.customerNumber = ''
@@ -679,69 +684,80 @@ export function useHome() {
       filters.customField = ''
       filters.extension = ''
       filters.file_share = ''
+      filters.is_ticket = ''
+
+      // Reset UI state
+      searchQuery.value = ''
       sortColumn.value = ''
       sortDirection.value = ''
-      searchQuery.value = ''
       currentPage.value = 1
-      await nextTick()
-      try {
-        if (fromInput.value) {
-          if (typeof fromInput.value._flatpickrDoClear === 'function') {
-            try { fromInput.value._flatpickrDoClear() } catch(e) { /* fallback */ }
-          } else if (fromInput.value._flatpickr && typeof fromInput.value._flatpickr.clear === 'function') {
-            fromInput.value._flatpickr.clear()
-          } else {
-            fromInput.value.value = ''
-          }
-        }
-      } catch (e) { console.warn('clear fromInput failed', e) }
-      try {
-        if (toInput.value) {
-          if (typeof toInput.value._flatpickrDoClear === 'function') {
-            try { toInput.value._flatpickrDoClear() } catch(e) { /* fallback */ }
-          } else if (toInput.value._flatpickr && typeof toInput.value._flatpickr.clear === 'function') {
-            toInput.value._flatpickr.clear()
-          } else {
-            toInput.value.value = ''
-          }
-        }
-      } catch (e) { console.warn('clear toInput failed', e) }
+      perPage.value = 50
 
-      try {
-        if (durationInput.value) {
-          // prefer the directive's doClear helper which also clears cloned "To" inputs
-          if (typeof durationInput.value._flatpickrDoClear === 'function') {
-            try { durationInput.value._flatpickrDoClear() } catch (e) { /* fallback */ }
-          } else {
-            const inst = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
-            if (inst && typeof inst.clear === 'function') {
-              inst.clear()
-            } else {
-              durationInput.value.value = ''
-            }
+      // Clear selection and exported state
+      _selectedFilesMap.value = {}
+      resetExportSelections()
+      exportOpen.value = false
+      perDropdownOpen.value = false
+      recentOpen.value = false
+
+      // Restore default columns and clear records cache
+      columns.value = [...defaultColumns]
+      records.value = []
+      totalItems.value = 0
+
+      // Helper to clear flatpickr/input refs safely
+      const _clearInput = (refEl) => {
+        try {
+          if (!refEl || !refEl.value) return
+          const el = refEl.value
+          if (typeof el._flatpickrDoClear === 'function') {
+            try {
+              el._flatpickrDoClear()
+              // Also clear any cloned "To" inputs created by the directive
+              if (el._flatpickrToContainer) {
+                const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                inputs.forEach(i => {
+                  try { i.value = '' } catch (e) {}
+                  try { i.dispatchEvent(new Event('change')) } catch (e) {}
+                })
+              }
+              if ('value' in el) el.value = ''
+              try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+            } catch (e) {}
+            return
           }
-        }
-      } catch (e) { console.warn('clear durationInput failed', e) }
+          const inst = el._flatpickrInstance || el._flatpickrRangeInstance || el._flatpickr
+          if (inst && typeof inst.clear === 'function') { inst.clear(); return }
+          if ('value' in el) el.value = ''
+        } catch (e) { /* ignore */ }
+      }
+
+      _clearInput(fromInput)
+      _clearInput(toInput)
+      _clearInput(durationInput)
+
+      // Clear DOM-held input text and has-value classes
       try {
         const wrap = document.querySelector('.filter-card')
         if (wrap) {
-          const groups = wrap.querySelectorAll('.input-group')
-          groups.forEach(g => {
+          wrap.querySelectorAll('.input-group').forEach(g => {
             try {
               g.classList.remove('has-value')
-              const input = g.querySelector('input, textarea, select')
-              if (input) input.value = ''
-            } catch (ign) {}
+              const inp = g.querySelector('input, textarea, select')
+              if (inp) inp.value = ''
+            } catch (e) {}
           })
         }
-      } catch (e) { console.warn('clear filter-card values failed', e) }
+      } catch (e) {}
+
       await fetchData()
-    } catch (e) {
-      console.error('onReset error', e)
+    } catch (err) {
+      console.error('onReset error', err)
     }
   }
 
   async function applyFavorite(fav){
+    console.log('Applying favorite search', fav)
     try{
       const raw = typeof fav.raw_data === 'string' ? JSON.parse(fav.raw_data || '{}') : (fav.raw_data || {})
         const keyMap = {
@@ -835,21 +851,96 @@ export function useHome() {
       try {
         if (durationInput.value) {
           const inst3 = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
-          const dstr = filters.duration
+          const dstrRaw = filters.duration ?? ''
+          const dstr = String(dstrRaw).trim()
+
+          // normalize duration into "start - end" when it's an array or comma-separated
+          let normDur = dstr
+          if (Array.isArray(dstrRaw)) {
+            normDur = dstrRaw.map(x => String(x || '').trim()).filter(Boolean).join(' - ')
+          } else if (dstr.indexOf(',') !== -1 && !dstr.includes(' - ')) {
+            normDur = dstr.split(',').map(x => String(x || '').trim()).filter(Boolean).join(' - ')
+          }
+          // store normalized value back into filters so logs show the desired format
+          try { filters.duration = normDur } catch (e) {}
+
+          const dstrUsed = normDur
+
+          const parseTimeToDate = (s) => {
+            if (!s) return null
+            const parts = String(s).split(':').map(x => parseInt(x, 10) || 0)
+            const d = new Date()
+            d.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
+            return d
+          }
+
           if (inst3 && typeof inst3.setDate === 'function') {
-            if (dstr && dstr.indexOf(':') !== -1) {
-              const parts = String(dstr).split(':').map(x => parseInt(x, 10) || 0)
-              const now = new Date()
-              now.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
-              inst3.setDate(now, true)
-            } else if (!dstr) {
+            try {
+              if (inst3.config) inst3.config.rangeSeparator = ' - '
+            } catch (e) {}
+
+            if (!dstrUsed) {
               inst3.clear()
+            } else if (dstrUsed.includes(' - ')) {
+              const [startStr, endStr] = dstrUsed.split(' - ').map(x => x.trim())
+              const sd = parseTimeToDate(startStr)
+              const ed = parseTimeToDate(endStr)
+              if (sd && ed) {
+                inst3.setDate([sd, ed], true)
+                // ensure the input shows the desired separator after flatpickr updates it
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = dstrUsed } catch (e) {}
+                }, 50)
+              } else if (sd) {
+                inst3.setDate(sd, true)
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = startStr } catch (e) {}
+                }, 50)
+              } else {
+                inst3.clear()
+              }
+            } else if (dstrUsed.indexOf(':') !== -1) {
+              const d = parseTimeToDate(dstrUsed)
+              if (d) {
+                inst3.setDate(d, true)
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = dstrUsed } catch (e) {}
+                }, 50)
+              } else {
+                inst3.clear()
+              }
             } else {
-              durationInput.value.value = dstr || ''
+              try { durationInput.value.value = dstrUsed } catch (e) {}
             }
           } else {
-            durationInput.value.value = filters.duration || ''
+            try { durationInput.value.value = filters.duration || '' } catch (e) {}
           }
+
+          // final safeguard: ensure filter and input remain identical (normalize commas -> ' - ')
+          try {
+            if (durationInput.value && 'value' in durationInput.value) {
+              let val = String(durationInput.value.value || filters.duration || '')
+              val = val.replace(/\s*,\s*/g, ' - ')
+              filters.duration = val
+              durationInput.value.value = val
+
+              // If Flatpickr overwrites the input asynchronously, enforce normalization after it settles
+              setTimeout(() => {
+                try {
+                  if (durationInput.value && 'value' in durationInput.value) {
+                    let v2 = String(durationInput.value.value || '')
+                    v2 = v2.replace(/\s*,\s*/g, ' - ')
+                    if (v2 !== filters.duration) {
+                      filters.duration = v2
+                      durationInput.value.value = v2
+                    }
+                  }
+                } catch (er) {}
+              }, 200)
+            }
+          } catch (e) {}
+
+          console.log('Applied duration filter', filters.duration, 'parsed as', durationInput.value.value)
         }
       } catch (e) { console.warn('applyFavorite update durationInput failed', e) }
 
