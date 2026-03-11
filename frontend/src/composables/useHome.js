@@ -100,10 +100,13 @@ export function useHome() {
     try {
       if (v === 'true') {
         if (!columns.value.find(c => c.key === 'created_by')) {
+          const baseCols = defaultColumns.filter(c => c.key !== 'checked')
           columns.value = [
-            ...defaultColumns,
+            ...baseCols,
+            { key: 'delegate_id', label: 'Delegate ID' },
+            { key: 'start_date', label: 'Start Date' },
+            { key: 'expire_at', label: 'Expire Date' },
             { key: 'created_by', label: 'Created by' },
-            { key: 'expire_at', label: 'Expire' },
             { key: 'download', label: 'Download', sortable: false }
           ]
         }
@@ -124,10 +127,13 @@ export function useHome() {
     try {
       if (v === 'true') {
         if (!columns.value.find(c => c.key === 'created_by')) {
+          const baseCols = defaultColumns.filter(c => c.key !== 'checked')
           columns.value = [
-            ...defaultColumns,
+            ...baseCols,
+            { key: 'ticket_id', label: 'Ticket ID' },
+            { key: 'start_date', label: 'Start Date' },
+            { key: 'expire_at', label: 'Expire Date' },
             { key: 'created_by', label: 'Created by' },
-            { key: 'expire_at', label: 'Expire' },
             { key: 'download', label: 'Download', sortable: false }
           ]
         }
@@ -664,7 +670,7 @@ export function useHome() {
       filters.databaseServer = []
       filters.from = ''
       filters.to = ''
-      filters.duration = ''
+      filters.duration = []
       filters.fileName = ''
       filters.callDirection = []
       filters.customerNumber = ''
@@ -680,7 +686,9 @@ export function useHome() {
       await nextTick()
       try {
         if (fromInput.value) {
-          if (fromInput.value._flatpickr && typeof fromInput.value._flatpickr.clear === 'function') {
+          if (typeof fromInput.value._flatpickrDoClear === 'function') {
+            try { fromInput.value._flatpickrDoClear() } catch(e) { /* fallback */ }
+          } else if (fromInput.value._flatpickr && typeof fromInput.value._flatpickr.clear === 'function') {
             fromInput.value._flatpickr.clear()
           } else {
             fromInput.value.value = ''
@@ -689,7 +697,9 @@ export function useHome() {
       } catch (e) { console.warn('clear fromInput failed', e) }
       try {
         if (toInput.value) {
-          if (toInput.value._flatpickr && typeof toInput.value._flatpickr.clear === 'function') {
+          if (typeof toInput.value._flatpickrDoClear === 'function') {
+            try { toInput.value._flatpickrDoClear() } catch(e) { /* fallback */ }
+          } else if (toInput.value._flatpickr && typeof toInput.value._flatpickr.clear === 'function') {
             toInput.value._flatpickr.clear()
           } else {
             toInput.value.value = ''
@@ -699,11 +709,16 @@ export function useHome() {
 
       try {
         if (durationInput.value) {
-          const inst = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
-          if (inst && typeof inst.clear === 'function') {
-            inst.clear()
+          // prefer the directive's doClear helper which also clears cloned "To" inputs
+          if (typeof durationInput.value._flatpickrDoClear === 'function') {
+            try { durationInput.value._flatpickrDoClear() } catch (e) { /* fallback */ }
           } else {
-            durationInput.value.value = ''
+            const inst = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
+            if (inst && typeof inst.clear === 'function') {
+              inst.clear()
+            } else {
+              durationInput.value.value = ''
+            }
           }
         }
       } catch (e) { console.warn('clear durationInput failed', e) }

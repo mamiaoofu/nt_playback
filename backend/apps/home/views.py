@@ -219,7 +219,7 @@ def ApiGetAudioList(request):
 
     if is_ticket or file_share == "true":
         try:
-            valid_shares = UserFileShare.objects.filter(user=request.user, expire_at__gte=timezone.now())
+            valid_shares = UserFileShare.objects.filter(user=request.user,start_at__lte=timezone.now(), expire_at__gte=timezone.now(), status=True)
             UserFileShare.objects.filter(user=request.user).update(view=True)
             shared_ids = []
             
@@ -241,7 +241,11 @@ def ApiGetAudioList(request):
                                 key = str(aid)
                             entry = {
                                 'created_by': str(share.create_by) if getattr(share, 'create_by', None) else None,
-                                'expire_at': share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'expire_at', None) else None,
+                                'type': getattr(share, 'type', None),
+                                'code': getattr(share, 'code', None),
+                                'start_at': share.start_at.strftime("%Y-%m-%d") if getattr(share, 'start_at', None) else None,
+                                'start_at_dt': share.start_at if getattr(share, 'start_at', None) else None,
+                                'expire_at': share.expire_at.strftime("%Y-%m-%d") if getattr(share, 'expire_at', None) else None,
                                 'expire_at_dt': share.expire_at if getattr(share, 'expire_at', None) else None,
                                 'download': bool(getattr(share, 'dowload', False)),
                                 'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
@@ -331,12 +335,20 @@ def ApiGetAudioList(request):
     filter_map = {
         "start_datetime__gte": start_date,
         "start_datetime__lte": end_date,
-        "audiofile__file_name__icontains": file_name,
     }
 
     for field, value in filter_map.items():
         if value:
             audio_list = audio_list.filter(**{field: value})
+
+    # Handle file_name allowing multiple comma-separated values
+    if file_name:
+        parts = [p.strip() for p in str(file_name).split(',') if p.strip()]
+        if parts:
+            q_fn = Q()
+            for p in parts:
+                q_fn |= Q(audiofile__file_name__icontains=p)
+            audio_list = audio_list.filter(q_fn)
 
     # Handle duration filter: accept 'HH:MM:SS', 'MM:SS', 'SS' or range 'HH:MM:SS - HH:MM:SS'
     if duration:
@@ -585,6 +597,9 @@ def ApiGetAudioList(request):
                 "custom_field_1": custom_field,
                 "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
                 "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                "start_date": share_info.get('start_at') if isinstance(share_info, dict) else None,
+                "ticket_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'ticket' else None),
+                "delegate_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'delegate' else None),
                 "download": share_info.get('download') if isinstance(share_info, dict) else False
             })
     else:
@@ -615,8 +630,13 @@ def ApiGetAudioList(request):
                         except Exception:
                             best = lst[0]
                         share_info = {
+                            'type': best.get('type'),
+                            'code': best.get('code'),
                             'created_by': best.get('created_by'),
+                            'start_at': best.get('start_at'),
+                            'start_at_dt': best.get('start_at_dt'),
                             'expire_at': best.get('expire_at'),
+                            'expire_at_dt': best.get('expire_at_dt'),
                             'download': best.get('download', False)
                         }
                     else:

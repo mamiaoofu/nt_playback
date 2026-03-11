@@ -45,7 +45,7 @@ export default {
         const actionBtn = document.createElement('button')
         actionBtn.type = 'button'
         actionBtn.className = 'flatpickr-action-btn'
-        actionBtn.textContent = applied ? 'Clear' : 'Apply'
+        actionBtn.textContent = applied ? ' ' : 'Apply'
         actionBtn.dataset.state = applied ? 'clear' : 'apply'
 
         actions.appendChild(actionBtn)
@@ -222,7 +222,7 @@ export default {
         actionBtn.addEventListener('click', onActionClick)
 
         // update button state when user changes selection
-        instance.config.onChange.push((selectedDates, dateStr) => {
+          instance.config.onChange.push((selectedDates, dateStr) => {
           if (isDurationRange) {
             const fromPresent = Array.isArray(selectedDates) && selectedDates.length > 0
             const fromStr = fromPresent ? instance.formatDate(instance.latestSelectedDateObj, instance.config.dateFormat) : ''
@@ -238,14 +238,18 @@ export default {
               toPresent = !(h === '00' && m === '00' && (s === '00' || s === undefined))
             }
 
-            if (fromPresent && toPresent) {
-              el.value = `${fromStr} - ${toStr}`
-            } else if (fromPresent) {
-              el.value = fromStr
-            } else if (toPresent) {
-              el.value = toStr
+            // Build preview string but only write to the input when the calendar
+            // is open (preview) or when a value is already applied. This prevents
+            // committing the preview to the input when the user closes without Apply.
+            let preview = ''
+            if (fromPresent && toPresent) preview = `${fromStr} - ${toStr}`
+            else if (fromPresent) preview = fromStr
+            else if (toPresent) preview = toStr
+
+            if ((instance && instance.isOpen) || applied) {
+              el.value = preview
             } else {
-              // Preserve existing input value until the user explicitly Apply/Clear
+              // preserve existing input value until explicit Apply
             }
           }
 
@@ -286,7 +290,7 @@ export default {
                 }
               }
 
-              // Sync "To" picker if value exists
+              // Sync "To" picker for visual consistency, but do NOT mark as applied.
               if (el && el.value) {
                 if (isDurationRange && el.value.includes(' - ') && el._flatpickrToContainer) {
                   const parts = el.value.split(' - ')
@@ -298,11 +302,17 @@ export default {
                     if (inputs[2]) inputs[2].value = s || '00'
                   }
                 }
-                applied = true
-                actionBtn.textContent = 'Clear'
-                actionBtn.dataset.state = 'clear'
+                // Do not flip `applied` to true here — only clicking Apply should do that.
+                // Update button text to reflect pending state
+                if (applied) {
+                  actionBtn.textContent = 'Clear'
+                  actionBtn.dataset.state = 'clear'
+                } else {
+                  actionBtn.textContent = 'Apply'
+                  actionBtn.dataset.state = 'apply'
+                }
               } else {
-                applied = false
+                // no visible value -> show Apply state
                 actionBtn.textContent = 'Apply'
                 actionBtn.dataset.state = 'apply'
               }
@@ -311,15 +321,13 @@ export default {
         } catch (e) {}
 
         const onBlur = () => {
-          console.log('flatpickr input blur detected')
           try {
-            if (el && el.value) {
-              console.log('value present on blur', el.value)
-              applied = true
+            // Do not mark values as applied on blur. Only update button label to
+            // reflect whether there is an already-applied value.
+            if (applied) {
               actionBtn.textContent = 'Clear'
               actionBtn.dataset.state = 'clear'
             } else {
-              applied = false
               actionBtn.textContent = 'Apply'
               actionBtn.dataset.state = 'apply'
             }
@@ -374,7 +382,11 @@ export default {
     }
 
     // store instance for cleanup
+    // Expose instance and helper on element for external callers (eg. onReset)
     el._flatpickrInstance = instance
+    el._flatpickr = instance
+    // expose a safe clear that mirrors the internal doClear behaviour
+    try { if (typeof doClear === 'function') el._flatpickrDoClear = doClear } catch (e) {}
   },
 
   beforeUnmount(el) {
@@ -383,5 +395,8 @@ export default {
       if (el._flatpickrActionCleanup && typeof el._flatpickrActionCleanup === 'function') el._flatpickrActionCleanup()
     } catch (e) {}
     delete el._flatpickrInstance
+    delete el._flatpickr
+    delete el._flatpickrDoClear
+    try { delete el._flatpickrActionCleanup } catch(e){}
   }
 }
