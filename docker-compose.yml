@@ -28,19 +28,19 @@ services:
       - ./backend/.env
     restart: always
 
-  proxy:
-    image: nginx:stable-alpine
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./backend/cert.pem:/etc/ssl/certs/cert.pem:ro
-      - ./backend/key.pem:/etc/ssl/private/key.pem:ro
-    ports:
-      - "8080:80"
-      - "443:443"
-    depends_on:
-      - backend
-      - frontend
-    restart: always
+  # proxy:
+  #   image: nginx:stable-alpine
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - ./backend/cert.pem:/etc/ssl/certs/cert.pem:ro
+  #     - ./backend/key.pem:/etc/ssl/private/key.pem:ro
+  #   ports:
+  #     - "8080:80"
+  #     - "443:443"
+  #   depends_on:
+  #     - backend
+  #     - frontend
+  #   restart: always
 
   redis:
     image: redis:6-alpine
