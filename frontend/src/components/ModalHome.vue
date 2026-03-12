@@ -669,7 +669,6 @@ async function saveFavorite() {
       activeTab.value = 'list'
       // clear add form so values are not left behind
       try { resetAddForm() } catch (e) {}
-      emit('update:modelValue', false)
     } else {
       showToast(json.message || 'Failed to create favorite', 'error')
     }
@@ -699,7 +698,6 @@ async function saveFavorite() {
       activeTab.value = 'list'
       // clear edit form after successful save
       try { resetEditForm() } catch (e) {}
-      emit('update:modelValue', false)
     } else {
       showToast(json.message || 'Failed to update favorite', 'error')
     }
