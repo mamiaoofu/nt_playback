@@ -17,8 +17,10 @@ from django.utils import timezone
 from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
-from apps.core.utils.function import create_user_log
+from apps.core.utils.function import create_user_log, get_client_ip
 import secrets
+
+from django.views.decorators.csrf import csrf_exempt
 
 import io
 import os
@@ -71,6 +73,36 @@ def ApiGetCsrfToken(request):
     except Exception:
         pass
     return resp
+
+
+@csrf_exempt
+def debug_meta(request):
+    """Return useful request META and headers for debugging client IP and proxy."""
+    meta = request.META
+    keys = [
+        'REMOTE_ADDR', 'HTTP_X_REAL_IP', 'HTTP_X_FORWARDED_FOR',
+        'HTTP_CF_CONNECTING_IP', 'HTTP_X_CLIENT_IP', 'HTTP_CLIENT_IP',
+        'HTTP_USER_AGENT', 'HTTP_HOST', 'SERVER_NAME'
+    ]
+    summary = {k: meta.get(k) for k in keys}
+    # collect all HTTP_ headers (strip HTTP_ prefix)
+    http_headers = {k[5:]: v for k, v in meta.items() if k.startswith('HTTP_')}
+
+    data = {
+        'summary': summary,
+        'http_headers': http_headers,
+        'server': {
+            'host': request.get_host(),
+            'path': request.path,
+            'method': request.method,
+        }
+    }
+    # computed client ip using project util
+    try:
+        data['computed_client_ip'] = get_client_ip(request)
+    except Exception:
+        data['computed_client_ip'] = None
+    return JsonResponse(data)
 
 
 @login_required(login_url='/login')

@@ -230,9 +230,21 @@ def get_client_ip(request):
     """
     if not request:
         return "unknown"
-    xff = request.META.get('HTTP_X_FORWARDED_FOR')
-    if xff:
-        return xff.split(',')[0].strip()
+    # Prefer common real-ip headers set by reverse proxies
+    headers_to_check = [
+        'HTTP_X_REAL_IP',
+        'HTTP_X_CLIENT_IP',
+        'HTTP_CLIENT_IP',
+        'HTTP_CF_CONNECTING_IP',
+        'HTTP_X_FORWARDED_FOR',
+    ]
+    for h in headers_to_check:
+        val = request.META.get(h)
+        if val:
+            # X-Forwarded-For may contain a list of IPs
+            if h == 'HTTP_X_FORWARDED_FOR':
+                return val.split(',')[0].strip()
+            return val.strip()
     return request.META.get('REMOTE_ADDR', 'unknown')
 
 def create_user_log(
