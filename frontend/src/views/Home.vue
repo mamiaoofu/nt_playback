@@ -362,7 +362,6 @@ function onFileShareClick() {
 
 }
 
-/* Export dropdown action buttons: make Cancel/Confirm expand to fill available width */
 .export-actions {
   display: flex;
   gap: 6px;
