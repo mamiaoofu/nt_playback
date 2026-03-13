@@ -172,6 +172,7 @@ export function notification (title, text, icon, showCancelButton){
 }
 
 export async function exportTableToFormat(format, type = 'audio', opts = {}) {
+  console.log('exportTableToFormat called with format:', format, 'type:', type)
   try {
     const returnBlob = !!(opts && opts.returnBlob)
     const rows = Array.isArray(opts.rows) ? opts.rows : []
@@ -182,12 +183,27 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
 
     const hdrs = columns.map(c => c.label || c.key)
 
+    // convert rows to exportable strings, with special handling for boolean status
     const exportData = rows.map((row, rIdx) => {
       return columns.map((col) => {
         if (col.isIndex) return (startIndex || 0) + rIdx + 1
         const key = col.key
         let val = row && (row[key] !== undefined ? row[key] : '')
         if (val === null || val === undefined) return ''
+
+        // Normalize boolean-like status fields to human labels for export
+        try {
+          const keyLower = String(key || '').toLowerCase()
+          if (keyLower === 'status' || keyLower.includes('status')) {
+            // Accept true/false boolean or string forms
+            if (val === true || String(val).toLowerCase() === 'true' || String(val) === '1') return 'Active'
+            if (val === false || String(val).toLowerCase() === 'false' || String(val) === '0') return 'Expired'
+            // also map common words
+            if (String(val).toLowerCase().includes('act')) return 'Active'
+            if (String(val).toLowerCase().includes('inact') || String(val).toLowerCase().includes('expire')) return 'Expired'
+          }
+        } catch (e) { /* ignore */ }
+
         return String(val)
       })
     })
@@ -209,12 +225,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const callDirColorMap = {
         'Incoming': '#baf3c7', 'Inbound': '#baf3c7', 'Outgoing': '#add8e6', 'Outbound': '#add8e6', 'Internal': '#fdedbe', 'Block': '#ff7878', 'Tandem': '#add8e6', 'External': '#f0f0f0'
       }
-      const statusColorMap = { 'success': '#baf3c7', 'error': '#ff7878' }
+      // map exported status labels to colors: Active=green, Expired=red
+      const statusColorMap = { 'Active': '#baf3c7', 'Expired': '#ff7878', 'success': '#baf3c7', 'error': '#ff7878' }
 
       let html = '<html><head><meta charset="UTF-8"></head><body>'
       html += '<table border="1" cellspacing="0" cellpadding="0">'
       html += '<tr>'
-      html += '<td colspan="' + hdrs.length + '" style="text-align:left;font-size:28px;color:#2980b9;padding:8px;font-weight:bold;">' + (type === 'audio' ? 'Audio Records' : 'Audit Log') + '</td>'
+      html += '<td colspan="' + hdrs.length + '" style="text-align:left;font-size:28px;color:#2980b9;padding:8px;font-weight:bold;">' + (type === 'audio' ? 'Audio Records' : type) + '</td>'
       html += '</tr>'
       html += '<tr>'
       html += '<td colspan="' + hdrs.length + '" style="border-bottom:2px solid #2980b9;padding:0;margin:0;">&nbsp;</td>'
@@ -308,7 +325,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         return
       }
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-      const titleText = (type === 'audio') ? 'Audio Records' : 'Audit Log'
+      const titleText = (type === 'audio') ? 'Audio Records' : type
 
       const descIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('description'))
       const fileNameIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('file name'))
@@ -322,7 +339,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const callDirColorMap = {
         'Incoming': { bg: [186,243,199], text: [23,21,21] }, 'Inbound': { bg: [186,243,199], text: [23,21,21] }, 'Outgoing': { bg: [173,216,230], text: [23,21,21] }, 'Outbound': { bg: [173,216,230], text: [23,21,21] }, 'Internal': { bg: [253,237,190], text: [23,21,21] }, 'Block': { bg: [255,120,120], text: [255,255,255] }, 'Tandem': { bg: [173,216,230], text: [255,255,255] }, 'External': { bg: [240,240,240], text: [23,21,21] }
       }
-      const statusColorMap = { 'success': { bg: [186,243,199], text: [23,21,21] }, 'error': { bg: [255,120,120], text: [255,255,255] } }
+      // PDF color mapping for status labels: Active green, Expired red
+      const statusColorMap = {
+        'Active': { bg: [186,243,199], text: [23,21,21] },
+        'Expired': { bg: [255,120,120], text: [255,255,255] },
+        'success': { bg: [186,243,199], text: [23,21,21] },
+        'error': { bg: [255,120,120], text: [255,255,255] }
+      }
 
       doc.autoTable({
         head: [hdrs],

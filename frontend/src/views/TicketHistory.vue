@@ -3,6 +3,7 @@
     <div class="main-wrapper container-fluid py-3">
       <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: 'Ticket History' }]" />
       <div class="col-lg-12">
+      <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
         <div class="card">
           <div class="card-body card-body-datatable" style="position: relative;">
             <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -21,6 +22,29 @@
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
+                    <ul v-show="exportOpen" class="export-dropdown" @click.stop>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                        </label>
+                      </li>
+                      <li style="padding:8px;">
+                        <div class="export-actions">
+                          <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                          <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                        </div>
+                      </li>
+                    </ul>
                   </div>
               </div>
             </div>
@@ -90,6 +114,7 @@ import TableTemplate from '../components/TableTemplate.vue'
 import CustomSelect from '../components/CustomSelect.vue'
 import SearchInput from '../components/SearchInput.vue'
 import { useTicketHistory } from '../composables/UseTicketHistory'
+import ModalDowload from '../components/ModalDowload.vue'
 
 const {
     authStore,
@@ -126,6 +151,14 @@ const {
     resetFilters,
     fetchData,
     toggleExport,
+    onExportFormat,
+    confirmExport,
+    cancelExport,
+    exportSelections,
+    downloading,
+    downloadProgress,
+    downloadSpeed,
+    downloadRemaining,
     onSortChange,
     onRowDelete
 } = useTicketHistory()

@@ -19,7 +19,7 @@ const routes = [
 	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Logs' } },
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
-	{ path: '/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
+	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
 	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share' } },
 	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share' } },
 

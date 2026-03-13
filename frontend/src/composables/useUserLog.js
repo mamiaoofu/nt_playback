@@ -82,6 +82,7 @@ export function useUserLog() {
         const p = route.path || ''
         if (p === '/logs/system') return 'system'
         if (p === '/logs/audit') return 'audit'
+        if (p === '/logs/ticket-history') return 'ticket'
         return 'user'
     })
 
@@ -89,6 +90,7 @@ export function useUserLog() {
         const p = route.path || ''
         if (p === '/logs/system') return 'System log'
         if (p === '/logs/audit') return 'Audit log'
+        if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
     })
 
@@ -96,6 +98,7 @@ export function useUserLog() {
         const p = route.path || ''
         if (p === '/logs/system') return 'System Logs'
         if (p === '/logs/audit') return 'Audit Logs'
+        if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
     })
 

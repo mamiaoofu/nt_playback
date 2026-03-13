@@ -119,7 +119,7 @@
                 <router-link to="/logs/audit" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Audit log</router-link>
               </li>
               <li class="menu-item" v-if="store.hasPermission('Ticket History')">
-                <router-link to="/ticket-history" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket History</router-link>
+                <router-link to="/logs/ticket-history" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket History</router-link>
               </li>
             </ul>
           </div>

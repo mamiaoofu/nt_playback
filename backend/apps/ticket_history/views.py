@@ -13,6 +13,7 @@ import socket
 from datetime import datetime, timedelta
 from django.utils import timezone
 from datetime import timedelta
+import re
 from django.middleware.csrf import get_token
 from django.conf import settings
 from apps.core.utils.function import create_user_log
@@ -42,6 +43,39 @@ def ApiGetTicketHistory(request,type):
     files_audio = request.POST.get("files_audio") or request.GET.get("files_audio")
     status = request.POST.get("status") or request.GET.get("status")
     
+    def _parse_date_param(val, is_end=False):
+        if not val:
+            return None
+        dt = None
+        try:
+            dt = timezone.datetime.fromisoformat(val) if hasattr(timezone, 'datetime') else None
+        except Exception:
+            dt = None
+
+        # fallback to parse common formats
+        if dt is None:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(val, fmt)
+                    break
+                except Exception:
+                    dt = None
+
+        if dt is None:
+            return None
+
+        # If date-only string, expand to start/end of day
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', val):
+            if is_end:
+                dt = datetime(dt.year, dt.month, dt.day, 23, 59, 59)
+            else:
+                dt = datetime(dt.year, dt.month, dt.day, 0, 0, 0)
+
+        if settings.USE_TZ and dt.tzinfo is None:
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+
+        return dt
+
     
     ticket_history_list = UserFileShare.objects.filter(type=type)
     records_total = ticket_history_list.count()
@@ -56,29 +90,70 @@ def ApiGetTicketHistory(request,type):
         except Exception:
             pass
 
-    if start_date:
-        ticket_history_list = ticket_history_list.filter(created_at__gte=start_date)
-    if end_date:
-        ticket_history_list = ticket_history_list.filter(created_at__lte=end_date)
+    # parse start/end parameters and apply filters (support only-start, only-end, or both)
+    dt_start = _parse_date_param(start_date, is_end=False) if start_date else None
+    dt_end = _parse_date_param(end_date, is_end=True) if end_date else None
+
+    if dt_start and dt_end:
+        ticket_history_list = ticket_history_list.filter(created_at__gte=dt_start, created_at__lte=dt_end)
+    elif dt_start:
+        ticket_history_list = ticket_history_list.filter(created_at__gte=dt_start)
+    elif dt_end:
+        ticket_history_list = ticket_history_list.filter(created_at__lte=dt_end)
         
     if search_value:
         tokens = [t.strip() for t in search_value.split(',') if t.strip()]
         if tokens:
             q_search = Q()
             for tok in tokens:
-                q_tok = (
-                    Q(email__icontains=tok) |
-                    Q(create_by__username__icontains=tok) |
-                    Q(create_by__first_name__icontains=tok) |
-                    Q(create_by__last_name__icontains=tok) |
-                    Q(audiofile_id__icontains=tok) |
-                    Q(status__icontains=tok) |
-                    Q(code__icontains=tok)
-                )
+                lower = tok.lower()
+                # prioritize expired match first (to avoid matching 'act' inside 'expired')
+                if re.match(r'^(exp|expired|expi|ex|expir)', lower):
+                    q_tok = Q(status=False)
+                elif re.match(r'^(ac|act|active|a|actv)', lower):
+                    q_tok = Q(status=True)
+                else:
+                    q_tok = (
+                        Q(email__icontains=tok) |
+                        Q(create_by__username__icontains=tok) |
+                        Q(create_by__first_name__icontains=tok) |
+                        Q(create_by__last_name__icontains=tok) |
+                        Q(audiofile_id__icontains=tok) |
+                        Q(code__icontains=tok)
+                    )
                 q_search &= q_tok
             ticket_history_list = ticket_history_list.filter(q_search)
         
     records_filtered = ticket_history_list.count()
+    # Sorting support (e.g., sort[0][field]=created_at, sort[0][dir]=desc)
+    sort_field = request.POST.get("sort[0][field]") or request.GET.get("sort[0][field]")
+    sort_dir = (request.POST.get("sort[0][dir]") or request.GET.get("sort[0][dir]") or "asc").lower()
+    if sort_field:
+        field_map = {
+            "email": "email",
+            "code": "code",
+            "create_by": "create_by__username",
+            "created_at": "created_at",
+            "start_date": "start_at",
+            "expire_date": "expire_at",
+            "exprie_date": "expire_at",
+            "status": "status",
+            "user_id": "user_id",
+        }
+        mapped = field_map.get(sort_field)
+        try:
+            if mapped:
+                prefix = "-" if sort_dir == "desc" else ""
+                ticket_history_list = ticket_history_list.order_by(prefix + mapped)
+            elif sort_field == 'create_by_fullname':
+                # special-case: sort by first_name then last_name
+                if sort_dir == 'desc':
+                    ticket_history_list = ticket_history_list.order_by('-create_by__first_name', '-create_by__last_name')
+                else:
+                    ticket_history_list = ticket_history_list.order_by('create_by__first_name', 'create_by__last_name')
+        except Exception:
+            pass
+
     ticket_history_page = ticket_history_list[start:start + length]
     
     data = []
