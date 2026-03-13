@@ -111,11 +111,11 @@ def ApiGetTicketHistory(request,type):
     dt_end = _parse_date_param(end_date, is_end=True) if end_date else None
 
     if dt_start and dt_end:
-        ticket_history_list = ticket_history_list.filter(created_at__gte=dt_start, created_at__lte=dt_end)
+        ticket_history_list = ticket_history_list.filter(create_at__gte=dt_start, create_at__lte=dt_end)
     elif dt_start:
-        ticket_history_list = ticket_history_list.filter(created_at__gte=dt_start)
+        ticket_history_list = ticket_history_list.filter(create_at__gte=dt_start)
     elif dt_end:
-        ticket_history_list = ticket_history_list.filter(created_at__lte=dt_end)
+        ticket_history_list = ticket_history_list.filter(create_at__lte=dt_end)
         
     if search_value:
         tokens = [t.strip() for t in search_value.split(',') if t.strip()]
@@ -141,7 +141,7 @@ def ApiGetTicketHistory(request,type):
             ticket_history_list = ticket_history_list.filter(q_search)
         
     records_filtered = ticket_history_list.count()
-    # Sorting support (e.g., sort[0][field]=created_at, sort[0][dir]=desc)
+    # Sorting support (e.g., sort[0][field]=create_at, sort[0][dir]=desc)
     sort_field = request.POST.get("sort[0][field]") or request.GET.get("sort[0][field]")
     sort_dir = (request.POST.get("sort[0][dir]") or request.GET.get("sort[0][dir]") or "asc").lower()
     if sort_field:
@@ -149,7 +149,7 @@ def ApiGetTicketHistory(request,type):
             "email": "email",
             "code": "code",
             "create_by": "create_by__username",
-            "created_at": "created_at",
+            "create_at": "create_at",
             "start_date": "start_at",
             "expire_date": "expire_at",
             "exprie_date": "expire_at",
@@ -181,11 +181,11 @@ def ApiGetTicketHistory(request,type):
         else:
             creator_val = str(creator) if creator is not None else ''
 
-        created_at_val = getattr(ticket_history, 'create_at', None) or getattr(ticket_history, 'created_at', None)
-        if isinstance(created_at_val, datetime):
-            created_at_str = created_at_val.strftime("%Y-%m-%d %H:%M:%S")
+        create_at_val = getattr(ticket_history, 'create_at', None) or getattr(ticket_history, 'create_at', None)
+        if isinstance(create_at_val, datetime):
+            create_at_str = create_at_val.strftime("%Y-%m-%d %H:%M:%S")
         else:
-            created_at_str = str(created_at_val) if created_at_val is not None else ''
+            create_at_str = str(create_at_val) if create_at_val is not None else ''
 
         # build readable file list from stored set-like string {"2","3"}
         file_ids_raw = getattr(ticket_history, 'audiofile_id', '') or ''
@@ -223,7 +223,7 @@ def ApiGetTicketHistory(request,type):
             "start_date": ticket_history.start_at.strftime("%Y-%m-%d") if ticket_history.start_at else '',
             "exprie_date": ticket_history.expire_at.strftime("%Y-%m-%d") if ticket_history.expire_at else '',
             "status": ticket_history.status,
-            "created_at": created_at_str,
+            "create_at": create_at_str,
             "user_id" : ticket_history.user_id
         })
         

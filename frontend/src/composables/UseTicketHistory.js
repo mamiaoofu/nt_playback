@@ -58,8 +58,9 @@ export function useTicketHistory() {
         { key: 'code', label: 'Ticket ID' },
         { key: 'email', label: 'Email', tooltip: true, labelKey: 'email_label' },
         { key: 'create_by', label: 'Created By' },
+        { key: 'create_at', label: 'Created Date' },
         { key: 'start_date', label: 'Start Date' },
-        { key: 'exprie_date', label: 'Exprie Date' },
+        { key: 'exprie_date', label: 'Expire Date' },
         { key: 'files_audio', label: 'Files Audio', tooltip: true, labelKey: 'files_audio_label' },
         { key: 'status', label: 'Status' },
         // { key: 'action', label: 'Action' }
@@ -99,7 +100,7 @@ export function useTicketHistory() {
             if (filters.action && filters.action !== 'all' && Array.isArray(filters.action) && filters.action.length > 0) params.set('action', filters.action.join(','))
             if (filters.createdBy) params.set('create_by', filters.createdBy)
             if (filters.start_date) params.set('start_date', filters.start_date)
-            if (filters.exprie_date) params.set('end_date', filters.exprie_date)
+            if (filters.end_date) params.set('end_date', filters.end_date)
             if (filters.status && filters.status !== 'all' && Array.isArray(filters.status) && filters.status.length > 0) params.set('status', filters.status.join(','))
             if (filters.files_audio && filters.files_audio !== 'all' && Array.isArray(filters.files_audio) && filters.files_audio.length > 0) params.set('files_audio', filters.files_audio.join(','))
 

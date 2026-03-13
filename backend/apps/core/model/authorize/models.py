@@ -179,5 +179,5 @@ class UserFileShare(models.Model):
     
     class Meta:
         db_table = 'tb_file_share'
-        ordering = ['-update_at']
+        ordering = ['-create_at']
         verbose_name = 'User File Share'
