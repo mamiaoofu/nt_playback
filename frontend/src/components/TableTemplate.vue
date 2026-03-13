@@ -107,7 +107,8 @@
               <div class="file-full">{{ tooltipBody }}</div>
             </div>
             <button class="btn btn-sm btn-outline-secondary btn-copy" @click="copyFileName(tooltipText, tooltipIndex)"
-              :aria-label="copiedIndex === tooltipIndex ? 'Copied' : 'Copy'">
+              :aria-label="copiedIndex === tooltipIndex ? 'Copied' : 'Copy'"
+              :style="{ right: tooltipHasScroll ? '26px' : '6px' }">
               <i :class="copiedIndex === tooltipIndex ? 'fa-solid fa-check' : 'fa-regular fa-copy'"></i>
             </button>
           </div>
@@ -206,6 +207,9 @@ const tooltipHeader = computed(() => {
   if (parts.length > 1 && (lower.startsWith('file name') || lower.startsWith('email'))) return first
   return ''
 })
+
+// whether the currently-visible tooltip content has a scrollbar
+const tooltipHasScroll = ref(false)
 
 const tooltipBody = computed(() => {
   const text = tooltipText.value || ''
@@ -359,6 +363,18 @@ function onTooltipEnter(e, idx, text) {
         tooltipPlacement.value = 'bottom'
       }
       tooltipStyle.value = { position: 'fixed', left: `${left}px`, top: `${top}px`, transform, zIndex: 9999, maxWidth: '760px', whiteSpace: 'normal' }
+      // detect if the inner content is scrollable and set flag for UI positioning
+      try {
+        const fc = el.querySelector && el.querySelector('.file-content')
+        if (fc) {
+          // small tolerance for subpixel differences
+          tooltipHasScroll.value = fc.scrollHeight > (fc.clientHeight + 1)
+        } else {
+          tooltipHasScroll.value = false
+        }
+      } catch (err2) {
+        tooltipHasScroll.value = false
+      }
     } catch (err) {
       console.error('tooltip position error', err)
     }
@@ -369,6 +385,9 @@ function onTooltipLeave() {
   if (hideTimer) clearTimeout(hideTimer)
   hideTimer = setTimeout(() => { tooltipIndex.value = null; tooltipText.value = ''; tooltipStyle.value = null }, 120)
 }
+
+// ensure flag resets when tooltip hides
+onBeforeUnmount(() => { tooltipHasScroll.value = false })
 
 function cancelHide() { if (hideTimer) { clearTimeout(hideTimer); hideTimer = null } }
 
@@ -574,21 +593,37 @@ const getSortIcon = (key) => {
 }
 
   .file-name-tooltip .tooltip-inner {
-  max-width: 760px;
+  max-width: 720px;
   /* Preserve newlines and allow wrapping */
   white-space: pre-wrap;
-  overflow: visible;
+  /* keep outer box fixed; inner content will scroll when tall */
+  overflow: hidden;
   text-overflow: clip;
   color: #fff;
   font-size: 10px;
   background: rgba(0, 0, 0, 0.85);
-  padding: 6px 8px;
+  /* small right padding so scrollbar can sit flush at edge */
+  padding: 10px 2px;
   border-radius: 6px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
   /* Ensure text is left-aligned and breaks nicely */
   text-align: left;
   word-break: break-word;
 }
+
+  /* Limit tooltip content height and enable scrolling when it's long */
+  .file-name-tooltip .file-content {
+    max-height: 40vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* allow scrolling inside while keeping layout stable */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Optional: keep the full text block from growing wider than the inner box */
+  .file-name-tooltip .file-full {
+    max-width: 680px;
+  }
 
 .file-name-tooltip .file-full {
   display: block;
@@ -603,6 +638,29 @@ const getSortIcon = (key) => {
   margin-bottom: 5px;
   text-align: left;
   font-size: 12px;
+}
+
+/* position copy button at top-right inside tooltip, but left of scrollbar */
+.file-name-tooltip .tooltip-inner {
+  position: relative;
+}
+
+.file-name-tooltip .btn-copy {
+  position: absolute;
+  top: 6px;
+  /* place button left of the scrollbar (approx 20px from right edge) */
+  right: 6px;
+  z-index: 2;
+  font-size: 12px;
+  padding: 4px 6px;
+  line-height: 1;
+}
+
+.file-name-tooltip .file-content {
+  /* reserve space on the right for the copy button and the scrollbar */
+  padding-right: 56px;
+  /* ensure content doesn't go under the button */
+  scrollbar-gutter: stable both-edges;
 }
 
 .file-name-tooltip .tooltip-arrow {
@@ -634,5 +692,44 @@ const getSortIcon = (key) => {
 
 .cursor-pointer {
   cursor: pointer;
+}
+
+
+.file-name-tooltip .file-content {
+  /* Firefox: thumb color then track color, and thin width */
+  scrollbar-color: rgba(255,255,255,0.18) rgba(255,255,255,0.04);
+  scrollbar-width: thin;
+}
+
+/* WebKit scroll styling on the actual scrollable container */
+.file-name-tooltip .file-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.file-name-tooltip .file-content::-webkit-scrollbar-button {
+  display: none; /* remove the up/down arrow buttons */
+  width: 0;
+  height: 0;
+}
+
+.file-name-tooltip .file-content::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.04);
+  margin-top: 6px; /* align track top with the copy button (top:6px) */
+  margin-bottom: 6px;
+  border-radius: 4px;
+}
+
+.file-name-tooltip .file-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255,255,255,0.18);
+  border-radius: 4px;
+}
+
+.file-name-tooltip .file-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255,255,255,0.32);
+}
+
+.file-name-tooltip .file-content::-webkit-scrollbar-corner {
+  background: transparent;
 }
 </style>
