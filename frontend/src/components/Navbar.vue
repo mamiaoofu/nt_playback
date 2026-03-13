@@ -8,8 +8,8 @@
               <a aria-current="page" href="/" class="router-link-active router-link-exact-active no-link"
                 style="text-decoration: none; display: inline-flex; align-items: center">
                 <img src="/src/assets/images/logo-nichtel.png" class="img-fluid rounded" alt="Nichetel-logo" style="width: 40px; height: auto; margin-right: 10px" />
-                <div style="display: flex; flex-direction: column; line-height: 1.2; margin: 9px 0px 2px -5px">
-                  <span style="font-size: 18px; color: #fff">SeekTrack</span>
+                <div style="display: flex; flex-direction: column; line-height: 1.2; margin: 9px 0px 10px -5px;">
+                  <span style="font-size: 18px; color: #fff;font-weight: 600;">SeekTrack</span>
                   <span style="font-size: 12px; color: #fff">Centralized Search and Playback System</span>
                 </div>
               </a>

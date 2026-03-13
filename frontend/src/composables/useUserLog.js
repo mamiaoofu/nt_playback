@@ -254,7 +254,8 @@ export function useUserLog() {
             // rows to export (no voice selection on this page)
             const rowsToExport = paginatedRecords.value || []
             const exportColumns = (columns || []).filter(c => c && c.key !== 'checked')
-            const multipleOutput = (rowsToExport && rowsToExport.length > 1) || (formats.length > 1)
+            // only create a ZIP when multiple formats requested
+            const multipleOutput = (formats.length > 1)
 
             // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
             const fmtTimestamp = (d) => {
