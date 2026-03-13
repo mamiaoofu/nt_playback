@@ -1572,7 +1572,7 @@ export function useHome() {
       try {
         showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
       } catch (e) {}
-      sendLog('error', `FAIL_NT_Player_Connect_RUNNING | Could not connect to local NT Player Connect or another error occurred: ${error.message}. File: ${uncPath}`)
+      sendLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${uncPath}`)
       loading.value = false
     }
   }
