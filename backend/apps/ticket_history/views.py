@@ -90,6 +90,22 @@ def ApiGetTicketHistory(request,type):
         except Exception:
             pass
 
+    # filter by create_by username (supports comma-separated usernames)
+    if create_by:
+        try:
+            names = [n.strip() for n in str(create_by).split(',') if n and n.strip() and n.strip().lower() != 'all']
+            if names:
+                if len(names) > 1:
+                    ticket_history_list = ticket_history_list.filter(create_by__username__in=names)
+                else:
+                    ticket_history_list = ticket_history_list.filter(create_by__username=names[0])
+        except Exception:
+            # fallback to contains
+            try:
+                ticket_history_list = ticket_history_list.filter(create_by__username__icontains=create_by)
+            except Exception:
+                pass
+
     # parse start/end parameters and apply filters (support only-start, only-end, or both)
     dt_start = _parse_date_param(start_date, is_end=False) if start_date else None
     dt_end = _parse_date_param(end_date, is_end=True) if end_date else None
