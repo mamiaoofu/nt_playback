@@ -122,7 +122,7 @@
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
                         <p style="margin:0 0 8px 0">Dear Sir,</p>
-                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on NT Audio Search.</p>
+                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Password:</strong> <code style="background:#f3f4f6; padding:4px 8px; border-radius:4px">{{ resultData.password }}</code>
@@ -134,7 +134,7 @@
                         <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/login</a></div>
                         <div>
                             Best regards,<br>
-                            <b>NT Audio Search Team</b>
+                            <b>SeekTrack Team</b>
                         </div>
                     </div>
                 </div>
@@ -146,7 +146,7 @@
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
                         <p>Dear Sir,</p>
-                        <p>Files are shared so you can listen to specific audio records on <br> NT Audio Search.</p>
+                        <p>Files are shared so you can listen to specific audio records on <br> SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div><strong>Valid Start:</strong> {{ resultData.validStart }}</div>
                             <div><strong>Valid Expire:</strong> {{ resultData.validExpire }}</div>
@@ -155,7 +155,7 @@
                         <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/ticket</a></div>
                         <div>
                             Best regards,<br>
-                            <b>NT Audio Search Team</b>
+                            <b>SeekTrack Team</b>
                         </div>
                     </div>
                 </div>

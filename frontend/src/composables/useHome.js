@@ -1485,7 +1485,7 @@ export function useHome() {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
-          body: JSON.stringify({ status: 'initiated_browser', detail: `Play in-browser file: ${audioSrc.value}` })
+          body: JSON.stringify({ status: 'success', detail: `Play audio file: ${audioMetadata.fileName}` })
         }).catch(() => {})
       } catch (e) {
         console.error('Failed to initiate in-browser playback', e)
@@ -1547,7 +1547,7 @@ export function useHome() {
             if (data.running || checkCount >= maxChecks) {
               clearInterval(pollInterval)
               loading.value = false
-              if (data.running) sendLog('success', `Playback file: ${uncPath}`)
+              if (data.running) sendLog('success', `Play audio file: ${fileName}`)
               else {
                 sendLog('warning', `Playback initiated but process not detected: ${uncPath}`)
                 try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (e) {}
@@ -1622,7 +1622,7 @@ export function useHome() {
     document.addEventListener('click', onDocClick)
     try {
       pollSaveLogs()
-      // saveLogsInterval = setInterval(pollSaveLogs, 3000)
+      saveLogsInterval = setInterval(pollSaveLogs, 3000)
     } catch (e) { console.warn('start pollSaveLogs failed', e) }
     // file-share: WebSocket-only (server push). Polling removed.
     const checkFileShare = async () => {

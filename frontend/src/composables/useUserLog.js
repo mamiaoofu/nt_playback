@@ -30,13 +30,13 @@ export function useUserLog() {
         { label: 'Create Config Team', value: 'Create Config Team' },
         { label: 'Create Custom Role', value: 'Create Custom Role' },
         { label: 'Create Favorite', value: 'Create Favorite' },
-        { label: 'Create Favorite Search', value: 'Create Favorite Search' },
         { label: 'Created User', value: 'Created User' },
         { label: 'Delete Config Group', value: 'Delete Config Group' },
         { label: 'Delete Config Team', value: 'Delete Config Team' },
         { label: 'Delete Custom Role', value: 'Delete Custom Role' },
         { label: 'Delete Favorite', value: 'Delete Favorite' },
         { label: 'Delete User', value: 'Delete User' },
+        { label: 'Download', value: 'Download' },
         { label: 'Edit Favorite', value: 'Edit Favorite' },
         { label: 'Login', value: 'Login' },
         { label: 'Play audio', value: 'Play audio' },
@@ -45,7 +45,7 @@ export function useUserLog() {
         { label: 'Update Config Team', value: 'Update Config Team' },
         { label: 'Update Custom Role', value: 'Update Custom Role' },
         { label: 'Update Favorite Search', value: 'Update Favorite Search' },
-        { label: 'Update User', value: 'Update User' }
+        { label: 'Update User', value: 'Update User' },
     ])
 
     const startInput = ref(null)
@@ -127,6 +127,12 @@ export function useUserLog() {
             params.set('start', start)
             params.set('length', perPage.value)
             params.set('search[value]', searchQuery.value || '')
+
+            if (sortColumn.value && sortDirection.value) {
+                params.set('sort[0][field]', sortColumn.value)
+                params.set('sort[0][dir]', sortDirection.value)
+            }
+
             if (filters.name && filters.name !== 'all') params.set('name', filters.name)
             if (filters.action && filters.action !== 'all') params.set('action', filters.action)
             if (filters.start_date) params.set('start_date', filters.start_date)
@@ -218,6 +224,8 @@ export function useUserLog() {
                         filters.action = ''
                         filters.start_date = ''
                         filters.end_date = ''
+                        sortColumn.value = ''
+                        sortDirection.value = ''
 
                         if (startInput.value && startInput.value._flatpickrInstance) {
                                 startInput.value._flatpickrInstance.clear()
@@ -446,6 +454,15 @@ export function useUserLog() {
         exportOpen.value = false
     }
 
+    const sortColumn = ref('')
+    const sortDirection = ref('')
+
+    const onSortChange = ({ column, direction }) => {
+        sortColumn.value = column
+        sortDirection.value = direction
+        fetchData()
+    }
+
     const state = {
         authStore,
         searchQuery,
@@ -479,6 +496,8 @@ export function useUserLog() {
         downloading,
         downloadProgress,
         downloadSpeed,
+        sortColumn,
+        sortDirection,
         downloadRemaining
     }
 
@@ -496,6 +515,7 @@ export function useUserLog() {
         fetchUsers,
         confirmExport,
         cancelExport,
+        onSortChange,
     }
 
     return {

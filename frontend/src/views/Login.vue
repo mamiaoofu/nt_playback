@@ -4,7 +4,7 @@
 
     <div class="login-header">
       <img src="/src/assets/images/logo-nichtel.png" alt="logo" class="logo" />
-      <h1 class="app-title">NT Audio Search</h1>
+      <h1 class="app-title">SeekTrack</h1>
       <div class="app-sub">Centralized Search and Playback System</div>
     </div>
 

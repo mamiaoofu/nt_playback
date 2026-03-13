@@ -6,6 +6,7 @@ from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.conf import settings
 from datetime import datetime, timedelta
+import re
 
 from apps.core.model.authorize.models import UserLog
 from apps.core.utils.permissions import get_user_actions
@@ -40,6 +41,40 @@ def ApiGetUserLogs(request,type):
     end_date = request.POST.get("end_date") or request.GET.get("end_date")
     client_type = request.POST.get("client_type") or request.GET.get("client_type")
     
+    def _parse_date_param(val, is_end=False):
+        if not val:
+            return None
+        # try Django's parse_datetime first
+        dt = None
+        try:
+            dt = parse_datetime(val)
+        except Exception:
+            dt = None
+
+        # fallback to common formats
+        if dt is None:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(val, fmt)
+                    break
+                except Exception:
+                    dt = None
+
+        if dt is None:
+            return None
+
+        # If input was date-only like YYYY-MM-DD, adjust to start/end of day
+        if re.match(r'^\d{4}-\d{2}-\d{2}$', val):
+            if is_end:
+                dt = datetime(dt.year, dt.month, dt.day, 23, 59, 59)
+            else:
+                dt = datetime(dt.year, dt.month, dt.day, 0, 0, 0)
+
+        if settings.USE_TZ and dt.tzinfo is None:
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+
+        return dt
+
     # base queryset and type filter
     # avoid N+1 queries on user access by selecting related user
     log_list = UserLog.objects.select_related('user').all()
@@ -83,28 +118,16 @@ def ApiGetUserLogs(request,type):
         log_list = log_list.filter(detail__icontains=description)
     if ip_address:
         log_list = log_list.filter(ip_address__icontains=ip_address)
-    if start_date:
-        try:
-            dt = parse_datetime(start_date)
-            if dt is None:
-                dt = datetime.strptime(start_date, "%Y-%m-%d %H:%M")
-            if settings.USE_TZ and dt.tzinfo is None:
-                dt = timezone.make_aware(dt, timezone.get_current_timezone())
-            log_list = log_list.filter(timestamp__gte=dt)
-        except Exception:
-            pass
-    if end_date:
-        try:
-            dt = parse_datetime(end_date)
-            if dt is None:
-                dt = datetime.strptime(end_date, "%Y-%m-%d %H:%M")
-            if settings.USE_TZ and dt.tzinfo is None:
-                dt = timezone.make_aware(dt, timezone.get_current_timezone())
-            # include the full minute of the provided end time (up to :59)
-            dt_end = dt + timedelta(seconds=59)
-            log_list = log_list.filter(timestamp__lte=dt_end)
-        except Exception:
-            pass
+    # parse start/end parameters with sensible fallbacks and inclusive end-date
+    dt_start = _parse_date_param(start_date, is_end=False) if start_date else None
+    dt_end = _parse_date_param(end_date, is_end=True) if end_date else None
+
+    if dt_start and dt_end:
+        log_list = log_list.filter(timestamp__gte=dt_start, timestamp__lte=dt_end)
+    elif dt_start:
+        log_list = log_list.filter(timestamp__gte=dt_start)
+    elif dt_end:
+        log_list = log_list.filter(timestamp__lte=dt_end)
     if client_type:
         log_list = log_list.filter(client_type__icontains=client_type)
 
@@ -126,6 +149,35 @@ def ApiGetUserLogs(request,type):
 
     # records after filtering
     records_filtered = log_list.count()
+
+    # Sorting support: read sort params (e.g., sort[0][field]=action, sort[0][dir]=desc)
+    sort_field = request.POST.get("sort[0][field]") or request.GET.get("sort[0][field]")
+    sort_dir = (request.POST.get("sort[0][dir]") or request.GET.get("sort[0][dir]") or "asc").lower()
+    if sort_field:
+        field_map = {
+            "username": "user__username",
+            "action": "action",
+            "status": "status",
+            "detail": "detail",
+            "ip_address": "ip_address",
+            "timestamp": "timestamp",
+            "client_type": "client_type",
+            # full_name handled specially
+            "full_name": None,
+        }
+        mapped = field_map.get(sort_field)
+        try:
+            if sort_field == "full_name":
+                # order by first_name then last_name
+                if sort_dir == "desc":
+                    log_list = log_list.order_by("-user__first_name", "-user__last_name")
+                else:
+                    log_list = log_list.order_by("user__first_name", "user__last_name")
+            elif mapped:
+                prefix = "-" if sort_dir == "desc" else ""
+                log_list = log_list.order_by(prefix + mapped)
+        except Exception:
+            pass
 
     # Pagination (select_related already applied)
     log_page = log_list[start:start + length]

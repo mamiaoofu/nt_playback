@@ -1,7 +1,7 @@
 <template>
   <MainLayout>
     <div class="main-wrapper container-fluid py-3">
-      <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: 'User Logs' }]" />
+      <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: cardTitle }]" />
       <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       <div class="col-lg-12">
         <div class="card">
@@ -99,6 +99,9 @@
               :per-page-options="perPageOptions"
               :current-page="currentPage"
               :total-items="totalItems"
+              :sort-column="sortColumn"
+              :sort-direction="sortDirection"
+              @sort-change="onSortChange"
               @edit="onRowEdit"
               @delete="onRowDelete"
               @page-change="changePage"
@@ -161,6 +164,8 @@ const {
   downloadProgress,
   downloadSpeed,
   downloadRemaining,
+  sortColumn,
+  sortDirection,
   onTyping,
   setPerPage,
   changePage,
@@ -174,6 +179,7 @@ const {
   fetchUsers,
   cancelExport,
   confirmExport,
+  onSortChange,
   exportSelections
 } = useUserLog()
 </script>

@@ -913,11 +913,9 @@ def ApiProxyAudio(request):
         except Exception as e:
             tb = traceback.format_exc()
             err = f'Failed to establish SMB connection: {repr(e)}'
-            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "trace": tb}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
         if not connected:
             err = 'Failed to connect to SMB host (connect returned False)'
-            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
 
         bio = None
@@ -946,16 +944,13 @@ def ApiProxyAudio(request):
                     conn.retrieveFile(share, path_in_share, tmp)
                     tmp.seek(0)
                     bio = tmp
-                    create_user_log(user=request.user, action="Proxy Audio", detail={"info": f"Read file from share {share}"}, status="success", request=request)
                     break
                 except Exception as e:
                     tb = traceback.format_exc()
                     attempts.append({'share': share, 'error': repr(e), 'trace': tb})
-                    create_user_log(user=request.user, action="Proxy Audio", detail={"error": f"Failed reading from share {share}", "trace": tb}, status="error", request=request)
             
             if bio is None:
                 err = f'Failed to read remote file from any share. Attempts: {json.dumps([{"share": a["share"], "error": a["error"]} for a in attempts])}'
-                create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "attempts": attempts}, status="error", request=request)
                 return JsonResponse({'error': err, 'attempts': attempts}, status=502)
         finally:
             try: conn.close()
@@ -967,7 +962,6 @@ def ApiProxyAudio(request):
         response['Content-Disposition'] = f'attachment; filename="{base}"'
         return response
     except Exception as e:
-        create_user_log(user=request.user, action="Proxy Audio", detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({'error': str(e)}, status=500)
     
 @login_required
@@ -979,11 +973,11 @@ def ApiLogPlayAudio(request):
     """
     try:
         data = json.loads(request.body)
-        create_user_log(user=request.user, action="Playback Audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
+        create_user_log(user=request.user, action="Play audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
 
         return JsonResponse({"message": "Log received"}, status=201)
     except Exception as e:
-        create_user_log(user=request.user, action="Playback Audio", detail={"error": str(e)}, status="error", request=request)
+        create_user_log(user=request.user, action="Play audio", detail={"error": str(e)}, status="error", request=request)
         
         return JsonResponse({"error": str(e)}, status=400)
 
@@ -1003,6 +997,32 @@ def ApiLogSaveFile(request):
             # swallow secondary errors when logging fails
             pass
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+@login_required
+def ApiLogDownload(request):
+    """
+    Log a successful file download. Accepts GET (query param `file`) or POST JSON {"file_name": "..."}.
+    """
+    try:
+        file_name = ''
+        if request.method == 'GET':
+            file_name = request.GET.get('file') or ''
+        else:
+            try:
+                data = json.loads(request.body or '{}')
+                file_name = data.get('file_name') or data.get('file') or ''
+            except Exception:
+                file_name = ''
+
+        create_user_log(user=request.user, action="Dowload", detail=f"file: {file_name}", status="success", request=request)
+        return JsonResponse({"status": "ok"}, status=201)
+    except Exception as e:
+        try:
+            create_user_log(user=request.user, action="Dowload", detail={"error": str(e)}, status="error", request=request)
+        except Exception:
+            pass
+        return JsonResponse({"error": str(e)}, status=400)
     
 @login_required
 @require_POST
