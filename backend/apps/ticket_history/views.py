@@ -110,12 +110,13 @@ def ApiGetTicketHistory(request,type):
     dt_start = _parse_date_param(start_date, is_end=False) if start_date else None
     dt_end = _parse_date_param(end_date, is_end=True) if end_date else None
 
+    # date filtering now targets the ticket's start_at field
     if dt_start and dt_end:
-        ticket_history_list = ticket_history_list.filter(create_at__gte=dt_start, create_at__lte=dt_end)
+        ticket_history_list = ticket_history_list.filter(start_at__range=(dt_start, dt_end))
     elif dt_start:
-        ticket_history_list = ticket_history_list.filter(create_at__gte=dt_start)
+        ticket_history_list = ticket_history_list.filter(start_at__gte=dt_start)
     elif dt_end:
-        ticket_history_list = ticket_history_list.filter(create_at__lte=dt_end)
+        ticket_history_list = ticket_history_list.filter(start_at__lte=dt_end)
         
     if search_value:
         tokens = [t.strip() for t in search_value.split(',') if t.strip()]

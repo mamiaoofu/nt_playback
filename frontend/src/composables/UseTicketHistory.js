@@ -58,7 +58,6 @@ export function useTicketHistory() {
         { key: 'code', label: 'Ticket ID' },
         { key: 'email', label: 'Email', tooltip: true, labelKey: 'email_label' },
         { key: 'create_by', label: 'Created By' },
-        { key: 'create_at', label: 'Created Date' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Expire Date' },
         { key: 'files_audio', label: 'Files Audio', tooltip: true, labelKey: 'files_audio_label' },
