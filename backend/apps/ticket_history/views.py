@@ -1,5 +1,6 @@
 from django.shortcuts import  redirect
-from functools import wraps
+from functools import wraps, reduce
+import operator
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
 from django.http import JsonResponse
@@ -121,25 +122,156 @@ def ApiGetTicketHistory(request,type):
     if search_value:
         tokens = [t.strip() for t in search_value.split(',') if t.strip()]
         if tokens:
-            q_search = Q()
+            # prefetch audio ids that match any token in filenames (single DB query)
+            try:
+                # limit number of matched audio ids to avoid building huge OR queries
+                audio_name_qs = [Q(audiofile__file_name__icontains=t) for t in tokens]
+                combined_audio_q = reduce(operator.or_, audio_name_qs)
+                matching_audio_ids_all = list(AudioInfo.objects.filter(combined_audio_q).distinct().values_list('audiofile__id', flat=True)[:100])
+            except Exception:
+                matching_audio_ids_all = []
+
+            q_parts = []
             for tok in tokens:
                 lower = tok.lower()
-                # prioritize expired match first (to avoid matching 'act' inside 'expired')
+                # skip very short tokens to avoid noise, but allow numeric tokens
+                # (user ids or numeric codes) even if shorter than 3
+                if len(tok.strip()) < 3 and not tok.isdigit():
+                    continue
+
+                # priority special keyword matches
                 if re.match(r'^(exp|expired|expi|ex|expir)', lower):
                     q_tok = Q(status=False)
-                elif re.match(r'^(ac|act|active|a|actv)', lower):
+                    q_parts.append(q_tok)
+                    continue
+                if re.match(r'^(ac|act|active|a|actv)', lower):
                     q_tok = Q(status=True)
+                    q_parts.append(q_tok)
+                    continue
+                if re.match(r'^(in|inactive|i|inact)', lower):
+                    q_tok = Q(status=False)
+                    q_parts.append(q_tok)
+                    continue
+
+                # detect email-like token
+                if '@' in tok:
+                    q_tok = Q(email__icontains=tok)
+                    q_parts.append(q_tok)
+                    continue
+
+                # detect file-name-like token (has extension or underscores+digits)
+                file_like = False
+                if re.search(r'\.[a-z0-9]{1,6}$', lower) or ('_' in tok and re.search(r'\d', tok)):
+                    file_like = True
+
+                # Attempt to find matching AudioInfo for this token regardless
+                # of whether it looks 'file-like'. This ensures numeric chunks
+                # inside filenames (e.g., '140220') are matched.
+                try:
+                    ids = list(AudioInfo.objects.filter(audiofile__file_name__icontains=tok).distinct().values_list('audiofile__id', flat=True)[:100])
+                except Exception:
+                    ids = []
+
+                if ids:
+                    audio_q = Q()
+                    for aid in ids:
+                        audio_q |= Q(audiofile_id__icontains=f'"{aid}"')
+                    q_parts.append(audio_q)
+                    continue
+
+                if file_like:
+                    try:
+                        # search AudioInfo per-token, limited to avoid heavy queries
+                        ids = list(AudioInfo.objects.filter(audiofile__file_name__icontains=tok).distinct().values_list('audiofile__id', flat=True)[:100])
+                    except Exception:
+                        ids = []
+                    if ids:
+                        audio_q = Q()
+                        for aid in ids:
+                            audio_q |= Q(audiofile_id__icontains=f'"{aid}"')
+                        q_parts.append(audio_q)
+                    else:
+                        # fallback to matching raw token inside audiofile_id or code
+                        q_parts.append(Q(audiofile_id__icontains=tok) | Q(code__icontains=tok))
+                    continue
+
+                # if token is numeric or a date-like string, handle accordingly
+                # 1) full ISO date 'YYYY-MM-DD' -> match exact date on datetime fields
+                # 2) numeric tokens:
+                #    - 4-digit -> treat as year and match __year
+                #    - 1-2 digit -> match day (__day) and month (__month)
+                #    - always also attempt to match id/user_id exact and code contains
+                parsed_date = None
+                if re.match(r'^\d{4}-\d{2}-\d{2}$', tok):
+                    parsed_date = datetime.strptime(tok, '%Y-%m-%d').date()
                 else:
-                    q_tok = (
-                        Q(email__icontains=tok) |
-                        Q(create_by__username__icontains=tok) |
-                        Q(create_by__first_name__icontains=tok) |
-                        Q(create_by__last_name__icontains=tok) |
-                        Q(audiofile_id__icontains=tok) |
-                        Q(code__icontains=tok)
-                    )
-                q_search &= q_tok
-            ticket_history_list = ticket_history_list.filter(q_search)
+                    parsed_date = None
+
+                if parsed_date:
+                    q_parts.append(Q(start_at__date=parsed_date) |
+                                   Q(expire_at__date=parsed_date) |
+                                   Q(create_at__date=parsed_date) |
+                                   Q(code__icontains=tok))
+                    continue
+
+                # support year-month tokens like YYYY-MM (e.g., '2026-03')
+                try:
+                    if re.match(r'^\d{4}-\d{2}$', tok):
+                        y, m = tok.split('-')
+                        y_i = int(y)
+                        m_i = int(m)
+                        q_tok = (
+                            Q(start_at__year=y_i, start_at__month=m_i) |
+                            Q(expire_at__year=y_i, expire_at__month=m_i) |
+                            Q(create_at__year=y_i, create_at__month=m_i) |
+                            Q(code__icontains=tok)
+                        )
+                        q_parts.append(q_tok)
+                        continue
+                except Exception:
+                    pass
+
+                if tok.isdigit():
+                    try:
+                        n = int(tok)
+                        # build date-related Q depending on token length
+                        if len(tok) == 4:
+                            date_q = Q(start_at__year=n) | Q(expire_at__year=n) | Q(create_at__year=n)
+                        else:
+                            date_q = (
+                                Q(start_at__day=n) | Q(expire_at__day=n) | Q(create_at__day=n) |
+                                Q(start_at__month=n) | Q(expire_at__month=n) | Q(create_at__month=n)
+                            )
+
+                        q_tok = (
+                            Q(user_id=n) |
+                            date_q |
+                            Q(code__icontains=tok)
+                        )
+                    except Exception:
+                        q_tok = Q(code__icontains=tok)
+                    q_parts.append(q_tok)
+                    continue
+
+                # default: search username/name/code/email fields
+                q_tok = (
+                    Q(create_by__username__icontains=tok) |
+                    Q(create_by__first_name__icontains=tok) |
+                    Q(create_by__last_name__icontains=tok) |
+                    Q(code__icontains=tok) |
+                    Q(email__icontains=tok)
+                )
+                q_parts.append(q_tok)
+
+            # combine parts with AND so all tokens must match somewhere in the row
+            if q_parts:
+                try:
+                    combined_q = reduce(operator.and_, q_parts)
+                except Exception:
+                    combined_q = Q()
+                    for p in q_parts:
+                        combined_q &= p
+                ticket_history_list = ticket_history_list.filter(combined_q)
         
     records_filtered = ticket_history_list.count()
     # Sorting support (e.g., sort[0][field]=create_at, sort[0][dir]=desc)

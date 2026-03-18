@@ -37,12 +37,12 @@
                 </div>
 
                 <div :class="['input-group', { 'has-value': !!filters.start_date }]">
-                  <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date' }" required type="text" name="start_date" autocomplete="off" class="input">
+                  <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date', noTime: true }" required type="text" name="start_date" autocomplete="off" class="input">
                   <label class="floating-label">From</label>
                   <span class="calendar-icon" @click="startInput && startInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
                 <div :class="['input-group', { 'has-value': !!filters.end_date }]">
-                  <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date' }" required type="text" name="end_date" autocomplete="off" class="input">
+                  <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date', noTime: true }" required type="text" name="end_date" autocomplete="off" class="input">
                   <label class="floating-label">To</label>
                   <span class="calendar-icon" @click="endInput && endInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
@@ -142,6 +142,7 @@ const {
     recentResultData,
     recentResultType,
     typeUrl,
+    pageTitle,
     onTyping,
     setPerPage,
     changePage,
@@ -155,11 +156,6 @@ const {
     resendTicket
 } = useFileShareManagement()
 
-const pageTitle = computed(() => {
-  if (typeUrl.value === 'ticket') return 'Ticket Management'
-  if (typeUrl.value === 'delegate') return 'Delegate Management'
-  return 'Ticket History'
-})
 
 </script>
 <style scoped src="../assets/css/user-log.css"></style>

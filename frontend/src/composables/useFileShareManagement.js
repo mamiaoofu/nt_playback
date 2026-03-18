@@ -112,7 +112,7 @@ export function useFileShareManagement() {
             if (filters.action && filters.action !== 'all' && Array.isArray(filters.action) && filters.action.length > 0) params.set('action', filters.action.join(','))
             if (filters.createdBy) params.set('create_by', filters.createdBy)
             if (filters.start_date) params.set('start_date', filters.start_date)
-            if (filters.exprie_date) params.set('end_date', filters.exprie_date)
+            if (filters.end_date) params.set('end_date', filters.end_date)
             if (filters.status && filters.status !== 'all' && Array.isArray(filters.status) && filters.status.length > 0) params.set('status', filters.status.join(','))
             if (filters.files_audio && filters.files_audio !== 'all' && Array.isArray(filters.files_audio) && filters.files_audio.length > 0) params.set('files_audio', filters.files_audio.join(','))
 
@@ -189,8 +189,15 @@ export function useFileShareManagement() {
                         }
                     }
                 }
-                ticketOptions.value = tOpts
-                createdByOptions.value = cOpts
+                // Only populate ticketOptions and createdByOptions once (on initial load).
+                // If either is already populated with more than the default option,
+                // skip rebuilding that specific list to avoid overwriting a user selection.
+                if (!ticketOptions.value || ticketOptions.value.length <= 1) {
+                    ticketOptions.value = tOpts
+                }
+                if (!createdByOptions.value || createdByOptions.value.length <= 1) {
+                    createdByOptions.value = cOpts
+                }
             } catch (e) {
                 console.error('build options error', e)
             }
@@ -256,8 +263,16 @@ export function useFileShareManagement() {
                 endInput.value._flatpickrInstance.clear()
             }
 
+            // Also clear search input and any pending search timeout
+            searchQuery.value = ''
+            if (searchTimeout) { clearTimeout(searchTimeout); searchTimeout = null }
+
             currentPage.value = 1
             fetchData()
+            // focus search input after DOM updates
+            nextTick(() => {
+                if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') searchInputRef.value.focus()
+            })
         } catch (e) {
             console.error('resetFilters error', e)
         }
@@ -381,6 +396,13 @@ export function useFileShareManagement() {
         }
     }
 
+    const pageTitle = computed(() => {
+        if (typeUrl.value === 'ticket') return 'Ticket Management'
+        if (typeUrl.value === 'delegate') return 'Delegate Management'
+        return 'Ticket History'
+    })
+
+
     const state = {
         authStore,
         recentModalOpen,
@@ -412,7 +434,8 @@ export function useFileShareManagement() {
         type,
         sortColumn,
         sortDirection,
-        typeUrl
+        typeUrl,
+        pageTitle
     }
 
     const actions = {

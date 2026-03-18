@@ -26,18 +26,123 @@ export default {
     const target = (binding.arg && raw && typeof raw === 'object') ? raw : (value.target || null)
     const key = binding.arg ? binding.arg : value.key
     const opts = Object.assign({ enableTime: true, dateFormat: 'Y-m-d H:i', time_24hr: true, defaultHour: 0, defaultMinute: 0 }, value.options || {})
+    // Support a top-level `noTime` flag in the binding value for convenience
+    // e.g. v-flatpickr="{ target: filters, key: 'start_date', noTime: true }"
+    if (value && value.noTime) {
+      opts.enableTime = false
+      opts.dateFormat = 'Y-m-d'
+      // prevent auto-closing on select so user must click Apply/Clear
+      try { opts.closeOnSelect = false } catch (e) {}
+      // remove time defaults
+      try { delete opts.defaultHour } catch (e) {}
+      try { delete opts.defaultMinute } catch (e) {}
+      try { delete opts.time_24hr } catch (e) {}
+    }
     const userOnChange = (typeof raw === 'function') ? raw : value.onChange
     const isDurationRange = value.mode === 'duration_range'
+    const noTime = !!value.noTime
 
     const instance = fp(el, opts)
+
+    // Helper to force-hide/disable any time UI that may still be present
+    // Some versions or plugins may inject .flatpickr-time after init; ensure
+    // it's removed when the caller requested `noTime`.
+    const hideTimeUI = () => {
+      if (!noTime || !instance || !instance.calendarContainer) return
+      try {
+        // remove any time containers entirely
+        instance.calendarContainer.querySelectorAll('.flatpickr-time').forEach(tc => {
+          try { tc.remove() } catch (e) {}
+        })
+      } catch (e) {}
+      try {
+        // also disable any numeric inputs if present
+        instance.calendarContainer.querySelectorAll('input.numInput').forEach(i => {
+          try { i.disabled = true } catch (e) {}
+        })
+      } catch (e) {}
+    }
+
+    // run immediately in case flatpickr already rendered time UI
+    try { hideTimeUI() } catch (e) {}
+    try {
+      instance.config.onReady = Array.isArray(instance.config.onReady) ? instance.config.onReady : []
+      instance.config.onReady.push(hideTimeUI)
+    } catch (e) {}
 
     if (instance && instance.config && Array.isArray(instance.config.onChange)) {
       // Ensure flatpickr uses the desired range separator for duration ranges
       try { if (isDurationRange) instance.config.rangeSeparator = ' - ' } catch (e) {}
       // Track whether the current value has been explicitly applied by the user
       let applied = !!(el && el.value)
+      // Controls whether onClose should actually allow the calendar to close.
+      // We require an explicit Apply or Clear to set this to true.
+      let allowClose = false
       // Keep last applied value so we can restore it if flatpickr writes a default (00:00:00) on close
       let lastAppliedValue = (el && el.value) ? el.value : ''
+      // Normalize to date-only when noTime is requested
+      try {
+        if (noTime && lastAppliedValue && String(lastAppliedValue).trim() !== '') {
+          lastAppliedValue = String(lastAppliedValue).split(' ')[0]
+        }
+      } catch (e) {}
+      // Intercept programmatic writes to `el.value` so we can suppress
+      // previews while the calendar is open (only allow writes after Apply)
+      let suppressWrites = false
+      const protoDesc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value') || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')
+      const originalValueGetter = protoDesc && protoDesc.get ? protoDesc.get : function () { return this.getAttribute('value') }
+      const originalValueSetter = protoDesc && protoDesc.set ? protoDesc.set : function (v) { this.setAttribute('value', v) }
+      const installSuppressor = () => {
+        try {
+          Object.defineProperty(el, 'value', {
+            configurable: true,
+            enumerable: true,
+            get() { return originalValueGetter.call(this) },
+            set(v) {
+              if (suppressWrites) return
+              try {
+                if (noTime && typeof v === 'string' && v.indexOf(' ') !== -1) {
+                  v = String(v).split(' ')[0]
+                }
+              } catch (e) {}
+              return originalValueSetter.call(this, v)
+            }
+          })
+        } catch (e) {}
+      }
+      try { installSuppressor() } catch (e) {}
+
+      // Prevent external/property writes from sneaking in while the calendar
+      // is open and the selection hasn't been applied. We use event listeners
+      // (capture) and a MutationObserver to catch most write paths and restore
+      // the last applied value.
+      let _mutObserver = null
+      const enforceNoWrite = (ev) => {
+        try {
+          if (!applied && instance && instance.isOpen) {
+            const restore = lastAppliedValue || ''
+            const norm = noTime ? String(restore).split(' ')[0] : String(restore)
+            try { originalValueSetter.call(el, norm) } catch (e) { try { el.value = norm } catch (e) {} }
+            try { ev.stopImmediatePropagation && ev.stopImmediatePropagation() } catch (e) {}
+            try { ev.preventDefault && ev.preventDefault() } catch (e) {}
+          }
+        } catch (e) {}
+      }
+      try {
+        el.addEventListener('input', enforceNoWrite, true)
+        el.addEventListener('change', enforceNoWrite, true)
+        // MutationObserver for attribute changes (setAttribute('value', ...))
+        try {
+          _mutObserver = new MutationObserver((mutations) => {
+            try {
+              mutations.forEach(m => {
+                if (m.type === 'attributes' && m.attributeName === 'value') enforceNoWrite(m)
+              })
+            } catch (e) {}
+          })
+          _mutObserver.observe(el, { attributes: true, attributeFilter: ['value'] })
+        } catch (e) { _mutObserver = null }
+      } catch (e) {}
 
       // create a small action bar appended to flatpickr's calendar container
       try {
@@ -140,7 +245,6 @@ export default {
                 })
               })
             }
-            setupClonedInput(toTimeContainer)
             rowTo.appendChild(toTimeContainer)
 
             wrapper.appendChild(rowFrom)
@@ -192,6 +296,18 @@ export default {
           }
           wrapper.appendChild(actions)
           instance.calendarContainer.appendChild(wrapper)
+          // If the picker was requested as date-only, hide/disable any time UI
+          try {
+            if (noTime && instance && instance.calendarContainer) {
+              const tc = instance.calendarContainer.querySelector('.flatpickr-time')
+              if (tc) {
+                try { tc.style.display = 'none' } catch (e) {}
+                try { tc.querySelectorAll('input').forEach(i => { try { i.disabled = true } catch (e) {} }) } catch (e) {}
+              }
+              // disable cloned To container if created
+              try { if (el._flatpickrToContainer) el._flatpickrToContainer.querySelectorAll('input').forEach(i => { try { i.disabled = true } catch (e) {} }) } catch (e) {}
+            }
+          } catch (e) {}
         }
 
         const doApply = () => {
@@ -218,19 +334,27 @@ export default {
             else if (toPresent) finalStr = toStr
             else finalStr = ''
           } else {
-            finalStr = el.value || (instance && instance.selectedDates && instance.selectedDates.length ? instance.formatDate(instance.selectedDates[0], instance.config.dateFormat) : '')
+            // Non-duration picker: format selected date (dateFormat already respects noTime)
+            try {
+              if (instance && Array.isArray(instance.selectedDates) && instance.selectedDates.length > 0) {
+                finalStr = instance.formatDate(instance.selectedDates[0], instance.config.dateFormat)
+              } else {
+                finalStr = ''
+              }
+            } catch (e) { finalStr = '' }
           }
 
-          // normalize any commas into ' - '
-          try { finalStr = String(finalStr).replace(/\s*,\s*/g, ' - ') } catch (e) {}
-          if (target && key) try { target[key] = finalStr } catch(e){}
-          el.value = finalStr
-          try { el.parentNode && el.parentNode.classList.add('has-value') } catch(e) {}
-          applied = true
-          lastAppliedValue = finalStr
-          actionBtn.textContent = 'Clear'
-          actionBtn.dataset.state = 'clear'
-          try { instance.close() } catch(e){}
+          // Commit the selected value as applied
+          try { applied = true } catch (e) {}
+          try { lastAppliedValue = finalStr } catch (e) {}
+          try { if (target && key) target[key] = finalStr } catch (e) {}
+          try { originalValueSetter.call(el, finalStr) } catch (e) { try { el.value = finalStr } catch (e) {} }
+          try { el.parentNode && el.parentNode.classList.toggle('has-value', (finalStr || '').toString().trim() !== '') } catch (e) {}
+          try { actionBtn.textContent = 'Clear'; actionBtn.dataset.state = 'clear' } catch (e) {}
+          try { allowClose = true } catch (e) {}
+          try { instance.close() } catch (e) {}
+          // reset allowClose shortly after closing to avoid accidental subsequent closes
+          try { setTimeout(() => { allowClose = false }, 250) } catch (e) {}
         }
 
         const doClear = () => {
@@ -239,32 +363,29 @@ export default {
           try { applied = false } catch (e) {}
           try { lastAppliedValue = '' } catch (e) {}
 
-          try { instance.clear() } catch(e){}
+          try { instance.clear() } catch (e) {}
 
           // For duration ranges, fully clear any cloned "To" inputs so no
           // residual time remains visible. Use empty string and dispatch a
           // change event so listeners update preview/state immediately.
-          if (isDurationRange && el._flatpickrToContainer) {
-            const inputs = el._flatpickrToContainer.querySelectorAll('input')
-            inputs.forEach(i => {
-              try { i.value = '' } catch (e) {}
-              try { i.dispatchEvent(new Event('change')) } catch (e) {}
-            })
-          }
-
-          if (target && key) try { target[key] = '' } catch(e){}
-          el.value = ''
-          try { el.parentNode && el.parentNode.classList.remove('has-value') } catch(e) {}
-
-          // Remove visual has-value state from the input wrapper (for from-to duration range)
           try {
-            const parent = el && el.parentNode
-            parent && parent.classList.remove('has-value')
+            if (isDurationRange && el._flatpickrToContainer) {
+              const inputs = el._flatpickrToContainer.querySelectorAll('input')
+              inputs.forEach(i => {
+                try { i.value = '' } catch (e) {}
+                try { i.dispatchEvent(new Event('change')) } catch (e) {}
+              })
+            }
           } catch (e) {}
 
-          actionBtn.textContent = 'Apply'
-          actionBtn.dataset.state = 'apply'
-          try { instance.close() } catch(e){}
+          try { if (target && key) target[key] = '' } catch (e) {}
+          try { originalValueSetter.call(el, '') } catch (e) { try { el.value = '' } catch (e) {} }
+          try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+
+          try { actionBtn.textContent = 'Apply'; actionBtn.dataset.state = 'apply' } catch (e) {}
+          try { allowClose = true } catch (e) {}
+          try { instance.close() } catch (e) {}
+          try { setTimeout(() => { allowClose = false }, 250) } catch (e) {}
         }
 
         const onActionClick = (ev) => {
@@ -276,6 +397,25 @@ export default {
 
         // update button state when user changes selection
           instance.config.onChange.push((selectedDates, dateStr) => {
+          // For non-duration pickers: suppress programmatic writes while the
+          // calendar is open and the user hasn't clicked Apply. We set a
+          // suppress flag so our element-level setter blocks preview writes.
+          if (!isDurationRange) {
+            try {
+              if (!applied && instance && instance.isOpen) {
+                suppressWrites = true
+                try {
+                  const toWrite = noTime ? String(lastAppliedValue || '').split(' ')[0] : (lastAppliedValue || '')
+                  try { originalValueSetter.call(el, toWrite) } catch (e) { try { el.value = toWrite } catch(e){} }
+                } catch (e) {}
+                try { el.parentNode && el.parentNode.classList.toggle('has-value', (lastAppliedValue || '').toString().trim() !== '') } catch (e) {}
+              } else {
+                // allow writes
+                suppressWrites = false
+              }
+            } catch (e) { suppressWrites = false }
+          }
+
           if (isDurationRange) {
             const fromPresent = Array.isArray(selectedDates) && selectedDates.length > 0
             const fromStr = fromPresent ? instance.formatDate(instance.latestSelectedDateObj, instance.config.dateFormat) : ''
@@ -291,17 +431,28 @@ export default {
               toPresent = !(h === '00' && m === '00' && (s === '00' || s === undefined))
             }
 
-            // Build preview string but only write to the input when the calendar
-            // is open (preview) or when a value is already applied. This prevents
-            // committing the preview to the input when the user closes without Apply.
+            // Build preview string but only write to the input when the value has
+            // been explicitly applied. While the calendar is open and the user
+            // hasn't clicked Apply, prevent any preview from being written to the
+            // input by restoring the last applied value. Still call user handlers
+            // with the preview (so external preview logic can use it) but never
+            // commit it to the input until Apply is clicked.
             let preview = ''
             if (fromPresent && toPresent) preview = `${fromStr} - ${toStr}`
             else if (fromPresent) preview = fromStr
             else if (toPresent) preview = toStr
 
-            if ((instance && instance.isOpen) || applied) {
-              el.value = preview
-              try { el.parentNode && el.parentNode.classList.toggle('has-value', (preview || '').toString().trim() !== '') } catch(e) {}
+            if (!applied && instance && instance.isOpen) {
+              try {
+                const restore = lastAppliedValue || ''
+                const r = noTime ? String(restore).split(' ')[0] : restore
+                if (el) el.value = r
+                try { el.parentNode && el.parentNode.classList.toggle('has-value', (r || '').toString().trim() !== '') } catch (e) {}
+              } catch (e) {}
+            } else if (applied) {
+              const p = noTime ? String(preview).split(' ')[0] : preview
+              el.value = p
+              try { el.parentNode && el.parentNode.classList.toggle('has-value', (p || '').toString().trim() !== '') } catch(e) {}
             } else {
               // preserve existing input value until explicit Apply
             }
@@ -334,6 +485,14 @@ export default {
           instance.config.onClose = Array.isArray(instance.config.onClose) ? instance.config.onClose : []
           instance.config.onClose.push((selectedDates, dateStr) => {
             try {
+              // If a close was attempted without using Apply/Clear, reopen the
+              // calendar so the user must explicitly Apply or Clear first.
+              try {
+                if (!allowClose) {
+                  setTimeout(() => { try { if (!allowClose && instance && instance.open) instance.open() } catch (e) {} }, 0)
+                  return
+                }
+              } catch (e) {}
               // If the user hasn't applied the pending change, always restore the
               // last applied value (do not commit the preview to the input on close).
               if (!applied) {
@@ -343,13 +502,39 @@ export default {
                       if (lastAppliedValue && String(lastAppliedValue).trim() !== '') {
                         const v = lastAppliedValue
                         // normalize separator just in case
-                        const norm = String(v).replace(/\s*,\s*/g, ' - ')
+                        const norm = noTime ? String(v).split(' ')[0] : String(v).replace(/\s*,\s*/g, ' - ')
                         if (el) el.value = norm
                         try { el.parentNode && el.parentNode.classList.toggle('has-value', (norm || '').toString().trim() !== '') } catch(e) {}
                         // some other handlers may write after onClose; enforce again next tick
                         setTimeout(() => {
-                          try { if (el) el.value = (lastAppliedValue || '').replace(/\s*,\s*/g, ' - ') } catch (e) {}
+                          try {
+                            if (el) {
+                              const v2 = (lastAppliedValue || '')
+                              el.value = noTime ? String(v2).split(' ')[0] : String(v2).replace(/\s*,\s*/g, ' - ')
+                            }
+                          } catch (e) {}
                         }, 0)
+                        // It's possible flatpickr or other listeners still update the
+                        // input slightly after onClose; schedule additional enforcement
+                        // to ensure the preview never appears when not applied.
+                        setTimeout(() => {
+                          try {
+                            if (!applied && el) {
+                              const v2 = (lastAppliedValue || '')
+                              el.value = noTime ? String(v2).split(' ')[0] : String(v2).replace(/\s*,\s*/g, ' - ')
+                            }
+                          } catch (e) {}
+                        }, 50)
+                        setTimeout(() => {
+                          try {
+                            if (!applied && el) {
+                              const v2 = (lastAppliedValue || '')
+                              el.value = noTime ? String(v2).split(' ')[0] : String(v2).replace(/\s*,\s*/g, ' - ')
+                            }
+                          } catch (e) {}
+                        }, 150)
+                        // allow writes again after short delay
+                        setTimeout(() => { try { suppressWrites = false } catch (e) {} }, 200)
                       } else {
                         // ensure empty state is enforced when there is no last applied value
                         try { if (el) el.value = '' } catch (e) {}
@@ -392,6 +577,7 @@ export default {
           instance.config.onOpen = Array.isArray(instance.config.onOpen) ? instance.config.onOpen : []
           instance.config.onOpen.push(() => {
             try {
+              try { hideTimeUI() } catch (e) {}
               if (isDurationRange && el && el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
                 const parts = String(el.value).split(' - ')
                 const fromPart = parts[0] || ''
@@ -420,8 +606,13 @@ export default {
                   }
                 } catch (e) {}
 
-                // ensure the preview/input shows normalized separator
-                el.value = String(el.value).replace(/\s*,\s*/g, ' - ')
+                // ensure the preview/input shows normalized separator (and strip time if noTime)
+                try {
+                  el.value = noTime ? String(el.value).split(' ')[0] : String(el.value).replace(/\s*,\s*/g, ' - ')
+                } catch (e) {}
+              // When opening the calendar, ensure we suppress preview writes
+              // if there is a pending, unapplied selection.
+              try { suppressWrites = !applied } catch (e) {}
               }
               // Ensure action button reflects whether a value is already applied
               try {
@@ -458,6 +649,9 @@ export default {
           try { actionBtn.removeEventListener('click', onActionClick )  } catch(e){}
           try { el.removeEventListener('blur', onBlur) } catch(e){}
           try { actions.remove() } catch(e){}
+          try { el.removeEventListener('input', enforceNoWrite, true) } catch (e) {}
+          try { el.removeEventListener('change', enforceNoWrite, true) } catch (e) {}
+          try { if (_mutObserver) { _mutObserver.disconnect(); _mutObserver = null } } catch (e) {}
         }
       } catch (e) {
         // fail silently if action bar cannot be attached
@@ -468,6 +662,8 @@ export default {
     // Thai: ใส่คลาส has-value ให้กับ parent ถ้ามีค่าเริ่มต้นใน input
     try { 
       if (el && el.value) {
+        // If noTime requested, normalize existing input value to date-only
+        try { if (noTime) el.value = String(el.value).split(' ')[0] } catch (e) {}
         el.parentNode && el.parentNode.classList.add('has-value')
         // If duration range, we might need to sync the "To" picker initially, 
         // but the "To" picker is created in mounted() -> instance creation.
@@ -482,10 +678,11 @@ export default {
        // Since the container is created inside the instance logic, we rely on the onClose/onOpen or manual sync if needed.
        // For now, the onClose handler handles re-syncing visual state, but we might want to ensure the "To" inputs are correct if the user opens it.
        // We added sync logic in onClose. We should also add it to onOpen.
-       if (instance) {
-         instance.config.onOpen = Array.isArray(instance.config.onOpen) ? instance.config.onOpen : []
-         instance.config.onOpen.push(() => {
-            if (el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
+      if (instance) {
+      instance.config.onOpen = Array.isArray(instance.config.onOpen) ? instance.config.onOpen : []
+      instance.config.onOpen.push(() => {
+        try { hideTimeUI() } catch (e) {}
+        if (el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
                 const parts = el.value.split(' - ')
                 const fromPart = parts[0] || ''
                 const toPart = parts[1] || ''
@@ -534,5 +731,8 @@ export default {
     delete el._flatpickr
     delete el._flatpickrDoClear
     try { delete el._flatpickrActionCleanup } catch(e){}
+    // If we replaced the element's `value` property, remove it so prototype
+    // behaviour is restored.
+    try { delete el.value } catch (e) {}
   }
 }
