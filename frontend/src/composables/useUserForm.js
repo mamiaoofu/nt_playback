@@ -355,29 +355,41 @@ export function useUserForm(props) {
             }
             if (j && j.status === 'success') {
                 try {
-                    try {
-                        const name = form.value.firstName || form.value.username || ''
-                        const toast = { message: `Create ${name} successfully`, type: 'success' }
-                        localStorage.setItem('pending_toast', JSON.stringify(toast))
-                    } catch (e) { }
-                    try {
-                        const pendingUser = {
-                            username: form.value.username || '',
-                            first_name: form.value.firstName || '',
-                            last_name: form.value.lastName || '',
-                            email: form.value.email || '',
-                            id: initialUserId || null,
-                            mode: mode && mode.value ? mode.value : 'add'
-                        }
-                        localStorage.setItem('pending_user', JSON.stringify(pendingUser))
-                    } catch (e) { }
-                    try {
-                        if (mode && mode.value === 'edit') {
-                            try { window.location.reload() } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
-                        } else {
-                            try { router.push('/user-management') } catch (e) { router.back() }
-                        }
-                    } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
+                    const name = form.value.firstName || form.value.username || ''
+                    if (mode && mode.value === 'edit') {
+                        try {
+                            const pendingUser = {
+                                username: form.value.username || '',
+                                first_name: form.value.firstName || '',
+                                last_name: form.value.lastName || '',
+                                email: form.value.email || '',
+                                id: initialUserId || null,
+                                mode: 'edit'
+                            }
+                            localStorage.setItem('pending_user', JSON.stringify(pendingUser))
+                        } catch (e) { }
+                        try {
+                            showToast(`Edit ${name} successfully`, 'success')
+                        } catch (e) { console.error('showToast error', e) }
+                        try { router.push('/user-management') } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
+                    } else {
+                        try {
+                            const toast = { message: `Create ${name} successfully`, type: 'success' }
+                            localStorage.setItem('pending_toast', JSON.stringify(toast))
+                        } catch (e) { }
+                        try {
+                            const pendingUser = {
+                                username: form.value.username || '',
+                                first_name: form.value.firstName || '',
+                                last_name: form.value.lastName || '',
+                                email: form.value.email || '',
+                                id: initialUserId || null,
+                                mode: mode && mode.value ? mode.value : 'add'
+                            }
+                            localStorage.setItem('pending_user', JSON.stringify(pendingUser))
+                        } catch (e) { }
+                        try { router.push('/user-management') } catch (e) { router.back() }
+                    }
                 } catch (e) { console.error('redirect error', e) }
                 return
             } else {

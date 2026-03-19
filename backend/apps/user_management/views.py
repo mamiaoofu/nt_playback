@@ -162,7 +162,7 @@ def ApiGetUser(request):
             if sort_field == 'role':
                 qs = qs.distinct()
     else:
-        qs = qs.order_by('-user__date_joined')
+        qs = qs.order_by('user__username')
 
     # annotate profile instances with permission and database_servers for use in serialization
     for profile in qs:

@@ -320,12 +320,27 @@ def ApiCheckGroupName(request):
 def ApiCheckTeamName(request):
     team_name = request.GET.get('team_name', None)
     team_id = request.GET.get('team_id', None)
+    group_id = request.GET.get('group_id', None)
     if not team_name:
         return JsonResponse({'status': 'error', 'message': 'Team name is required'})
     
-    query = UserTeam.objects.filter(name=team_name)
+    # Scope uniqueness check to a specific group when `group_id` is provided.
+    # Use case-insensitive comparison like other name checks.
+    query = UserTeam.objects.filter(name__iexact=team_name)
+    if group_id:
+        try:
+            gid = int(group_id)
+            query = query.filter(user_group_id=gid)
+        except (ValueError, TypeError):
+            # ignore invalid group_id and fall back to global check
+            pass
+
     if team_id:
-        query = query.exclude(id=team_id)
+        try:
+            tid = int(team_id)
+            query = query.exclude(id=tid)
+        except (ValueError, TypeError):
+            pass
 
     if query.exists():
         return JsonResponse({'status': 'success', 'is_taken': True, 'message': 'This team name is already in the system.'})
@@ -485,7 +500,18 @@ def ApiSaveTeam(request):
                 else:
                     maindatabase_str = str(maindatabase_raw)
 
-            if UserTeam.objects.filter(name__iexact=name).exists():
+            # Duplicate check: only within the same group (case-insensitive)
+            try:
+                gid_check = int(user_group_id)
+            except Exception:
+                gid_check = None
+
+            if gid_check is not None:
+                dup_qs = UserTeam.objects.filter(name__iexact=name, user_group_id=gid_check)
+            else:
+                dup_qs = UserTeam.objects.filter(name__iexact=name)
+
+            if dup_qs.exists():
                 create_user_log(user=request.user, action='Create Config Team', detail=f'Duplicate team : {name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This team name is already in the system.'})
 
@@ -522,7 +548,20 @@ def ApiSaveTeam(request):
             if not team:
                 return JsonResponse({'status': 'error', 'message': 'Team not found.'})
 
-            if UserTeam.objects.filter(name__iexact=name).exclude(id=team_id).exists():
+            # Determine the group to check for duplicates: prefer provided user_group_id, otherwise use team's current group
+            user_group_id = None
+            if isinstance(user_group_id_raw, list) and len(user_group_id_raw) > 0:
+                user_group_id = user_group_id_raw[0]
+            else:
+                user_group_id = user_group_id_raw
+
+            try:
+                check_gid = int(user_group_id) if user_group_id else team.user_group_id
+            except Exception:
+                check_gid = team.user_group_id
+
+            dup_qs = UserTeam.objects.filter(name__iexact=name, user_group_id=check_gid).exclude(id=team_id)
+            if dup_qs.exists():
                 create_user_log(user=request.user, action='Update Config Team', detail=f'Duplicate team : {name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This team name is already in the system.'})
 
