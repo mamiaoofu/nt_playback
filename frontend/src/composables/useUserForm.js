@@ -267,13 +267,14 @@ export function useUserForm(props) {
         if (mode && mode.value !== 'edit') {
             if (!form.value.password || String(form.value.password).trim() === '') { errors.password = 'This field is required.'; hasError = true }
             else if (String(form.value.password).length < 8) { errors.password = 'Password must be at least 8 characters long'; hasError = true }
+            else if (!/^[\x21-\x7E]+$/.test(String(form.value.password))) { errors.password = 'Password must contain only English letters and special characters'; hasError = true }
             if (!form.value.confirmPassword || String(form.value.confirmPassword).trim() === '') { errors.confirmPassword = 'This field is required.'; hasError = true }
             if (form.value.password && form.value.confirmPassword && form.value.password !== form.value.confirmPassword) { errors.confirmPassword = 'Passwords do not match'; hasError = true }
         }
         if (!form.value.firstName || String(form.value.firstName).trim() === '') { errors.firstName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
+        else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
         if (!form.value.lastName || String(form.value.lastName).trim() === '') { errors.lastName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
+        else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
         if (!selectedGroupId.value) { errors.group = true; hasError = true }
         if (!selectedTeamId.value) { errors.team = true; hasError = true }
         if (form.value.email && String(form.value.email).trim() !== '') {
@@ -674,7 +675,7 @@ export function useUserForm(props) {
             return
         }
         const v = String(val).trim()
-        if (!/^[\p{L}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
+        if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
         else errors.firstName = false
     })
 
@@ -684,20 +685,23 @@ export function useUserForm(props) {
             return
         }
         const v = String(val).trim()
-        if (!/^[\p{L}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
+        if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
         else errors.lastName = false
     })
 
     watch(() => form.value.password, (val) => {
-        if (!val || String(val).trim() === '') {
+        const v = val == null ? '' : String(val)
+        if (!v || v.trim() === '') {
             errors.password = false
-        } else if (String(val).length < 8) {
+        } else if (v.length < 8) {
             errors.password = 'Password must be at least 8 characters long'
+        } else if (!/^[\x21-\x7E]+$/.test(v)) {
+            errors.password = 'Password must contain only English letters and special characters'
         } else {
             errors.password = false
         }
         if (form.value.confirmPassword && String(form.value.confirmPassword).trim() !== '') {
-            if (val !== form.value.confirmPassword) errors.confirmPassword = 'Passwords do not match'
+            if (v !== form.value.confirmPassword) errors.confirmPassword = 'Passwords do not match'
             else errors.confirmPassword = false
         }
     })

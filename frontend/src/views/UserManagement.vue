@@ -53,6 +53,10 @@
                                 {{ (row.user?.first_name || '') + ' ' + (row.user?.last_name || '') }}
                             </template>
 
+                            <template #cell-email="{ row }">
+                                {{ row.user?.email || '-' }}
+                            </template>
+
                             <template #cell-role="{ row }">
                                 <span
                                     :class="['role-badge', (['administrator', 'auditor', 'operator'].includes((row.permission || '').toLowerCase()) ? (row.permission || '').toLowerCase() : 'other')]">

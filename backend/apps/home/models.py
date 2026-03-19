@@ -63,14 +63,14 @@ class ConfigKey(models.Model):
         db_table = 'config_key'
         verbose_name = 'config_key'
 
-class PlaybackLog(models.Model):
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='User')
-    status = models.CharField(max_length=50, verbose_name='Status') # e.g., 'SUCCESS', 'FAIL_NOT_INSTALLED', 'FAIL_PLAYER_ERROR'
-    detail = models.TextField(verbose_name='Detail', blank=True)
-    ip_address = models.GenericIPAddressField(verbose_name='IP Address', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+# class PlaybackLog(models.Model):
+#     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='User')
+#     status = models.CharField(max_length=50, verbose_name='Status') # e.g., 'SUCCESS', 'FAIL_NOT_INSTALLED', 'FAIL_PLAYER_ERROR'
+#     detail = models.TextField(verbose_name='Detail', blank=True)
+#     ip_address = models.GenericIPAddressField(verbose_name='IP Address', null=True, blank=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        db_table = 'tb_playback_log'
-        verbose_name = 'Playback Log'
-        ordering = ['-created_at']
+#     class Meta:
+#         db_table = 'tb_playback_log'
+#         verbose_name = 'Playback Log'
+#         ordering = ['-created_at']

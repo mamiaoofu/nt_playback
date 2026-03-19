@@ -41,6 +41,7 @@ export function useUserManagement() {
         { key: 'index', label: '#', isIndex: true, sortable: false },
         { key: 'username', label: 'Username' },
         { key: 'full_name', label: 'Full Name' },
+        { key: 'email', label: 'Email' },
         { key: 'role', label: 'Role' },
         { key: 'group', label: 'Group' },
         { key: 'team', label: 'Team' },
