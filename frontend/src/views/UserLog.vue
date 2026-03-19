@@ -54,18 +54,12 @@
               <form v-if="canView" id="filterForm" class="filter-row">
 
                 <div class="input-group" >
-                  <CustomSelect class="select-search select-checkbox" v-model="filters.name"
-                    :options="userOptions"
-                    placeholder="Select User" name="name" />
+                  <CustomSelect class="select-search select-checkbox" v-model="filters.name" :options="userOptions" placeholder="Select User" name="name" />
                 </div>
-
 
                 <div class="input-group" >
-                  <CustomSelect class="select-search select-checkbox" v-model="filters.action"
-                    :options="actionOptions"
-                    placeholder="Select Action" name="action" />
+                  <CustomSelect class="select-search select-checkbox" v-model="filters.action" :options="actionOptions" placeholder="Select Action" name="action" />
                 </div>
-
 
                 <div :class="['input-group', { 'has-value': !!filters.start_date }]">
                   <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date' }" required type="text" name="start_date" autocomplete="off" class="input">
@@ -79,8 +73,7 @@
                 </div>
 
                 <div class="input-group" style="flex: 0 0 auto;">
-                  <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters"
-                    style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
+                  <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters" style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
                     <i class="fas fa-undo"></i> Reset
                   </button>
                 </div>

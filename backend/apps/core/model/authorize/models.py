@@ -150,6 +150,7 @@ class UserProfile(models.Model):
     phone = models.CharField(max_length=255, verbose_name='user_code')
     create_at = models.DateTimeField(auto_now_add=True)
     update_at = models.DateTimeField(auto_now=True)
+    create_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='create_by', db_column='create_by',related_name='created_profiles')
     session_token = models.CharField(max_length=255, verbose_name='session_token') 
     privilege_history = models.BooleanField(verbose_name='สิทธิดูประวัติผู้ใช้')
 

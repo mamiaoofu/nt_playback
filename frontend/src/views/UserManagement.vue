@@ -13,19 +13,58 @@
                                 </div>
                                 <h5 class="card-title mb-2 mt-1">User Management</h5>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
                                 <div style="width:260px;">
                                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'" @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                                 </div>
                                 <router-link v-if="authStore.hasPermission('Add User')" to="/user-management/add">
-                                <button class="btn-role btn-primary btn-sm" id="addGroupBtn"
-                                    @click.stop="openCreateGroup">
-                                    <i class="fas fa-plus"></i>
-                                    Add User
-                                </button>
+                                    <button class="btn-role btn-primary btn-sm" id="addGroupBtn" @click.stop="openCreateGroup" >
+                                        <i class="fas fa-plus"></i>
+                                        Add User
+                                    </button>
                                 </router-link>
+                                <div v-if="authStore.hasPermission('Export Recordings')" class="export-group" ref="exportWrap">
+                                    <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
+                                        <i class="fa-solid fa-download" style="color: #fff;"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
+
+
+                        
+                        <div>
+                            <form  id="filterForm" class="filter-row">
+                                <div class="input-group">
+                                    <CustomSelect class="select-search select-checkbox" v-model="filters.user" :options="userOptions" placeholder="Select User" name="user" />
+                                </div>
+
+                                <div class="input-group">
+                                    <CustomSelect class="select-search select-checkbox" v-model="filters.createdBy" :options="createdByOptions" placeholder="Select Create By" name="create_by" />
+                                </div>
+
+
+                               <div :class="['input-group', { 'has-value': !!filters.start_date }]">
+                  <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date'}" required type="text" name="start_date" autocomplete="off" class="input">
+                  <label class="floating-label">From</label>
+                  <span class="calendar-icon" @click="startInput && startInput.focus()"><i class="fa-regular fa-calendar"></i></span>
+                </div>
+                <div :class="['input-group', { 'has-value': !!filters.end_date }]">
+                  <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date'}" required type="text" name="end_date" autocomplete="off" class="input">
+                  <label class="floating-label">To</label>
+                  <span class="calendar-icon" @click="endInput && endInput.focus()"><i class="fa-regular fa-calendar"></i></span>
+                </div>
+
+
+                                <div class="input-group" style="flex: 0 0 auto;">
+                                    <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters" style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
+                                        <i class="fas fa-undo"></i> Reset
+                                    </button>
+                                </div>
+
+                            </form>
+                        </div>
+
                         <TableTemplate
                             :columns="columns"
                             :rows="paginatedRecords"
@@ -52,6 +91,12 @@
                             <template #cell-full_name="{ row }">
                                 {{ (row.user?.first_name || '') + ' ' + (row.user?.last_name || '') }}
                             </template>
+
+                            
+                            <template #cell-create_by="{ row }">
+                                {{ (row.create_by || '-') }}
+                            </template>
+
 
                             <template #cell-email="{ row }">
                                 {{ row.user?.email || '-' }}
@@ -123,10 +168,12 @@
 </template>
 
 <script setup>
+import { ref, reactive } from 'vue'
 import SearchInput from '../components/SearchInput.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import Breadcrumbs from '../components/Breadcrumbs.vue'
 import TableTemplate from '../components/TableTemplate.vue'
+import CustomSelect from '../components/CustomSelect.vue'
 import { useUserManagement } from '../composables/useUserManagement'
 
 const {
@@ -151,6 +198,12 @@ const {
     totalPages,
     startIndex,
     paginatedRecords,
+    exportOpen,
+    filters,
+    userOptions,
+    createdByOptions,
+    startInput,
+    endInput,
     onTyping,
     onSearch,
     clearSearchQuery,
@@ -167,8 +220,12 @@ const {
     showDbTooltip,
     hideDbTooltip,
     cancelHideDb,
-    openCreateGroup
+    openCreateGroup,
+    resetFilters
 } = useUserManagement()
+
+
 </script>
 
 <style scoped src="../assets/css/user-management.css"></style>
+<style scoped src="../assets/css/user-log.css"></style>

@@ -493,15 +493,17 @@ export default {
                   try { instance._externalClose = false } catch (e) {}
                 }
               } catch (e) {}
+                // If a close was attempted without using Apply/Clear, reopen the
+                // calendar so the user must explicitly Apply or Clear first.
+                try {
+                  if (!allowClose) {
+                    setTimeout(() => { try { if (!allowClose && instance && instance.open) instance.open() } catch (e) {} }, 0)
+                    return
+                  }
+                } catch (e) {}
 
-              // If a close was attempted without using Apply/Clear, reopen the
-              // calendar so the user must explicitly Apply or Clear first.
-              try {
-                if (!allowClose) {
-                  setTimeout(() => { try { if (!allowClose && instance && instance.open) instance.open() } catch (e) {} }, 0)
-                  return
-                }
-              } catch (e) {}
+                // If we are actually closing now, remove the document click handler
+                try { if (el && el._flatpickrDocClickHandler) { document.removeEventListener('mousedown', el._flatpickrDocClickHandler, true); el._flatpickrDocClickHandler = null } } catch (e) {}
               // If the user hasn't applied the pending change, always restore the
               // last applied value (do not commit the preview to the input on close).
               if (!applied) {
@@ -586,7 +588,24 @@ export default {
           instance.config.onOpen = Array.isArray(instance.config.onOpen) ? instance.config.onOpen : []
           instance.config.onOpen.push(() => {
             try {
-              try { hideTimeUI() } catch (e) {}
+                try { hideTimeUI() } catch (e) {}
+                // When the calendar is open, allow closing by clicking outside.
+                try {
+                  const onDocClick = (ev) => {
+                    try {
+                      const node = ev && ev.target
+                      if (!node) return
+                      // if click is outside the calendar container and outside the input
+                      if (instance && instance.calendarContainer && !instance.calendarContainer.contains(node) && el !== node && !el.contains(node)) {
+                        try { allowClose = true } catch (e) {}
+                        try { if (instance) instance._externalClose = true } catch (e) {}
+                        try { instance.close() } catch (e) {}
+                      }
+                    } catch (e) {}
+                  }
+                  document.addEventListener('mousedown', onDocClick, true)
+                  el._flatpickrDocClickHandler = onDocClick
+                } catch (e) {}
               // Ensure only one calendar is open at a time: close other instances
               try {
                 Array.from(document.querySelectorAll('input')).forEach(inp => {
@@ -673,6 +692,7 @@ export default {
           try { el.removeEventListener('input', enforceNoWrite, true) } catch (e) {}
           try { el.removeEventListener('change', enforceNoWrite, true) } catch (e) {}
           try { if (_mutObserver) { _mutObserver.disconnect(); _mutObserver = null } } catch (e) {}
+          try { if (el._flatpickrDocClickHandler) { document.removeEventListener('mousedown', el._flatpickrDocClickHandler, true); el._flatpickrDocClickHandler = null } } catch (e) {}
         }
       } catch (e) {
         // fail silently if action bar cannot be attached

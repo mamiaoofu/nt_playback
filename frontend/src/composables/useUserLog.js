@@ -67,15 +67,15 @@ export function useUserLog() {
     const downloadRemaining = ref('')
 
     const columns = [
-        { key: 'index', label: '#', isIndex: true, width: '5%' },
-        { key: 'username', label: 'Username', width: '15%' },
-        { key: 'full_name', label: 'Full Name', width: '15%' },
-        { key: 'action', label: 'Action', width: '5%' },
-        { key: 'status', label: 'Status', width: '5%' },
-        { key: 'detail', label: 'Description', tooltip: true, width: '20%', },
-        { key: 'ip_address', label: 'IP Address', width: '10%' },
-        { key: 'timestamp', label: 'Timestamp', width: '10%', },
-        { key: 'client_type', label: 'Client type', width: '15%' }
+        { key: 'index', label: '#', isIndex: true},
+        { key: 'username', label: 'Username' },
+        { key: 'full_name', label: 'Full Name' },
+        { key: 'action', label: 'Action' },
+        { key: 'status', label: 'Status' },
+        { key: 'detail', label: 'Description', tooltip: true },
+        { key: 'ip_address', label: 'IP Address'},
+        { key: 'timestamp', label: 'Timestamp' },
+        { key: 'client_type', label: 'Client type'}
     ]
 
     const type = computed(() => {

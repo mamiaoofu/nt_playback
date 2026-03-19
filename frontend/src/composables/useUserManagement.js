@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
@@ -47,6 +47,8 @@ export function useUserManagement() {
         { key: 'team', label: 'Team' },
         { key: 'database_servers', label: 'Database Server' },
         { key: 'phone', label: 'Phone' },
+        { key: 'create_by', label: 'Created By' },
+        { key: 'create_at', label: 'Create Date'},
         { key: 'status', label: 'Status' },
         { key: 'actions', label: 'Actions', isAction: true }
     ]
@@ -54,6 +56,30 @@ export function useUserManagement() {
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))
     const startIndex = computed(() => (currentPage.value - 1) * perPage.value)
     const paginatedRecords = computed(() => records.value)
+
+    // Filter form state and options
+    const filters = reactive({ 
+        user: null, 
+        createdBy: null, 
+        start_date: '',
+        end_date: ''
+     })
+    let userFilterTimeout = null
+    const userOptions = ref([])
+    const createdByOptions = ref([])
+    const actionOptions = ref([])
+    const startInput = ref('')
+    const endInput = ref(null)
+
+
+    // Export dropdown state
+    const exportOpen = ref(false)
+    const exportWrap = ref(null)
+    const exportSelections = reactive({ pdf: false, excel: false, csv: false })
+
+    function toggleExport() {
+        exportOpen.value = !exportOpen.value
+    }
 
     const fetchData = async () => {
         loading.value = true
@@ -70,10 +96,83 @@ export function useUserManagement() {
                 params.set('sort[0][dir]', sortDirection.value)
             }
 
+            // user filter: allow array (multi-select) or single value; skip 'all'
+            try {
+                let userParam = ''
+                if (Array.isArray(filters.user)) {
+                    userParam = filters.user.map(u => (u && typeof u === 'object' ? (u.value ?? u) : u)).filter(Boolean).join(',')
+                } else if (filters.user && filters.user !== 'all') {
+                    const fu = filters.user
+                    userParam = (fu && typeof fu === 'object') ? (fu.value ?? fu) : fu
+                }
+                if (userParam) params.set('user', userParam)
+            } catch (e) { console.error('user param build error', e) }
+
+            // create_by filter: accept string or select value; skip 'all'
+            try {
+                const cb = filters.createdBy
+                let cbVal = ''
+                if (cb && cb !== 'all') cbVal = (typeof cb === 'object') ? (cb.value ?? cb) : String(cb)
+                if (cbVal) params.set('create_by', cbVal)
+            } catch (e) { console.error('create_by param build error', e) }
+
+            // start/end date: format to 'YYYY-MM-DD HH:MM'
+            try {
+                const pad = (n) => String(n).padStart(2, '0')
+                function fmtDate(v) {
+                    if (!v) return ''
+                    const d = new Date(v)
+                    if (isNaN(d)) return String(v)
+                    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+                }
+                if (filters.start_date) {
+                    const s = fmtDate(filters.start_date)
+                    if (s) params.set('start_date', s)
+                }
+                if (filters.end_date) {
+                    const e = fmtDate(filters.end_date)
+                    if (e) params.set('end_date', e)
+                }
+            } catch (e) { console.error('date param build error', e) }
+
             const res = await fetch(`${API_GET_USER()}?${params.toString()}`, { credentials: 'include' })
             if (!res.ok) throw new Error('Failed to fetch')
             const json = await res.json()
             records.value = json.data || json.user_management || []
+            // Build userOptions / createdByOptions / actionOptions from returned records
+            try {
+                const uSet = new Set()
+                const uOpts = [{ label: 'All Users', value: 'all' }]
+                const cSet = new Set()
+                const cOpts = [{ label: 'All Create By', value: 'all' }]
+                const aSet = new Set()
+                if (Array.isArray(records.value)) {
+                    for (const r of records.value) {
+                        const uname = r && r.user && (r.user.username || r.user.name) || ''
+                        const uid = r && r.user && r.user.id
+                        const uVal = uid ?? uname
+                        if (uVal && !uSet.has(uVal)) {
+                            uSet.add(uVal)
+                            uOpts.push({ label: String(uname || uVal), value: uVal })
+                        }
+
+                        const creatorRaw = r && (r.create_by || '')
+                        let creatorVal = ''
+                        if (creatorRaw && typeof creatorRaw === 'object') {
+                            creatorVal = creatorRaw.username || `${creatorRaw.first_name || ''} ${creatorRaw.last_name || ''}`.trim() || JSON.stringify(creatorRaw)
+                        } else {
+                            creatorVal = String(creatorRaw || '')
+                        }
+                        if (creatorVal && !cSet.has(creatorVal)) { cSet.add(creatorVal); cOpts.push({ label: creatorVal, value: creatorVal }) }
+
+                        const perm = r && r.permission
+                        if (perm) aSet.add(String(perm))
+                    }
+                }
+                if (!userOptions.value || userOptions.value.length <= 1) userOptions.value = uOpts
+                if (!createdByOptions.value || createdByOptions.value.length <= 1) createdByOptions.value = cOpts
+                actionOptions.value = Array.from(aSet).map(v => ({ label: v, value: v }))
+            } catch (e) { console.error('build filter options error', e) }
             totalItems.value = json.recordsFiltered ?? json.recordsTotal ?? (Array.isArray(records.value) ? records.value.length : 0)
             
             // If there's a pending user transferred from create/edit, promote or insert it
@@ -396,6 +495,44 @@ export function useUserManagement() {
         document.removeEventListener('click', onDocClick)
     })
 
+    // watch filters (debounced) like useFileShareManagement
+    watch(filters, () => {
+        if (userFilterTimeout) clearTimeout(userFilterTimeout)
+        userFilterTimeout = setTimeout(() => {
+            currentPage.value = 1
+            fetchData()
+            userFilterTimeout = null
+        }, 350)
+    }, { deep: true })
+
+    const requiredPermission = computed(() => 'Ticket History')
+
+    const canView = computed(() => authStore.hasPermission(requiredPermission.value))
+
+            const resetFilters = () => {
+            try {
+                filters.user = []
+                filters.createdBy = []
+                filters.start_date = ''
+                filters.end_date = ''
+                startInput.value._flatpickrInstance.clear()
+                endInput.value._flatpickrInstance.clear()
+
+                if (startInput.value && startInput.value._flatpickrInstance) {
+                            startInput.value._flatpickrInstance.clear()
+                        }
+                        if (endInput.value && endInput.value._flatpickrInstance) {
+                            endInput.value._flatpickrInstance.clear()
+                        }
+
+                currentPage.value = 1
+                fetchData()
+            } catch (e) {
+                console.error('resetFilters error', e)
+            }
+        }
+
+
     const state = {
         authStore,
         searchQuery,
@@ -418,6 +555,18 @@ export function useUserManagement() {
         totalPages,
         startIndex,
         paginatedRecords
+        ,
+        // expose filter-related props
+        filters,
+        userOptions,
+        createdByOptions,
+        actionOptions,
+        startInput,
+        endInput,
+        // export props
+        exportOpen,
+        exportWrap,
+        exportSelections
     }
 
     const actions = {
@@ -437,11 +586,13 @@ export function useUserManagement() {
         showDbTooltip,
         hideDbTooltip,
         cancelHideDb,
-        openCreateGroup
+        openCreateGroup,
+        resetFilters,
+        toggleExport
     }
 
     return {
         ...state,
-        ...actions
+        ...actions,
     }
 }

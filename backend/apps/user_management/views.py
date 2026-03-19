@@ -8,6 +8,10 @@ import re
 from django.contrib import messages
 from apps.core.utils.function import create_user_log
 import json
+from datetime import datetime
+from django.utils import timezone
+from django.db.models import Q
+import pytz
 
 # models
 from apps.core.model.authorize.models import MainDatabase,UserAuth,UserProfile,Department,MainDatabase,UserGroup,UserTeam,UserLog
@@ -50,79 +54,263 @@ def ApiGetUser(request):
 
     main_db_ids = set(MainDatabase.objects.filter(status=True).values_list('id', flat=True))
 
+    # apply explicit filters from query params
+    # user: comma-separated user ids or usernames
+    user_param = (request.GET.get('user') or '').strip()
+    if user_param:
+        parts = [p.strip() for p in user_param.split(',') if p.strip()]
+        ids = []
+        names = []
+        for p in parts:
+            if p.isdigit():
+                try:
+                    ids.append(int(p))
+                except Exception:
+                    names.append(p)
+            else:
+                names.append(p)
+        if ids and names:
+            qs = qs.filter(Q(user__id__in=ids) | Q(user__username__in=names))
+        elif ids:
+            qs = qs.filter(user__id__in=ids)
+        elif names:
+            qs = qs.filter(user__username__in=names)
+
+    # create_by: can be username or 'First Last' string
+    create_by_param = (request.GET.get('create_by') or '').strip()
+    if create_by_param:
+        tokens = [t for t in re.split(r'[\s]+', create_by_param) if t]
+        if len(tokens) >= 2:
+            # try to match both first and last name
+            fn = tokens[0]
+            ln = ' '.join(tokens[1:])
+            qs = qs.filter(Q(create_by__first_name__icontains=fn) & Q(create_by__last_name__icontains=ln) | Q(create_by__username__iexact=create_by_param))
+        else:
+            qs = qs.filter(Q(create_by__username__iexact=create_by_param) | Q(create_by__first_name__icontains=create_by_param) | Q(create_by__last_name__icontains=create_by_param))
+
+    # start_date / end_date filter: expected format 'YYYY-MM-DD HH:MM'
+    start_param = (request.GET.get('start_date') or '').strip()
+    end_param = (request.GET.get('end_date') or '').strip()
+    if start_param or end_param:
+        try:
+            tz = timezone.get_current_timezone() or pytz.UTC
+        except Exception:
+            tz = pytz.UTC
+        try:
+            if start_param:
+                start_dt = datetime.strptime(start_param, '%Y-%m-%d %H:%M')
+                start_dt = timezone.make_aware(start_dt, timezone=tz)
+                qs = qs.filter(create_at__gte=start_dt)
+            if end_param:
+                end_dt = datetime.strptime(end_param, '%Y-%m-%d %H:%M')
+                # include the whole minute by setting seconds to 59
+                end_dt = end_dt.replace(second=59)
+                end_dt = timezone.make_aware(end_dt, timezone=tz)
+                qs = qs.filter(create_at__lte=end_dt)
+        except Exception:
+            pass
+
     # apply search filter if provided (DataTables style: search[value])
     search_term = (request.GET.get('search[value]') or request.GET.get('search') or '').strip()
     if search_term:
-        # split on whitespace and common separators (hyphen, slash, underscore)
-        tokens = [t for t in re.split(r'[\s\-_/]+', search_term) if t]
+        # split on commas first (support multi-value like "dbname,0202020202")
+        tokens = [t.strip() for t in search_term.split(',') if t.strip()]
+        # primary search term (use first token if present to avoid trailing-comma issues)
+        search_primary = tokens[0] if tokens else search_term
         base_q = (
-            Q(user__username__icontains=search_term)
-            | Q(user__first_name__icontains=search_term)
-            | Q(user__last_name__icontains=search_term)
-            | Q(phone__icontains=search_term)
-            | Q(team__name__icontains=search_term)
-            | Q(user_code__icontains=search_term)
-            | Q(user__userauth__maindatabase__database_name__icontains=search_term)
-            | Q(user__userauth__user_permission__name__icontains=search_term)
+            Q(user__username__icontains=search_primary)
+            | Q(user__first_name__icontains=search_primary)
+            | Q(user__last_name__icontains=search_primary)
+            | Q(user__email__icontains=search_primary)
+            | Q(phone__icontains=search_primary)
+            | Q(team__name__icontains=search_primary)
+            | Q(team__user_group__group_name__icontains=search_primary)
+            | Q(user_code__icontains=search_primary)
+            | Q(user__userauth__maindatabase__database_name__icontains=search_primary)
+            | Q(user__userauth__user_permission__name__icontains=search_primary)
+            | Q(create_by__username__icontains=search_primary)
+            | Q(create_by__first_name__icontains=search_primary)
+            | Q(create_by__last_name__icontains=search_primary)
         )
 
-        # detect explicit or partial status tokens (allow partial like 'inac' or 'act')
+        # detect date-like tokens and allow matching against create_at date
+        # Support: full dates, year-only (2026), day-only (12),
+        # and year+month pairs from token sequences (e.g., '2026 03' or '03 2026' -> March 2026)
+        date_q = None
+        i = 0
+        while i < len(tokens):
+            t = tokens[i]
+            # try year-month (YYYY MM) where next token is month
+            if t.isdigit() and len(t) == 4:
+                try:
+                    year = int(t)
+                    next_t = tokens[i+1] if i+1 < len(tokens) else None
+                    if next_t and next_t.isdigit():
+                        m = int(next_t)
+                        if 1 <= m <= 12:
+                            q = Q(create_at__year=year, create_at__month=m)
+                            date_q = q if date_q is None else date_q | q
+                            i += 2
+                            continue
+                except Exception:
+                    pass
+
+            # try month-year (MM YYYY)
+            if t.isdigit() and 1 <= len(t) <= 2:
+                try:
+                    m = int(t)
+                    next_t = tokens[i+1] if i+1 < len(tokens) else None
+                    if next_t and next_t.isdigit() and len(next_t) == 4:
+                        year = int(next_t)
+                        if 1 <= m <= 12:
+                            q = Q(create_at__year=year, create_at__month=m)
+                            date_q = q if date_q is None else date_q | q
+                            i += 2
+                            continue
+                except Exception:
+                    pass
+
+            # single numeric token: treat as day or year
+            if t.isdigit():
+                try:
+                    n = int(t)
+                    if 1 <= n <= 31:
+                        q = Q(create_at__day=n)
+                        date_q = q if date_q is None else date_q | q
+                    if len(t) == 4 and 1900 <= n <= 9999:
+                        q = Q(create_at__year=n)
+                        date_q = q if date_q is None else date_q | q
+                except Exception:
+                    pass
+                i += 1
+                continue
+
+            # try parsing token as full date (if token wasn't split by separators)
+            parsed = False
+            for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d', '%d/%m/%Y'):
+                try:
+                    dt = datetime.strptime(t, fmt)
+                    q = Q(create_at__date=dt.date())
+                    date_q = q if date_q is None else date_q | q
+                    parsed = True
+                    break
+                except Exception:
+                    continue
+            if parsed:
+                i += 1
+                continue
+
+            i += 1
+
+        if date_q:
+            base_q = base_q | date_q
+
+        # detect if the search term or its tokens match any MainDatabase name
+        # Use normalized comparison (remove non-alphanumerics) to avoid mismatches like 'v.6.10' vs 'v6.10'
+        matching_db_ids = []
+        try:
+            # quick DB-side contains check first
+            if search_term:
+                matching_db_ids = list(MainDatabase.objects.filter(database_name__icontains=search_term).values_list('id', flat=True))
+        except Exception:
+            matching_db_ids = []
+
+        if not matching_db_ids:
+            try:
+                # normalize function: remove non-alphanumeric and lowercase
+                def _norm(s):
+                    return re.sub(r'[^0-9A-Za-z]+', '', (s or '')).lower()
+
+                norm_search = _norm(search_term)
+                dbs = list(MainDatabase.objects.all())
+                # try matching normalized full search term inside normalized db name
+                if norm_search:
+                    for d in dbs:
+                        nd = _norm(getattr(d, 'database_name', '') or '')
+                        if norm_search and nd and norm_search in nd:
+                            matching_db_ids.append(d.id)
+
+                # fallback: require all normalized tokens present in normalized db name
+                if not matching_db_ids and tokens:
+                    norm_tokens = [ _norm(t) for t in tokens if t and _norm(t) ]
+                    if norm_tokens:
+                        for d in dbs:
+                            nd = _norm(getattr(d, 'database_name', '') or '')
+                            if nd and all(nt in nd for nt in norm_tokens):
+                                matching_db_ids.append(d.id)
+            except Exception:
+                matching_db_ids = []
+
+        db_strict_q = None
+        if matching_db_ids:
+            db_strict_q = Q(user__userauth__maindatabase__id__in=matching_db_ids)
+            try:
+                # apply strict DB filter immediately so later OR-combinations only consider matching DB rows
+                qs = qs.filter(db_strict_q).distinct()
+                # clear db_strict_q so we don't AND it again later
+                db_strict_q = None
+            except Exception:
+                pass
+
+        # detect status tokens using concise regex (matches prefixes like 'ac' or 'in')
         status_value = None
-        exact_status = {t.lower() for t in tokens if t.lower() in ('active', 'inactive')}
-        if 'active' in exact_status and 'inactive' not in exact_status:
-            status_value = True
-        elif 'inactive' in exact_status and 'active' not in exact_status:
-            status_value = False
-        else:
-            # allow partial/ prefix matches for status tokens (accept shorter prefixes)
-            partial_hits = set()
+        status_tokens = set()
+        try:
             for t in tokens:
-                lt = t.lower()
-                # consider prefixes of length >= 2 to be helpful for users (e.g., 'ac' or 'inc')
-                if len(lt) >= 2:
-                    added = False
-                    # prefer prefix matches to avoid accidental substring collisions
-                    if 'active'.startswith(lt) and not 'inactive'.startswith(lt):
-                        partial_hits.add('active')
-                        added = True
-                    if 'inactive'.startswith(lt) and not 'active'.startswith(lt):
-                        partial_hits.add('inactive')
-                        added = True
-                    if not added:
-                        # fallback to substring matching when prefix rules are ambiguous
-                        hit = []
-                        if 'active'.find(lt) != -1:
-                            hit.append('active')
-                        if 'inactive'.find(lt) != -1:
-                            hit.append('inactive')
-                        if len(hit) == 1:
-                            partial_hits.add(hit[0])
-            if 'active' in partial_hits and 'inactive' not in partial_hits:
-                status_value = True
-            elif 'inactive' in partial_hits and 'active' not in partial_hits:
-                status_value = False
+                lower = (t or '').lower()
+                if re.match(r'^(ac|act|active|a|actv)', lower):
+                    status_value = True
+                    status_tokens.add(t)
+                    continue
+                if re.match(r'^(in|inactive|i|inact)', lower):
+                    status_value = False
+                    status_tokens.add(t)
+                    continue
+        except Exception:
+            status_tokens = set()
 
         applied_status_only = False
 
-        # build tokenized name/group queries for multi-token searches
+        # build per-token queries (each token must match somewhere) similar to ApiGetTicketHistory
         if len(tokens) > 1:
-            q_tokens = Q()
+            per_token_qs = []
             for t in tokens:
-                q_tokens &= (
-                    Q(user__first_name__icontains=t) | Q(user__last_name__icontains=t)
+                if not t:
+                    continue
+                # skip tokens that were used solely as status filters
+                if t in status_tokens:
+                    continue
+                tq = (
+                    Q(user__username__icontains=t)
+                    | Q(user__first_name__icontains=t)
+                    | Q(user__last_name__icontains=t)
+                    | Q(user__email__icontains=t)
+                    | Q(phone__icontains=t)
+                    | Q(team__name__icontains=t)
+                    | Q(team__user_group__group_name__icontains=t)
+                    | Q(user_code__icontains=t)
+                    | Q(user__userauth__maindatabase__database_name__icontains=t)
+                    | Q(user__userauth__user_permission__name__icontains=t)
+                    | Q(create_by__username__icontains=t)
+                    | Q(create_by__first_name__icontains=t)
+                    | Q(create_by__last_name__icontains=t)
                 )
-            # also try matching all tokens across group/team fields (e.g. "Group - Team")
-            q_tokens_group = Q()
-            for t in tokens:
-                q_tokens_group &= (
-                    Q(team__name__icontains=t) | Q(team__user_group__group_name__icontains=t)
-                )
+                per_token_qs.append(tq)
 
-            # if a status token exists alongside other tokens, require status AND the other tokens
-            if status_value is not None:
-                q = (base_q | q_tokens | q_tokens_group) & Q(user__is_active=status_value)
-            else:
-                q = base_q | q_tokens | q_tokens_group
+            # combine token queries with AND so all tokens must match somewhere
+            if per_token_qs:
+                combined_q = per_token_qs[0]
+                for pq in per_token_qs[1:]:
+                    combined_q &= pq
+
+                # if we had a strict DB match earlier, ensure combined_q respects it
+                if db_strict_q is not None:
+                    combined_q &= db_strict_q
+
+                if status_value is not None:
+                    combined_q &= Q(user__is_active=status_value)
+
+                q = combined_q
         else:
             # single-token search
             if status_value is not None:
@@ -131,6 +319,8 @@ def ApiGetUser(request):
                 applied_status_only = True
             else:
                 q = base_q
+                if db_strict_q is not None:
+                    q = q & db_strict_q
 
         if not applied_status_only:
             qs = qs.filter(q).distinct()
@@ -147,7 +337,8 @@ def ApiGetUser(request):
             'group': 'team__user_group__group_name',
             'team': 'team__name',
             'phone': 'phone',
-            'status': 'user__is_active'
+            'status': 'user__is_active',
+            'create_by': 'user__userauth',
         }
         
         if sort_field in sort_mapping:
@@ -197,14 +388,75 @@ def ApiGetUser(request):
         try:
             data[i]['permission'] = getattr(profile, 'permission', None)
             data[i]['database_servers'] = getattr(profile, 'database_servers', None)
+            # include creator info if available
+            try:
+                cb = getattr(profile, 'create_by', None)
+                if cb:
+                    try:
+                        fname = getattr(cb, 'first_name', '') or ''
+                        lname = getattr(cb, 'last_name', '') or ''
+                        full = (fname + ' ' + lname).strip()
+                        data[i]['create_by'] = full if full else getattr(cb, 'username', None)
+                    except Exception:
+                        data[i]['create_by'] = getattr(cb, 'username', None)
+                else:
+                    data[i]['create_by'] = None
+            except Exception:
+                data[i]['create_by'] = None
+            # format create_at to 'YYYY-MM-DD HH:MM:SS'
+            try:
+                ca = data[i].get('create_at')
+                if ca:
+                    if isinstance(ca, str):
+                        cs = ca
+                        if cs.endswith('Z'):
+                            cs = cs[:-1] + '+00:00'
+                        try:
+                            dt = datetime.fromisoformat(cs)
+                        except Exception:
+                            # fallback: try parsing without microseconds
+                            try:
+                                dt = datetime.strptime(cs.split('.')[0], '%Y-%m-%dT%H:%M:%S')
+                            except Exception:
+                                dt = None
+                    elif isinstance(ca, (int, float)):
+                        dt = datetime.fromtimestamp(ca)
+                    else:
+                        dt = ca
+
+                    if dt and hasattr(dt, 'strftime'):
+                        data[i]['create_at'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass
         except Exception:
             pass
         
 
+    # If we previously detected matching_db_ids for the original search_term,
+    # as a final safeguard only include serialized rows that actually list
+    # that database in their `database_servers` array.
+    try:
+        if search_term and 'matching_db_ids' in locals() and matching_db_ids:
+            def _norm(s):
+                return re.sub(r'[^0-9A-Za-z]+', '', (s or '')).lower()
+
+            norm_search = _norm(search_term)
+            if norm_search:
+                filtered = []
+                for row in data:
+                    dbs = row.get('database_servers') or []
+                    for dbn in dbs:
+                        if norm_search in _norm(dbn):
+                            filtered.append(row)
+                            break
+                data = filtered
+    except Exception:
+        pass
+
     return JsonResponse({
         'draw': draw,
         'recordsTotal': records_total,
-        'recordsFiltered': records_total,
+        'recordsFiltered': len(data),
         'data': data
     })
 
@@ -556,7 +808,8 @@ def ApiSaveUser(request, user_id=None):
                 UserProfile.objects.create(
                     user=auth_user_create,
                     phone=phone,
-                    team=team_obj
+                    team=team_obj,
+                    create_by=request.user
                 )
 
             context = {
