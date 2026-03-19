@@ -119,9 +119,34 @@ async function copyCardContent() {
 async function sendResultByEmail() {
     try {
         const d = props.resultData || {}
-        // derive recipients: prefer explicit recipient field
+        // derive recipients: prefer explicit recipient field and normalize formats
         const source = d.recipient || d.email || ''
-        const recipients = String(source).split(/[,;\n\r]+/).map(s => s.trim()).filter(Boolean)
+        function normalizeRecipients(src) {
+            if (!src) return []
+            // join arrays into a single string so we can uniformly split
+            let combined
+            if (Array.isArray(src)) {
+                combined = src.join(',')
+            } else if (typeof src === 'object') {
+                try {
+                    combined = JSON.stringify(src)
+                } catch (e) {
+                    combined = String(src)
+                }
+            } else {
+                combined = String(src)
+            }
+
+            // remove surrounding braces/brackets
+            combined = combined.replace(/^[\{\[]+|[\}\]]+$/g, '')
+
+            // split on commas, semicolons or newlines and trim quotes/spaces
+            return combined.split(/[,;\n\r]+/)
+                .map(s => s.trim().replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '').trim())
+                .filter(Boolean)
+        }
+
+        const recipients = normalizeRecipients(source)
         if (!recipients.length) {
             await notify('Failed to send email', 'No recipient specified', 'error')
             return closeResult()
