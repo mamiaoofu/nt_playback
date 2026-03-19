@@ -485,6 +485,15 @@ export default {
           instance.config.onClose = Array.isArray(instance.config.onClose) ? instance.config.onClose : []
           instance.config.onClose.push((selectedDates, dateStr) => {
             try {
+              // If an external caller explicitly allowed closing (we set
+              // `instance._externalClose`), honor that first to avoid reopen loops.
+              try {
+                if (instance && instance._externalClose) {
+                  try { allowClose = true } catch (e) {}
+                  try { instance._externalClose = false } catch (e) {}
+                }
+              } catch (e) {}
+
               // If a close was attempted without using Apply/Clear, reopen the
               // calendar so the user must explicitly Apply or Clear first.
               try {
@@ -578,6 +587,18 @@ export default {
           instance.config.onOpen.push(() => {
             try {
               try { hideTimeUI() } catch (e) {}
+              // Ensure only one calendar is open at a time: close other instances
+              try {
+                Array.from(document.querySelectorAll('input')).forEach(inp => {
+                  try {
+                    const other = inp && inp._flatpickrInstance
+                    if (other && other !== instance && typeof other.close === 'function') {
+                      try { if (inp._flatpickrAllowClose) inp._flatpickrAllowClose() } catch(e) {}
+                      try { other.close() } catch (e) {}
+                    }
+                  } catch (e) {}
+                })
+              } catch (e) {}
               if (isDurationRange && el && el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
                 const parts = String(el.value).split(' - ')
                 const fromPart = parts[0] || ''
@@ -720,6 +741,14 @@ export default {
     el._flatpickr = instance
     // expose a safe clear that mirrors the internal doClear behaviour
     try { if (typeof doClear === 'function') el._flatpickrDoClear = doClear } catch (e) {}
+    // expose helper to temporarily allow external closes (used by other pickers)
+    try {
+      el._flatpickrAllowClose = function () {
+        try { allowClose = true } catch (e) {}
+        try { if (instance) instance._externalClose = true } catch (e) {}
+        try { setTimeout(() => { try { allowClose = false } catch (e) {} if (instance) try { instance._externalClose = false } catch (e) {} }, 250) } catch (e) {}
+      }
+    } catch (e) {}
   },
 
   beforeUnmount(el) {

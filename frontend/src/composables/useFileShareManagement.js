@@ -252,14 +252,16 @@ export function useFileShareManagement() {
             filters.action = []
             filters.createdBy = ''
             filters.start_date = ''
-            filters.exprie_date = ''
+            filters.end_date = ''
             filters.status = []
             filters.files_audio = []
+            startInput.value._flatpickrInstance.clear()
+            endInput.value._flatpickrInstance.clear()
 
-            if (startInput.value && startInput.value._flatpickrInstance) {
+            if (startInput.value) {
                 startInput.value._flatpickrInstance.clear()
             }
-            if (endInput.value && endInput.value._flatpickrInstance) {
+            if (endInput.value) {
                 endInput.value._flatpickrInstance.clear()
             }
 

@@ -235,6 +235,8 @@ export function useTicketHistory() {
             filters.exprie_date = ''
             filters.status = []
             filters.files_audio = []
+            startInput.value._flatpickrInstance.clear()
+            endInput.value._flatpickrInstance.clear()
 
             if (startInput.value && startInput.value._flatpickrInstance) {
                 startInput.value._flatpickrInstance.clear()

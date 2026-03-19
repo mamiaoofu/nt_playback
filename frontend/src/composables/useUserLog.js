@@ -229,12 +229,14 @@ export function useUserLog() {
                         filters.end_date = ''
                         sortColumn.value = ''
                         sortDirection.value = ''
+                        startInput.value._flatpickrInstance.clear()
+                        endInput.value._flatpickrInstance.clear()
 
                         if (startInput.value && startInput.value._flatpickrInstance) {
-                                startInput.value._flatpickrInstance.clear()
+                            startInput.value._flatpickrInstance.clear()
                         }
                         if (endInput.value && endInput.value._flatpickrInstance) {
-                                endInput.value._flatpickrInstance.clear()
+                            endInput.value._flatpickrInstance.clear()
                         }
 
                         currentPage.value = 1
