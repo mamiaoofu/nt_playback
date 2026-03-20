@@ -69,7 +69,7 @@
                 <div class="form-group-modal">
                     <label class="form-label-modal">Role Name</label>
                     <div class="input-group" v-has-value>
-                        <input v-model="roleNameInput" required type="text" name="roleNameModal" autocomplete="off" class="input" maxlength="25" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
+                        <input v-model="roleNameInput" required type="text" name="roleNameModal" autocomplete="off" class="input" maxlength="30" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
                         <label class="title-label">Role Name</label>
                         <div v-show="roleNameCheck || roleNameError" class="validate"><i class="fa-solid fa-circle-exclamation"></i>
                             <span v-if="roleNameCheck">This role name is already in the system.</span>
@@ -141,7 +141,7 @@
                 <div class="form-group-modal">
                     <label class="form-label-modal">Role Name</label>
                     <div class="input-group" v-has-value>
-                        <input v-model="roleNameInput" required type="text" name="roleNameModal" id="editRoleName" autocomplete="off" class="input" maxlength="25" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
+                        <input v-model="roleNameInput" required type="text" name="roleNameModal" id="editRoleName" autocomplete="off" class="input" maxlength="30" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
                         <label class="title-label">Role Name</label>
                         <div v-show="roleNameCheck || roleNameError" class="validate"><i class="fa-solid fa-circle-exclamation"></i>
                             <span v-if="roleNameCheck">This role name is already in the system.</span>
