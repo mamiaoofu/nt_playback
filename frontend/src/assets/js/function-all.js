@@ -172,7 +172,6 @@ export function notification (title, text, icon, showCancelButton){
 }
 
 export async function exportTableToFormat(format, type = 'audio', opts = {}) {
-  console.log('exportTableToFormat called with format:', format, 'type:', type)
   try {
     const returnBlob = !!(opts && opts.returnBlob)
     const rows = Array.isArray(opts.rows) ? opts.rows : []
@@ -189,22 +188,24 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         if (col.isIndex) return (startIndex || 0) + rIdx + 1
         const key = col.key
         let val = row && (row[key] !== undefined ? row[key] : '')
-        if (val === null || val === undefined) return ''
+
+        // Treat null/undefined or empty-string-like values as empty
+        if (val === null || val === undefined) return '-'
 
         // Normalize boolean-like status fields to human labels for export
         try {
           const keyLower = String(key || '').toLowerCase()
           if (keyLower === 'status' || keyLower.includes('status')) {
-            // Accept true/false boolean or string forms
             if (val === true || String(val).toLowerCase() === 'true' || String(val) === '1') return 'Active'
             if (val === false || String(val).toLowerCase() === 'false' || String(val) === '0') return 'Expired'
-            // also map common words
             if (String(val).toLowerCase().includes('act')) return 'Active'
             if (String(val).toLowerCase().includes('inact') || String(val).toLowerCase().includes('expire')) return 'Expired'
           }
         } catch (e) { /* ignore */ }
 
-        return String(val)
+        const s = String(val)
+        if (s.trim() === '') return '-'
+        return s
       })
     })
 
@@ -248,20 +249,27 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       exportData.forEach(row => {
         html += '<tr>'
         row.forEach((cell, cellIndex) => {
-          const text = (cell === null || cell === undefined) ? '' : String(cell).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          let cellStyle = ''
-          if (callDirIndex >= 0 && cellIndex === callDirIndex) {
-            const bg = callDirColorMap[text] || '#ffffff'
-            cellStyle += 'background-color:' + bg + ';'
-          } else if (statusIndex >= 0 && cellIndex === statusIndex) {
-            const bg = statusColorMap[text] || '#ffffff'
-            cellStyle += 'background-color:' + bg + ';'
-          }
-          if ((custNumIndex >= 0 && cellIndex === custNumIndex) || (extIndex >= 0 && cellIndex === extIndex)) {
-            cellStyle += 'text-align:right;mso-number-format:\\@;'
-          }
-          html += '<td style="' + cellStyle + '">' + text + '</td>'
-        })
+            const raw = (cell === null || cell === undefined) ? '' : String(cell)
+            const textEsc = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            // show '-' for empty values and center it in the cell
+            const text = (textEsc.trim() === '') ? '-' : textEsc
+            let cellStyle = ''
+            if (text === '-') {
+              cellStyle += 'text-align:center;'
+            }
+            if (callDirIndex >= 0 && cellIndex === callDirIndex) {
+              const bg = callDirColorMap[text] || '#ffffff'
+              cellStyle += 'background-color:' + bg + ';'
+            } else if (statusIndex >= 0 && cellIndex === statusIndex) {
+              const bg = statusColorMap[text] || '#ffffff'
+              cellStyle += 'background-color:' + bg + ';'
+            }
+            // right-align numeric/customer columns, but don't override centered '-'
+            if (text !== '-' && ((custNumIndex >= 0 && cellIndex === custNumIndex) || (extIndex >= 0 && cellIndex === extIndex))) {
+              cellStyle += 'text-align:right;mso-number-format:\@;'
+            }
+            html += '<td style="' + cellStyle + '">' + text + '</td>'
+          })
         html += '</tr>'
       })
 
@@ -377,7 +385,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         didParseCell: function (data) {
           const custNumIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('customer') || String(h).toLowerCase().includes('number'))
           const extIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('extension') || String(h).toLowerCase().includes('ext'))
-          if ((custNumIndex >= 0 && data.column.index === custNumIndex) || (extIndex >= 0 && data.column.index === extIndex)) data.cell.styles.halign = 'right'
+          const cellText = (data && data.cell && Array.isArray(data.cell.text) && data.cell.text.length > 0) ? String(data.cell.text[0]) : ''
+          // center '-' explicitly
+          if (cellText === '-') {
+            data.cell.styles.halign = 'center'
+          } else if ((custNumIndex >= 0 && data.column.index === custNumIndex) || (extIndex >= 0 && data.column.index === extIndex)) {
+            data.cell.styles.halign = 'right'
+          }
           if (callDirIndex >= 0 && data.column.index === callDirIndex && data.section === 'body') {
             const cellValue = data.cell.text[0]
             const colorInfo = callDirColorMap[cellValue]

@@ -2,6 +2,7 @@
   <MainLayout>
     <div class="main-wrapper container-fluid py-3">
       <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: pageTitle }]" />
+      <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       <div class="col-lg-12">
         <div class="card">
           <div class="card-body card-body-datatable" style="position: relative;">
@@ -17,10 +18,33 @@
                  <div style="width:260px;">
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'" @typing="onTyping" @clear="clearSearchQuery" />
                   </div>
-                <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
+                    <ul v-show="exportOpen" class="export-dropdown" @click.stop>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                        </label>
+                      </li>
+                      <li style="padding:8px;">
+                        <div class="export-actions">
+                          <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                          <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                        </div>
+                      </li>
+                    </ul>
                   </div>
               </div>
             </div>
@@ -37,12 +61,12 @@
                 </div>
 
                 <div :class="['input-group', { 'has-value': !!filters.start_date }]">
-                  <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date', noTime: true }" required type="text" name="start_date" autocomplete="off" class="input">
+                  <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date'}" required type="text" name="start_date" autocomplete="off" class="input">
                   <label class="floating-label">From</label>
                   <span class="calendar-icon" @click="startInput && startInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
                 <div :class="['input-group', { 'has-value': !!filters.end_date }]">
-                  <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date', noTime: true }" required type="text" name="end_date" autocomplete="off" class="input">
+                  <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date'}" required type="text" name="end_date" autocomplete="off" class="input">
                   <label class="floating-label">To</label>
                   <span class="calendar-icon" @click="endInput && endInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
@@ -109,6 +133,7 @@ import CustomSelect from '../components/CustomSelect.vue'
 import SearchInput from '../components/SearchInput.vue'
 import { useFileShareManagement } from '../composables/useFileShareManagement'
 import ModalRecentFileShare from '../components/ModalRecentFileShare.vue'
+import ModalDowload from '../components/ModalDowload.vue'
 
 const {
     authStore,
@@ -143,6 +168,12 @@ const {
     recentResultType,
     typeUrl,
     pageTitle,
+    exportSelections,
+    downloading,
+    downloadProgress,
+    downloadSpeed,
+    downloadRemaining,
+    cancelExport,
     onTyping,
     setPerPage,
     changePage,
@@ -153,7 +184,8 @@ const {
     onSortChange,
     onRowDelete,
     toggleUserStatus,
-    resendTicket
+    resendTicket,
+    confirmExport,
 } = useFileShareManagement()
 
 
