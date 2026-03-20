@@ -183,11 +183,52 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
     const hdrs = columns.map(c => c.label || c.key)
 
     // convert rows to exportable strings, with special handling for boolean status
+    // helper: resolve value from row, supporting nested props and common patterns
+    function resolveRowValue(row, key) {
+      if (!row) return undefined
+      if (!key) return undefined
+      // dot-path support
+      if (String(key).includes('.')) {
+        const parts = String(key).split('.')
+        let cur = row
+        for (const p of parts) {
+          if (cur && Object.prototype.hasOwnProperty.call(cur, p)) cur = cur[p]
+          else { cur = undefined; break }
+        }
+        if (cur !== undefined) return cur
+      }
+
+      // direct property
+      if (Object.prototype.hasOwnProperty.call(row, key)) return row[key]
+
+              // filter out action/utility columns from export
+              const usedColumns = (Array.isArray(columns) ? columns : []).filter(c => c && !c.isAction && c.key !== 'actions' && c.key !== 'checked')
+              const hdrs = usedColumns.map(c => c.label || c.key)
+      for (const prop in row) {
+        if (!Object.prototype.hasOwnProperty.call(row, prop)) continue
+        const v = row[prop]
+        if (v && typeof v === 'object') {
+          if (Object.prototype.hasOwnProperty.call(v, key)) return v[key]
+        }
+      }
+
+      // special-case common full name
+      const keyLower = String(key || '').toLowerCase()
+      if (keyLower === 'full_name' || keyLower === 'fullname' || keyLower.includes('full')) {
+        if (row.user && (row.user.first_name || row.user.last_name)) {
+          return `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim()
+        }
+        if (row.user && row.user.name) return row.user.name
+      }
+
+      return undefined
+    }
+
     const exportData = rows.map((row, rIdx) => {
       return columns.map((col) => {
         if (col.isIndex) return (startIndex || 0) + rIdx + 1
         const key = col.key
-        let val = row && (row[key] !== undefined ? row[key] : '')
+        let val = resolveRowValue(row, key)
 
         // Treat null/undefined or empty-string-like values as empty
         if (val === null || val === undefined) return '-'

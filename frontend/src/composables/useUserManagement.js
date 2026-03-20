@@ -5,6 +5,8 @@ import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
 import { getCsrfToken } from '../api/csrf'
+import { exportTableToFormat } from '../assets/js/function-all'
+import { useRoute } from 'vue-router'
 
 export function useUserManagement() {
     const router = useRouter()
@@ -75,11 +77,6 @@ export function useUserManagement() {
     // Export dropdown state
     const exportOpen = ref(false)
     const exportWrap = ref(null)
-    const exportSelections = reactive({ pdf: false, excel: false, csv: false })
-
-    function toggleExport() {
-        exportOpen.value = !exportOpen.value
-    }
 
     const fetchData = async () => {
         loading.value = true
@@ -532,6 +529,216 @@ export function useUserManagement() {
             }
         }
 
+    const exportSelections = reactive({ pdf: false, excel: false, csv: false})
+        const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+    
+    const resetExportSelections = () => {
+        exportSelections.pdf = false
+        exportSelections.excel = false
+        exportSelections.csv = false
+    }
+
+    const confirmExport = async () => {
+        const picks = []
+        if (exportSelections.pdf) picks.push('pdf')
+        if (exportSelections.excel) picks.push('excel')
+        if (exportSelections.csv) picks.push('csv')
+        exportOpen.value = false
+        await onExportFormat(picks)
+        resetExportSelections()
+    }
+
+    const cancelExport = () => {
+        resetExportSelections()
+        exportOpen.value = false
+    }
+
+    function toggleExport() {
+        exportOpen.value = !exportOpen.value
+    }
+
+    const route = useRoute()
+
+    const cardTitle = computed(() => {
+        const p = route.path || ''
+        if (p === '/user-management') return 'User Management'
+        return 'User Management'
+    })
+    
+    const downloading = ref(false)
+    const downloadProgress = ref(0) // percent 0-100
+    const downloadSpeed = ref('0 MB/s')
+    const downloadRemaining = ref('')
+
+    const onExportFormat = async (formatOrFormats) => {
+        if (!canExport.value) return
+        let formats = []
+        if (typeof formatOrFormats === 'string') formats = [formatOrFormats]
+        else if (Array.isArray(formatOrFormats)) formats = formatOrFormats
+        else formats = []
+
+        if (formats.length === 0) return
+
+        // rows to export (no voice selection on this page)
+        const rowsToExport = paginatedRecords.value || []
+        const exportColumns = (columns || []).filter(c => c && c.key !== 'checked')
+        // only create a ZIP when multiple formats requested
+        const multipleOutput = (formats.length > 1)
+
+        // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
+        const fmtTimestamp = (d) => {
+            const yy = d.getFullYear()
+            const mm = String(d.getMonth() + 1).padStart(2, '0')
+            const dd = String(d.getDate()).padStart(2, '0')
+            const hh = String(d.getHours()).padStart(2, '0')
+            const mi = String(d.getMinutes()).padStart(2, '0')
+            const ss = String(d.getSeconds()).padStart(2, '0')
+            return `${yy}${mm}${dd}${hh}${mi}${ss}`
+        }
+        const timestampForName = fmtTimestamp(new Date())
+
+        // progress helpers
+        let startTime = 0
+        let totalBytes = 0
+        let completedTasks = 0
+        const totalTasks = formats.length || 1
+        const markTaskDone = (bytes) => {
+            try {
+                completedTasks += 1
+                if (bytes && typeof bytes === 'number') totalBytes += bytes
+                const pct = Math.round((completedTasks / totalTasks) * 100)
+                downloadProgress.value = Math.min(100, pct)
+                const elapsed = Math.max(0.001, (Date.now() - startTime) / 1000)
+                const speed = totalBytes / elapsed // bytes/sec
+                const mbps = speed / (1024 * 1024)
+                if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+                const avgPerTask = elapsed / completedTasks
+                const remainSec = Math.max(0, Math.round(avgPerTask * (totalTasks - completedTasks)))
+                const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+                const ss = String(remainSec % 60).padStart(2, '0')
+                downloadRemaining.value = `${mm}:${ss} min.`
+            } catch (e) { console.warn('markTaskDone failed', e) }
+        }
+
+        const finishDownloading = (minDisplayMs = 3000) => {
+            try {
+                const elapsed = Math.max(0, Date.now() - startTime)
+                const wait = Math.max(0, minDisplayMs - elapsed)
+                setTimeout(() => {
+                    try {
+                        const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+                        downloadProgress.value = Math.min(100, Math.max(0, pct))
+                        downloadRemaining.value = ''
+                        downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+                        downloading.value = false
+                    } catch (e) { /* ignore */ }
+                }, wait)
+            } catch (e) { console.warn('finishDownloading failed', e) }
+        }
+
+        try {
+            // initialize UI
+            downloading.value = true
+            downloadProgress.value = 0
+            downloadSpeed.value = '0 MB/s'
+            downloadRemaining.value = ''
+            startTime = Date.now()
+
+            // when multipleOutput, try to package into a ZIP
+            if (multipleOutput) {
+                try {
+                    try {
+                        await import('../assets/js/jszip.min.js')
+                    } catch (e) { /* ignore, try window.JSZip */ }
+
+                    if (window.JSZip) {
+                        const zip = new window.JSZip()
+                        let anyFailed = false
+                        for (const fmt of formats) {
+                            try {
+                                const res = await exportTableToFormat(fmt, cardTitle.value, {
+                                    rows: rowsToExport || [],
+                                    columns: exportColumns,
+                                    startIndex: startIndex.value || 0,
+                                    fileNamePrefix: cardTitle.value,
+                                    returnBlob: true
+                                })
+                                if (res && res.blob) {
+                                    const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                                    const ext = extMap[fmt] || fmt
+                                    const name = res.fileName || `${cardTitle.value} ${timestampForName}.${ext}`
+                                    zip.file(name, res.blob)
+                                    try { markTaskDone(res.blob.size) } catch (e) {}
+                                } else {
+                                    anyFailed = true
+                                    try { markTaskDone() } catch (e) {}
+                                }
+                            } catch (e) {
+                                anyFailed = true
+                                console.error('non-voice export into zip failed', e)
+                                try { markTaskDone() } catch (er) {}
+                            }
+                        }
+                        const zipBlob = await zip.generateAsync({ type: 'blob' })
+                        const zipName = `${cardTitle.value} ${timestampForName}.zip`
+                        const a = document.createElement('a')
+                        a.href = URL.createObjectURL(zipBlob)
+                        a.download = zipName
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                        setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+                        if (anyFailed) try { showToast('Some exports failed while creating ZIP', 'warning') } catch (e) {}
+                        finishDownloading()
+                        return
+                    }
+                } catch (e) {
+                    console.error('ZIP creation for non-voice failed', e)
+                }
+                // fall through to individual downloads if JSZip not available
+            }
+
+            // per-format downloads
+            for (const fmt of formats) {
+                try {
+                    const res = await exportTableToFormat(fmt, cardTitle.value, {
+                        rows: rowsToExport || [],
+                        columns: exportColumns,
+                        startIndex: startIndex.value || 0,
+                        fileNamePrefix: cardTitle.value,
+                        returnBlob: true
+                    })
+                    if (res && res.blob) {
+                        try {
+                            const url = URL.createObjectURL(res.blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = res.fileName || `${cardTitle.value} ${timestampForName}`
+                            document.body.appendChild(a)
+                            a.click()
+                            a.remove()
+                            setTimeout(() => URL.revokeObjectURL(url), 3000)
+                        } catch (e) { console.warn('trigger blob download failed', e) }
+                        try { markTaskDone(res.blob.size) } catch (e) {}
+                    } else {
+                        try { markTaskDone() } catch (e) {}
+                    }
+                } catch (e) {
+                    console.error('non-voice export failed', fmt, e)
+                    try { if (typeof showToast === 'function') showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+                }
+            }
+
+            finishDownloading()
+            return
+        } catch (err) {
+            console.error('onExportFormat error', err)
+            try { if (typeof showToast === 'function') showToast('Export failed', 'error') } catch (e) {}
+        }
+        finally {
+            try { if (downloading.value) { finishDownloading() } } catch (e) {}
+        }
+    }
 
     const state = {
         authStore,
@@ -554,8 +761,7 @@ export function useUserManagement() {
         columns,
         totalPages,
         startIndex,
-        paginatedRecords
-        ,
+        paginatedRecords,
         // expose filter-related props
         filters,
         userOptions,
@@ -566,7 +772,12 @@ export function useUserManagement() {
         // export props
         exportOpen,
         exportWrap,
-        exportSelections
+        exportSelections,
+        canExport,
+        downloadProgress,
+        downloadSpeed,
+        downloadRemaining,
+        downloading
     }
 
     const actions = {
@@ -588,7 +799,9 @@ export function useUserManagement() {
         cancelHideDb,
         openCreateGroup,
         resetFilters,
-        toggleExport
+        toggleExport,
+        confirmExport,
+        cancelExport,
     }
 
     return {

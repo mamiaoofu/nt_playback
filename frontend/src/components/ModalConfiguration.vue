@@ -111,7 +111,7 @@
             <div class="modal-footer">
                 <button class="btn-role btn-secondary" @click="onReset" style="margin-right: auto">
                     <i class="fas fa-undo"></i>
-                    Reset to Default
+                    Reset
                 </button>
                 <button class="btn-role btn-secondary" @click="close">
                     <i class="fas fa-times"></i>
@@ -209,8 +209,41 @@ const emit = defineEmits(['update:modelValue'])
 
 const close = () => emit('update:modelValue', false)
 
+// Expand a list of action values to include required access actions
+function expandWithDependencies(actionsList) {
+    const set = new Set(Array.isArray(actionsList) ? actionsList.slice() : [])
+    if (!Array.isArray(allPermissions.value)) return Array.from(set)
+    const nameToAct = nameToAction.value || {}
+
+    Array.from(set).forEach(actionValue => {
+        const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
+        if (!perm || !perm.name) return
+        const deps = dependencyMap[String(perm.name).trim()] || []
+        deps.forEach(accessName => {
+            const accessAction = nameToAct[String(accessName).trim()]
+            if (accessAction) set.add(accessAction)
+        })
+    })
+
+    return Array.from(set)
+}
+
 const onReset = () => {
-    rolePermissions.value = [...defaultPermissions.value]
+    if (props.mode === 'create') {
+        // In create mode Reset should clear the form
+        roleNameInput.value = ''
+        rolePermissions.value = []
+        defaultPermissions.value = []
+        roleNameError.value = false
+        roleNameCheck.value = false
+        filters.value.roleAll = ''
+        return
+    }
+
+    const expanded = expandWithDependencies(defaultPermissions.value)
+    rolePermissions.value = expanded.slice()
+    // keep defaultPermissions stable so repeated resets are idempotent
+    defaultPermissions.value = expanded.slice()
 }
 
 // CSRF handled centrally
@@ -322,6 +355,7 @@ const roleNameError = ref(false)
 const allPermissions = ref([])
 const rolePermissions = ref([])
 const defaultPermissions = ref([])
+const adminOrder = ref([])
 const isAdministrator = ref(false)
 const checkDisabled = computed(() => String(props.roleId) === '1')
 
@@ -430,6 +464,11 @@ async function fetchRoleDetails(roleId, template = false) {
             // always populate the available permissions list
             allPermissions.value = Array.isArray(data.all_permissions) ? data.all_permissions : []
 
+            // if this is the admin role, capture canonical ordering of actions
+            if (String(roleId) === '1') {
+                adminOrder.value = Array.isArray(data.all_permissions) ? data.all_permissions.map(p => p && p.action).filter(Boolean) : []
+            }
+
             // when not in template mode, populate form inputs (edit flow)
             if (!template) {
                 roleNameInput.value = data.role_name || ''
@@ -520,13 +559,27 @@ watch(() => props.modelValue, async (val) => {
         return
     }
 
+    // ensure we have canonical admin order for consistent sorting
+    if (!adminOrder.value || adminOrder.value.length === 0) {
+        try { await fetchRoleDetails(1, true) } catch (e) { console.error('failed to fetch admin order', e) }
+    }
+
     // default: fetch details for the provided roleId
     fetchRoleDetails(props.roleId)
 })
 
 const groupedPermissions = computed(() => {
-    // sort permissions by numeric `id` then group so groups preserve id order
-    const ap = (allPermissions.value || []).slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))
+    // sort permissions by canonical admin order when available, falling back to numeric `id`
+    const ap = (allPermissions.value || []).slice().sort((a, b) => {
+        const ia = (adminOrder.value || []).indexOf(a && a.action)
+        const ib = (adminOrder.value || []).indexOf(b && b.action)
+        if (ia !== -1 || ib !== -1) {
+            if (ia === -1) return 1
+            if (ib === -1) return -1
+            return ia - ib
+        }
+        return (Number(a.id) || 0) - (Number(b.id) || 0)
+    })
     const grouped = ap.reduce((acc, perm) => {
         const type = perm.type || 'Other'
         if (!acc[type]) acc[type] = []
