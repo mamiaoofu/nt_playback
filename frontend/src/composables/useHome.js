@@ -110,7 +110,9 @@ export function useHome() {
             { key: 'start_date', label: 'Start Date' },
             { key: 'expire_at', label: 'Expire Date' },
             { key: 'created_by', label: 'Created by' },
-            { key: 'download', label: 'Download', sortable: false }
+            { key: 'download', label: 'Download', sortable: false },
+            { key: 'limit_access_time', label: 'Limit Access Time' },
+            { key: 'description', label: 'Description' }
           ]
         }
       } else {

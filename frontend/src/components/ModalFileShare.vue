@@ -56,10 +56,18 @@
                         <label class="title-label">Email</label>
                     </div>
                     <div class="input-group" v-has-value>
-                        <input ref="fromInput" v-flatrangepickr="{ target: exp, key: 'period' }" required type="text" name="period" autocomplete="off" :class="['input', { 'form-input-modal': errors.period }]">
+                        <input ref="fromInput" v-flatrangepickr="{ target: exp, key: 'period', time: true }" required type="text" name="period" autocomplete="off" :class="['input', { 'form-input-modal': errors.period }]">
                         <label class="title-label">Period*</label>
                         <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                         <div v-show="errors.period" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This field is required.</div>
+                    </div>
+                    <div class="input-group" v-has-value>
+                        <input required type="text" name="descTicket" autocomplete="off" class="input" v-model="descTicket" maxlength="255">
+                        <label class="title-label">Description</label>
+                    </div>
+                    <div class="input-group" v-has-value>
+                        <input required type="text" name="limitAccessTimes" autocomplete="off" class="input" maxlength="10" v-number-only v-model="limitAccessTimes">
+                        <label class="title-label">Limit access times</label>
                     </div>
                 </div>
 
@@ -79,9 +87,14 @@
                 </div>
             </div>
 
-            <div class="modal-footer">
-                <button class="btn-role btn-secondary" @click="close"><i class="fas fa-times"></i> Cancel</button>
-                <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i class="fa-solid fa-plus"></i> Create</button>
+            <div class="modal-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;">
+                <div style="display:flex;align-items:center;">
+                    <button class="btn-role btn-secondary" @click="resetForm" style="margin:0; padding:8px 14px;"><i class="fas fa-eraser"></i> Reset</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-role btn-secondary" @click="close"><i class="fas fa-times"></i> Cancel</button>
+                    <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i class="fa-solid fa-plus"></i> Create</button>
+                </div>
             </div>
         </div>
 
@@ -222,6 +235,8 @@ const fetchUsers = async () => {
 const emailTicket = ref('')
 const start = ref('')
 const expire = ref('')
+const descTicket = ref('')
+const limitAccessTimes = ref('')
 
 // target object used by v-flatrangepickr (period key will be set)
 const exp = reactive({ period: '' })
@@ -257,6 +272,31 @@ function genPassword() {
 }
 
 function close() { emit('update:modelValue', false) }
+
+function resetForm() {
+    selectionType.value = 'user'
+    shareUser.value = ''
+    emailTicket.value = ''
+    descTicket.value = ''
+    limitAccessTimes.value = ''
+    permissions.value = 'false'
+    exp.period = ''
+    exp.period_start = ''
+    exp.period_end = ''
+    errors.period = false
+
+    // clear visual input and flatpickr instance if present
+    try {
+        if (fromInput && fromInput.value) {
+            try { fromInput.value.value = '' } catch (e) {}
+            const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
+            try {
+                if (inst && typeof inst.clear === 'function') inst.clear()
+                else if (inst && typeof inst.setDate === 'function') inst.setDate([], true)
+            } catch (e) {}
+        }
+    } catch (e) {}
+}
 
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
@@ -298,7 +338,9 @@ async function onCreate() {
             expire: validExpireRaw,
             ticketCode: tCode,
             password: tPass,
-            download: permissions.value === 'true'
+            download: permissions.value === 'true',
+            limitAccessTimes: limitAccessTimes.value ? parseInt(limitAccessTimes.value) : null,
+            description: descTicket.value 
         }
 
         try {
@@ -449,11 +491,12 @@ onMounted(() => {
 watch(() => props.modelValue, async (open) => {
     if (!open) return
     const pad = (n) => String(n).padStart(2, '0')
+    // Do not prefill the input display — leave empty until user selects a date.
     const d = new Date()
     const today = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-    exp.period = `${today} - ${today}`
-    exp.period_start = `${today} 00:00`
-    exp.period_end = `${today} 23:00`
+    exp.period = ''
+    exp.period_start = ''
+    exp.period_end = ''
     errors.period = false
 
     // wait for DOM/ directive to mount the flatpickr instance (mirrors Home.vue pattern)
@@ -464,13 +507,14 @@ watch(() => props.modelValue, async (open) => {
             try { fromInput.value.value = exp.period } catch (e) {}
             // try known instance names used in project
             const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
+            // Do not programmatically set a date on open — keep input empty until user selects.
             if (inst && typeof inst.setDate === 'function') {
-                // setDate accepts display strings matching dateFormat 'Y-m-d'
-                try { inst.setDate([today, today], true) } catch (e) {}
+                try { /* intentionally left blank to avoid auto-populating the input */ } catch (e) {}
             }
         }
     } catch (e) {}
 })
+
 
 function formatDate(v) {
     if (!v) return ''

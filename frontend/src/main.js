@@ -13,6 +13,7 @@ import './assets/js/jquery-3.6.0.min.js'
 import flatpickrDirective from './directives/flatpickr.js'
 import flatrangepickrDirective from './directives/flatrangepickr.js'
 import hasValueDirective from './directives/hasValue.js'
+import numberOnlyDirective from './directives/numberOnly.js'
 
 // css
 import './assets/css/base.css'
@@ -34,6 +35,7 @@ import './assets/css/datatable.css'
 	app.directive('flatpickr', flatpickrDirective)
 	app.directive('flatrangepickr', flatrangepickrDirective)
 	app.directive('has-value', hasValueDirective)
+	app.directive('number-only', numberOnlyDirective)
 	// fetch permissions on startup if user present
 	try {
 		const auth = useAuthStore()

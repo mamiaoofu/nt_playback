@@ -281,6 +281,9 @@ def ApiGetAudioList(request):
                                 'expire_at_dt': share.expire_at if getattr(share, 'expire_at', None) else None,
                                 'download': bool(getattr(share, 'dowload', False)),
                                 'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
+                                'limit_access_time': getattr(share, 'limit_access_time', None),
+                                'description': getattr(share, 'description', None),
+                                'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
                                 'share_id': share.id
                             }
                             if key in share_map:
@@ -629,6 +632,8 @@ def ApiGetAudioList(request):
                 "custom_field_1": custom_field,
                 "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
                 "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                    "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
+                    "description": share_info.get('description') if isinstance(share_info, dict) else None,
                 "start_date": share_info.get('start_at') if isinstance(share_info, dict) else None,
                 "ticket_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'ticket' else None),
                 "delegate_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'delegate' else None),
@@ -669,7 +674,9 @@ def ApiGetAudioList(request):
                             'start_at_dt': best.get('start_at_dt'),
                             'expire_at': best.get('expire_at'),
                             'expire_at_dt': best.get('expire_at_dt'),
-                            'download': best.get('download', False)
+                            'download': best.get('download', False),
+                            'limit_access_time': best.get('limit_access_time'),
+                            'description': best.get('description')
                         }
                     else:
                         share_info = {}
@@ -695,6 +702,8 @@ def ApiGetAudioList(request):
                 # share metadata (present when viewing delegate / file_share mode)
                 "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
                 "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
+                "description": share_info.get('description') if isinstance(share_info, dict) else None,
                 "download": share_info.get('download') if isinstance(share_info, dict) else False
             })
         
@@ -1031,12 +1040,58 @@ def ApiCreateFileShare(request):
         body = request.body.decode('utf-8') or '{}'
         data = json.loads(body)
 
-        files = data.get('files', [])
+        # Accept legacy `files` or new `raw_data` payloads (frontend changed to send `raw_data`)
+        files_payload = data.get('files') or data.get('raw_data') or data.get('rawData') or []
         target_type = data.get('targetType') or data.get('type')
         target = data.get('target')
         start_raw = data.get('start')
         expire_raw = data.get('expire')
         download = data.get('download', False)
+        # top-level limit (fallback). Prefer explicit 'limitAccessTimes' if provided.
+        limit_access_time = data.get('limitAccessTimes', None)
+        description = data.get('description', None)
+
+        # Normalize files_payload into list of dicts with keys 'audiofile_id' and optional 'limit_access_time'
+        audio_items = []
+        for f in files_payload:
+            if isinstance(f, dict):
+                fid = f.get('audiofile_id') or f.get('file_id') or f.get('fileId')
+                lat = None
+                if 'limit_access_time' in f:
+                    lat = f.get('limit_access_time')
+                elif 'limitAccessTime' in f:
+                    lat = f.get('limitAccessTime')
+            else:
+                fid = f
+                lat = None
+            try:
+                if fid is None or fid == '':
+                    continue
+                # try convert to int id when possible
+                try:
+                    fid_conv = int(fid)
+                except Exception:
+                    fid_conv = fid
+                lat_conv = None
+                if lat not in (None, ''):
+                    try:
+                        lat_conv = int(lat)
+                    except Exception:
+                        lat_conv = None
+                audio_items.append({'audiofile_id': fid_conv, 'limit_access_time': lat_conv})
+            except Exception:
+                continue
+
+        # build list of audio ids (preserve as-is for string ids)
+        audio_ids = [item['audiofile_id'] for item in audio_items if item.get('audiofile_id') is not None]
+        audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
+
+        # If no top-level limit provided, but all items share identical per-file limit, use it as shared limit
+        if limit_access_time in (None, '') and audio_items:
+            lat_vals = [item['limit_access_time'] for item in audio_items if item.get('limit_access_time') is not None]
+            if lat_vals:
+                if all(v == lat_vals[0] for v in lat_vals):
+                    limit_access_time = lat_vals[0]
 
         # if not target_type or not target:
         #     return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
@@ -1122,6 +1177,8 @@ def ApiCreateFileShare(request):
                         audiofile_id=audio_ids_str,
                         start_at=start_dt or timezone.now(),
                         expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                        limit_access_time=limit_access_time,
+                        description=description,
                         status=1,
                         dowload=bool(download),
                         create_by=request.user
@@ -1222,6 +1279,8 @@ def ApiCreateFileShare(request):
                     audiofile_id=audio_ids_str,
                     start_at=start_dt or timezone.now(),
                     expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                    limit_access_time=limit_access_time,
+                    description=description,
                     status=True,
                     dowload=bool(download),
                     create_by=request.user

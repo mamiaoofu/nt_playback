@@ -1,5 +1,5 @@
 <template>
-  <div v-show="modelValue" class="audio-modal-backdrop" @click.self="close">
+  <div v-show="modelValue" class="audio-modal-backdrop">
     <div class="audio-modal">
       <div class="audio-card">
         <div class="card-header">
