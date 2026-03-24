@@ -20,7 +20,7 @@ export default defineConfig({
     // HMR: let client connect to the page origin (works for localhost and LAN)
     // remove explicit `host` so client uses the current origin automatically
     hmr: {
-      protocol: 'ws',
+      // protocol: 'ws',
       clientPort: 443,
     },
     // allow Host headers coming from the proxy container and LAN
