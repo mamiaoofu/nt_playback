@@ -21,7 +21,7 @@ export default defineConfig({
     // remove explicit `host` so client uses the current origin automatically
     hmr: {
       protocol: 'ws',
-      clientPort: 8001,
+      clientPort: 443,
     },
     // allow Host headers coming from the proxy container and LAN
     allowedHosts: ['frontend', 'localhost', '127.0.0.1', '192.168.1.90', '192.168.1.202','ecmnichetelcomm.ddns.net']
