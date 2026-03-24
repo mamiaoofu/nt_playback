@@ -36,13 +36,12 @@ import './assets/css/datatable.css'
 	app.directive('flatrangepickr', flatrangepickrDirective)
 	app.directive('has-value', hasValueDirective)
 	app.directive('number-only', numberOnlyDirective)
-	// fetch permissions on startup if user present
+	// Restore access token from HttpOnly refresh cookie before first navigation.
+	// This ensures router.beforeEach sees a valid token on page reload.
 	try {
 		const auth = useAuthStore()
-		if (auth.user) await auth.fetchPermissions()
-	} catch (e) {
-		console.error('Error fetching permissions on startup', e)
-	}
+		await auth.tryRestoreFromRefresh()
+	} catch (e) {}
 
 	// ensure CSRF token is available for subsequent POST requests
 	try {

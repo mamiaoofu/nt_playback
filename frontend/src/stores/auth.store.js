@@ -5,22 +5,44 @@ import { ensureCsrf, setCsrfToken } from '../api/csrf'
 import router from '../router'
 
 export const useAuthStore = defineStore('auth', () => {
-	// Initialize state (user persists in localStorage; token kept in memory only)
-	const user = ref(JSON.parse(localStorage.getItem('user')))
+	// Keep session in memory only (no persistence across full page reload)
+	const user = ref(null)
 	const token = ref(null)
-    const permissions = ref(JSON.parse(localStorage.getItem('permissions') || '[]'))
+	const permissions = ref([])
+	const lastLoginAt = ref(0)
+
+	// Promise that resolves once the initial restore-from-refresh attempt finishes.
+	// Router guard awaits this so it never redirects before we know if an
+	// HttpOnly refresh cookie can recover the session.
+	let _readyResolve = null
+	const _readyPromise = new Promise(resolve => { _readyResolve = resolve })
+	function waitReady() { return _readyPromise }
+
+	// Tab-sync channel to notify other tabs when logout/login occurs
+	let bc = null
+	try {
+		if ('BroadcastChannel' in window) {
+			bc = new BroadcastChannel('nt_playback_auth')
+			bc.onmessage = (ev) => {
+				try {
+					const data = ev.data || {}
+					if (data.type === 'logout') {
+						clear()
+						try { router.push('/login') } catch (e) { window.location.href = '/login' }
+					}
+				} catch (e) {}
+			}
+		}
+	} catch (e) {}
 
 	function setUser(payload) {
 		user.value = payload
-		if (payload) {
-			localStorage.setItem('user', JSON.stringify(payload))
-		} else {
-			localStorage.removeItem('user')
-		}
+		// memory-only; do not persist across reloads
 	}
 
 	function setToken(t) {
 		token.value = t
+		// memory-only
 	}
 
 	function clear() {
@@ -32,6 +54,8 @@ export const useAuthStore = defineStore('auth', () => {
 	function logout() {
 		// Immediately clear local state (remove access token from memory/localStorage)
 		clear()
+		// notify other tabs
+		try { if (bc) bc.postMessage({ type: 'logout' }) } catch (e) {}
 
 		// attempt server-side logout to blacklist refresh tokens and clear session
 		try {
@@ -54,7 +78,11 @@ export const useAuthStore = defineStore('auth', () => {
 			const url = response.url || ''
 			const redirected = !!response.redirected
 			if (type === 'opaqueredirect' || redirected || status === 301 || status === 302 || url.includes('/login/?next=')) {
-				logout()
+				// Only clear local state + redirect; do NOT call the server logout
+				// endpoint here, as that would send a WebSocket force_logout that
+				// could kick an active session on another tab / a just-logged-in user.
+				clear()
+				try { router.push('/login') } catch (e) { try { window.location.href = '/login' } catch (ee) {} }
 				return true
 			}
 		} catch (e) {}
@@ -91,6 +119,8 @@ export const useAuthStore = defineStore('auth', () => {
 
 			const data = await response.json()
 			setToken(data.access)
+			// record recent login time to avoid immediate force-logout races
+			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
 			if (data && data.username) setUser({ username: data.username, id: data.id || null, role: data.role || null })
 
@@ -125,6 +155,29 @@ export const useAuthStore = defineStore('auth', () => {
 			clear()
 			return false
 		}
+	}
+
+
+	async function tryRestoreFromRefresh() {
+		// Attempt to exchange HttpOnly refresh cookie for an access token.
+		// Intentionally does NOT call fetchPermissions() here to avoid a race
+		// where a background session check triggers handleRedirectOrLoginNext
+		// while the user is in the middle of logging in.
+		try {
+			const resp = await fetch('/api/token/refresh_from_cookie/', { method: 'POST', credentials: 'include' })
+			if (!resp.ok) {
+				try { _readyResolve() } catch (e) {}
+				return false
+			}
+			const data = await resp.json()
+			if (data && data.access) {
+				setToken(data.access)
+				try { _readyResolve() } catch (e) {}
+				return true
+			}
+		} catch (e) {}
+		try { _readyResolve() } catch (e) {}
+		return false
 	}
 
 
@@ -170,5 +223,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName }
+	return { user, token, permissions, lastLoginAt, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady }
 })

@@ -12,6 +12,8 @@ from django.contrib.sessions.models import Session
 from django.utils import timezone
 
 from django.conf import settings
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 # ปรับ Import ให้ตรงกับโครงสร้างไฟล์ใหม่ (apps/core/utils/function.py)
 from apps.core.utils.function import create_user_log
@@ -215,6 +217,17 @@ def api_logout(request):
                         continue
                 # If any tokens were blacklisted or a provided token was blacklisted
                 token_blacklisted = token_blacklisted or (tokens_blacklisted_count > 0)
+                # Notify user's websocket group to force client-side logout
+                try:
+                    user = request.user
+                    if user and getattr(user, 'id', None):
+                        channel_layer = get_channel_layer()
+                        async_to_sync(channel_layer.group_send)(
+                            f'user_{user.id}',
+                            {'type': 'force_logout', 'message': 'server_initiated_logout'}
+                        )
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -334,5 +347,26 @@ def api_logout(request):
         except Exception:
             pass
         return resp
+    except Exception:
+        return JsonResponse({'detail': 'error'}, status=400)
+
+
+@csrf_exempt
+def api_refresh_from_cookie(request):
+    """Return a new access token by reading the HttpOnly refresh cookie.
+    This is a convenience endpoint for SPA clients that store the refresh
+    token in an HttpOnly cookie and cannot read it from JS.
+    """
+    try:
+        refresh_cookie_name = getattr(settings, 'REFRESH_COOKIE_NAME', 'refresh')
+        token = request.COOKIES.get(refresh_cookie_name)
+        if not token:
+            return JsonResponse({'detail': 'no_refresh_cookie'}, status=401)
+        try:
+            rt = RefreshToken(token)
+            access = str(rt.access_token)
+            return JsonResponse({'access': access})
+        except Exception:
+            return JsonResponse({'detail': 'invalid_refresh'}, status=401)
     except Exception:
         return JsonResponse({'detail': 'error'}, status=400)

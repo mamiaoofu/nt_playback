@@ -1660,6 +1660,12 @@ export function useHome() {
         fileShareWs.onmessage = (evt) => {
           try {
             const data = JSON.parse(evt.data)
+            if (!data) return
+            if (data.type === 'force_logout') {
+              // Handled globally by useNotifications (with login-race guard);
+              // ignore here to avoid double-trigger.
+              return
+            }
             if (data && (data.type === 'file_share' || data.type === 'file.share' || data.type === 'file_share')) {
               showFileShareNotification.value = !!data.ok
             }

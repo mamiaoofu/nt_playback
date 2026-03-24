@@ -37,6 +37,11 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
 	const authStore = useAuthStore()
+
+	// Wait for the initial restore-from-cookie attempt to finish so that a page
+	// reload doesn't falsely redirect to Login before the token is recovered.
+	try { await authStore.waitReady() } catch (e) {}
+
 	const isAuthenticated = !!authStore.token
 
 	if (to.name !== 'Login' && !isAuthenticated) {

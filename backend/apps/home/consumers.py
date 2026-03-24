@@ -38,3 +38,12 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             payload['data'] = extra
         logger.info(f'NotificationConsumer: sending file_share to user_id={getattr(self.user, "id", None)} payload={payload}')
         await self.send(text_data=json.dumps(payload))
+
+    async def force_logout(self, event):
+        # server-triggered immediate logout notification
+        try:
+            payload = {'type': 'force_logout', 'message': event.get('message', 'force_logout')}
+            logger.info(f'NotificationConsumer: sending force_logout to user_id={getattr(self.user, "id", None)} payload={payload}')
+            await self.send(text_data=json.dumps(payload))
+        except Exception:
+            logger.exception('NotificationConsumer: error sending force_logout')
