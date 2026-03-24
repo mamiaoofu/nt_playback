@@ -13,15 +13,16 @@ function ensureNotifyStyles() {
   .swal2-custom-content { color: #6b7280; font-size: 16px; line-height: 1.6; margin-bottom: 18px; }
   .swal2-custom-confirm { background: linear-gradient(180deg,#4f86ff,#2b6bff) !important; color: #fff !important; border-radius: 22px !important; padding: 8px 22px !important; box-shadow: 0 3px 0 rgba(0,0,0,0.12); }
 
-  /* Toast tweaks */
-  .toast { position: fixed; right: 18px; top: 18px; display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.78); color: #fff; padding: 12px 14px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-width: 380px; z-index: 9999; }
-  .toast .title { font-weight: 700; font-size: 14px; }
-  .toast .message { font-size: 13px; color: rgba(255,255,255,0.95); }
-  .toast.success { background: linear-gradient(90deg,#36b37e,#2ea36a); }
-  .toast.error { background: linear-gradient(90deg,#ff6b6b,#ff4b4b); }
-  .toast .icon { font-size: 18px; }
-  .toast-progress { height: 3px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-  .toast-progress-bar { height: 100%; background: rgba(255,255,255,0.9); width: 100%; }
+  /* Namespaced toast tweaks (use .nt-toast to avoid conflicts with global .toast rules) */
+  .nt-toast { position: fixed; right: 18px; top: 18px; display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.78); color: #fff; padding: 12px 14px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); max-width: 380px; z-index: 9999; opacity: 0; transform: translateY(-8px); transition: opacity .18s ease, transform .18s ease; pointer-events: auto; }
+  .nt-toast.show { opacity: 1; transform: translateY(0); }
+  .nt-toast .title { font-weight: 700; font-size: 14px; }
+  .nt-toast .message { font-size: 13px; color: rgba(255,255,255,0.95); }
+  .nt-toast.success { background: linear-gradient(90deg,#36b37e,#2ea36a); }
+  .nt-toast.error { background: linear-gradient(90deg,#ff6b6b,#ff4b4b); }
+  .nt-toast .icon { font-size: 18px; }
+  .nt-toast-progress { height: 3px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+  .nt-toast-progress-bar { height: 100%; background: rgba(255,255,255,0.9); width: 100%; }
   `
   const style = document.createElement('style')
   style.id = 'notify-custom-styles'
@@ -30,6 +31,8 @@ function ensureNotifyStyles() {
 }
 export function showToast(titleOrMessage, maybeTypeOrMessage = '', maybeType) {
   try {
+    // Ensure styles are present before creating toasts (fixes missing/incorrect styling on first load)
+    ensureNotifyStyles()
     const types = ['success', 'error', 'info', 'warning']
     let title = ''
     let message = ''

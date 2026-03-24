@@ -22,6 +22,7 @@ export const API_CHECK_FILE_SHARE = () => `${getApiBase()}/api/file-share/check/
 
 // หน้า Login
 export const API_LOGIN = () => `${getApiBase()}/login/`
+export const API_LOGOUT = () => `${getApiBase()}/api/logout/`
 
 // หน้า Role
 export const API_INDEX_ROLE = () => `${getApiBase()}/api/role/index/`

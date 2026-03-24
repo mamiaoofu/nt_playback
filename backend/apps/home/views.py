@@ -275,9 +275,9 @@ def ApiGetAudioList(request):
                                 'created_by': str(share.create_by) if getattr(share, 'create_by', None) else None,
                                 'type': getattr(share, 'type', None),
                                 'code': getattr(share, 'code', None),
-                                'start_at': share.start_at.strftime("%Y-%m-%d") if getattr(share, 'start_at', None) else None,
+                                'start_at': (timezone.localtime(share.start_at).strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'start_at', None) else None),
                                 'start_at_dt': share.start_at if getattr(share, 'start_at', None) else None,
-                                'expire_at': share.expire_at.strftime("%Y-%m-%d") if getattr(share, 'expire_at', None) else None,
+                                'expire_at': (timezone.localtime(share.expire_at).strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'expire_at', None) else None),
                                 'expire_at_dt': share.expire_at if getattr(share, 'expire_at', None) else None,
                                 'download': bool(getattr(share, 'dowload', False)),
                                 'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
@@ -308,7 +308,7 @@ def ApiGetAudioList(request):
         except Exception:
             audio_list = audio_list.none()
     
-    now = datetime.now()
+    now = timezone.now()
     if time_type:
         if time_type == "hour":
             start_date = now - timedelta(hours=1)
@@ -318,8 +318,8 @@ def ApiGetAudioList(request):
             start_date = now - timedelta(days=30)
         elif time_type == "year":
             start_date = now - timedelta(days=365)
-        start_date = start_date.strftime("%Y-%m-%d %H:%M:%S")
-        end_date = now.strftime("%Y-%m-%d %H:%M:%S")
+        # keep as datetime objects (aware when USE_TZ=True) for queryset filtering
+        end_date = now
 
     if database_name and database_name != "all":
         parts = [p.strip() for p in str(database_name).split(',') if p.strip()]
@@ -605,8 +605,16 @@ def ApiGetAudioList(request):
             audio = audio_map.get(str(afid))
 
             main_db_display = str(audio.main_db) if audio and hasattr(audio, 'main_db') else ''
-            start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if audio and getattr(audio, 'start_datetime', None) else "-"
-            end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if audio and getattr(audio, 'end_datetime', None) else "-"
+            if audio and getattr(audio, 'start_datetime', None):
+                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
+                start_dt = sd.strftime("%Y-%m-%d %H:%M")
+            else:
+                start_dt = "-"
+            if audio and getattr(audio, 'end_datetime', None):
+                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
+                end_dt = ed.strftime("%Y-%m-%d %H:%M")
+            else:
+                end_dt = "-"
             file_name = audio.audiofile.file_name if audio and getattr(audio, 'audiofile', None) else "-"
             duration_val = str(audio.audiofile.duration) if (audio and getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
             agent_display = str(audio.agent) if audio and getattr(audio, 'agent', None) else "-"
@@ -648,8 +656,16 @@ def ApiGetAudioList(request):
 
         for idx, audio in enumerate(audio_page, start=start+1):
             main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
-            start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'start_datetime', None) else "-"
-            end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'end_datetime', None) else "-"
+            if getattr(audio, 'start_datetime', None):
+                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
+                start_dt = sd.strftime("%Y-%m-%d %H:%M")
+            else:
+                start_dt = "-"
+            if getattr(audio, 'end_datetime', None):
+                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
+                end_dt = ed.strftime("%Y-%m-%d %H:%M")
+            else:
+                end_dt = "-"
             file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
             duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
             agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
@@ -1111,23 +1127,20 @@ def ApiCreateFileShare(request):
                         return None
             try:
                 if timezone.is_naive(dt):
-                    dt = timezone.make_aware(dt)
+                    try:
+                        tz = timezone.get_current_timezone()
+                    except Exception:
+                        tz = None
+                    if tz:
+                        dt = timezone.make_aware(dt, timezone=tz)
+                    else:
+                        dt = timezone.make_aware(dt)
             except Exception:
                 pass
             return dt
 
         start_dt = parse_dt(start_raw)
         expire_dt = parse_dt(expire_raw)
-
-        audio_ids = []
-        for f in files:
-            try:
-                fid = f.get('file_id') if isinstance(f, dict) else f
-                audio_ids.append(int(fid))
-            except Exception:
-                continue
-
-        audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
 
         if target_type == 'user':
             # Accept single username or list of usernames (or delimited string)

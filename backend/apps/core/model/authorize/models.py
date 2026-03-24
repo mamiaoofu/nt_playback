@@ -5,7 +5,7 @@ from django.db import models
 class MainDatabase(models.Model):
     database_name = models.CharField(max_length=255, unique=True, verbose_name='Database Name')
     description = models.TextField(blank=True, verbose_name='Description')
-    status = models.BooleanField(verbose_name='status')
+    status = models.BooleanField(default=True,verbose_name='status')
     
     class Meta:
         # db_table = 'tb_maindatabase_nice'
@@ -21,7 +21,7 @@ class MainDatabase(models.Model):
 class UserAuth(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     maindatabase = models.ForeignKey(MainDatabase, on_delete=models.CASCADE)
-    allow = models.BooleanField()
+    allow = models.BooleanField(null=True, blank=True)
 
     user_permission = models.ForeignKey(
         'configuration.UserPermission',
@@ -43,8 +43,8 @@ class UserLog(models.Model):
     detail = models.TextField(blank=True, verbose_name='Detail')
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP Address')
     # audiofile = models.ForeignKey('audio.AudioFile', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Audio File')
-    client_type = models.CharField(max_length=255, verbose_name='บราวเซอร์ผู้ใช้')
-    status = models.CharField(max_length=50, verbose_name='status')
+    client_type = models.CharField(max_length=255, verbose_name='บราวเซอร์ผู้ใช้',null=True, blank=True)
+    status = models.CharField(max_length=50, verbose_name='status',null=True, blank=True)
     
     class Meta:
         db_table = 'tb_userlog'
@@ -59,8 +59,8 @@ class SetAudio(models.Model):
     audio_path = models.CharField(max_length=255, verbose_name='audio_path')
     create_at = models.DateTimeField(auto_now_add=True)
     update_at = models.DateTimeField(auto_now=True)
-    client_token  = models.CharField(max_length=255, verbose_name='client_token')
-    selected = models.BooleanField(verbose_name='selected')
+    client_token = models.CharField(max_length=255, null=True, blank=True, verbose_name='client_token')
+    selected = models.BooleanField(verbose_name='selected', null=True, blank=True)
     
     class Meta:
         db_table = 'tb_set_audio'
@@ -87,7 +87,7 @@ class AgentGroup(models.Model):
     status = models.IntegerField(verbose_name='status')
 
     class Meta:
-        db_table = 't_group'
+        db_table = 'tb_agent_group'
         ordering = ['group_name']
         verbose_name = 'Agent Group'
         
@@ -96,7 +96,7 @@ class AgentGroup(models.Model):
         return self.group_name
     
 class Agent(models.Model):
-    agent_code = models.CharField(max_length=50, unique=True, verbose_name='Agent ID')
+    agent_code = models.CharField(max_length=50,     unique=True, verbose_name='Agent ID')
     first_name = models.CharField(max_length=50, verbose_name='first_name')
     last_name = models.CharField(max_length=50, verbose_name='last_name')
     agent_group_id = models.ForeignKey(AgentGroup, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='AgentGroup', db_column='agent_group_id' )
@@ -106,7 +106,6 @@ class Agent(models.Model):
         db_table = 'tb_agent'
         ordering = ['first_name']
         verbose_name = 'Agent'
-        managed = False
         
 
     def __str__(self):
@@ -147,12 +146,12 @@ class UserProfile(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name='User')
     team = models.ForeignKey(UserTeam, on_delete=models.CASCADE, verbose_name='team',db_column='team_id' )
     user_code = models.CharField(max_length=255, verbose_name='user_code')
-    phone = models.CharField(max_length=255, verbose_name='user_code')
+    phone = models.CharField(max_length=255, verbose_name='user_code', null=True, blank=True)
     create_at = models.DateTimeField(auto_now_add=True)
     update_at = models.DateTimeField(auto_now=True)
     create_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='create_by', db_column='create_by',related_name='created_profiles')
-    session_token = models.CharField(max_length=255, verbose_name='session_token') 
-    privilege_history = models.BooleanField(verbose_name='สิทธิดูประวัติผู้ใช้')
+    session_token = models.CharField(max_length=255, verbose_name='session_token', null=True, blank=True) 
+    privilege_history = models.BooleanField(verbose_name='สิทธิดูประวัติผู้ใช้', null=True, blank=True)
 
     class Meta:
         ordering = ['user__username']

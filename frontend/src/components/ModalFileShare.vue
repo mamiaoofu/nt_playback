@@ -32,8 +32,6 @@
                 </div>
 
                 <div class="mt-3">
-                    <label class="form-label">Target</label>
-
                     <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
@@ -55,34 +53,43 @@
                         <input required type="text" name="emailTicket" autocomplete="off" class="input" v-model="emailTicket" maxlength="255">
                         <label class="title-label">Email</label>
                     </div>
-                    <div class="input-group" v-has-value>
-                        <input ref="fromInput" v-flatrangepickr="{ target: exp, key: 'period', time: true }" required type="text" name="period" autocomplete="off" :class="['input', { 'form-input-modal': errors.period }]">
-                        <label class="title-label">Period*</label>
-                        <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i class="fa-regular fa-calendar"></i></span>
-                        <div v-show="errors.period" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This field is required.</div>
-                    </div>
-                    <div class="input-group" v-has-value>
-                        <input required type="text" name="descTicket" autocomplete="off" class="input" v-model="descTicket" maxlength="255">
-                        <label class="title-label">Description</label>
-                    </div>
+
                     <div class="input-group" v-has-value>
                         <input required type="text" name="limitAccessTimes" autocomplete="off" class="input" maxlength="10" v-number-only v-model="limitAccessTimes">
                         <label class="title-label">Limit access times</label>
                     </div>
+                     
+                                         <div class="input-group" v-has-value>
+                                              <input ref="fromInputAdd" v-model="start" v-flatpickr="{ target: picker, key: 'from' }" required type="text" name="fromModal" autocomplete="off" class="input">
+                      <label class="title-label">From</label>
+                      <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
+                    </div>
+
+                    <div class="input-group" v-has-value>
+                                              <input ref="toInputAdd" v-model="expire" v-flatpickr="{ target: picker, key: 'to' }" required type="text" name="toModal" autocomplete="off" class="input">
+                      <label class="title-label">To</label>
+                      <span class="calendar-icon" @click="toInputAdd && toInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
+                    </div>
+                    
                 </div>
 
-                <div class="mt-3">
-                    <label class="form-label">Download</label>
+                <div class="permissions-grid">
+                    <div class="input-group" v-has-value>
+                        <textarea rows="4" required type="text" name="descTicket" autocomplete="off" class="input" v-model="descTicket" style="height: auto;"></textarea>
+                        <label class="title-label">Description</label>
+                    </div>
+                </div>
 
-                    <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
-                            <label class="form-check-label" for="permissionsYesDownload">Yes</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="permissionsNoDownload" value="false" v-model="permissions">
-                            <label class="form-check-label" for="permissionsNoDownload">No</label>
-                        </div>
+                <label class="form-label" style="font-weight: 500;">Download</label>
+
+                <div class="d-flex align-items-center" style="gap:12px;">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
+                        <label class="form-check-label" for="permissionsYesDownload">Yes</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="permissionsNoDownload" value="false" v-model="permissions">
+                        <label class="form-check-label" for="permissionsNoDownload">No</label>
                     </div>
                 </div>
             </div>
@@ -238,12 +245,19 @@ const expire = ref('')
 const descTicket = ref('')
 const limitAccessTimes = ref('')
 
-// target object used by v-flatrangepickr (period key will be set)
-const exp = reactive({ period: '' })
-// validation/errors
-const errors = reactive({ period: false })
-// template ref for the picker input
+// flatpickr target object — directive will write into `picker.from` / `picker.to`
+const picker = reactive({ from: '', to: '' })
+
+// validation/errors for start/expire
+const errors = reactive({ start: false, expire: false })
+// template refs for the picker inputs (if directive exposes them)
 const fromInput = ref(null)
+const fromInputAdd = ref(null)
+const toInputAdd = ref(null)
+
+// keep `start`/`expire` in sync with picker object written by v-flatpickr
+watch(() => picker.from, (v) => { start.value = v })
+watch(() => picker.to, (v) => { expire.value = v })
 
 const showResult = ref(false)
 const resultType = ref('')
@@ -280,10 +294,12 @@ function resetForm() {
     descTicket.value = ''
     limitAccessTimes.value = ''
     permissions.value = 'false'
-    exp.period = ''
-    exp.period_start = ''
-    exp.period_end = ''
-    errors.period = false
+    start.value = ''
+    expire.value = ''
+    errors.start = false
+    errors.expire = false
+    picker.from = ''
+    picker.to = ''
 
     // clear visual input and flatpickr instance if present
     try {
@@ -300,18 +316,28 @@ function resetForm() {
 
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
-    
-    if (!targetValue && selectionType.value === 'user') {
+
+    console.log('ModalFileShare onCreate start', { selectionType: selectionType.value, target: targetValue, start: start.value, expire: expire.value, files: props.files && props.files.length })
+
+    if (selectionType.value === 'user' && !targetValue) {
         showToast('Please specify a target.', 'warning')
         return
     }
-    if (!exp.period_start || !exp.period_end) {
-        errors.period = true
+
+    if (selectionType.value === 'ticket' && !targetValue) {
+        showToast('Please specify an email for the ticket.', 'warning')
         return
     }
 
-    const validStartRaw = exp.period_start 
-    const validExpireRaw = exp.period_end 
+    if (!start.value || !expire.value) {
+        errors.start = !start.value
+        errors.expire = !expire.value
+        showToast('Please select a valid From and To date.', 'warning')
+        return
+    }
+
+    const validStartRaw = start.value
+    const validExpireRaw = expire.value
 
     let tCode = ''
     let tPass = ''
@@ -346,6 +372,7 @@ async function onCreate() {
         try {
             const res = await fetch(API_CREATE_FILE_SHARE(), {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRFToken': getCsrfToken() || ''
@@ -494,17 +521,19 @@ watch(() => props.modelValue, async (open) => {
     // Do not prefill the input display — leave empty until user selects a date.
     const d = new Date()
     const today = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-    exp.period = ''
-    exp.period_start = ''
-    exp.period_end = ''
-    errors.period = false
+    start.value = ''
+    expire.value = ''
+    errors.start = false
+    errors.expire = false
+    picker.from = ''
+    picker.to = ''
 
     // wait for DOM/ directive to mount the flatpickr instance (mirrors Home.vue pattern)
     try {
         await nextTick()
-        if (fromInput && fromInput.value) {
+            if (fromInput && fromInput.value) {
             // ensure input displays the text
-            try { fromInput.value.value = exp.period } catch (e) {}
+            try { fromInput.value.value = '' } catch (e) {}
             // try known instance names used in project
             const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
             // Do not programmatically set a date on open — keep input empty until user selects.

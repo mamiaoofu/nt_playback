@@ -184,6 +184,19 @@ def ApiGetUserLogs(request,type):
 
     data = []
     for idx, log in enumerate(log_page, start=start+1):
+        # format timestamp respecting TIME_ZONE / USE_TZ
+        if log.timestamp:
+            try:
+                ts = timezone.localtime(log.timestamp) 
+                ts_str = ts.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                try:
+                    ts_str = str(log.timestamp)
+                except Exception:
+                    ts_str = "-"
+        else:
+            ts_str = "-"
+
         data.append({
             "no": idx,
             "username": str(log.user) if log.user else "-",
@@ -193,7 +206,7 @@ def ApiGetUserLogs(request,type):
             "detail": str(log.detail) if log.detail else "-",
             "ip_address": str(log.ip_address) if log.ip_address else "-",
             "detail": str(log.detail) if log.detail else "-",
-            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M") if log.timestamp else "-",
+            "timestamp": ts_str,
             "client_type": str(log.client_type) if log.client_type else "-",
         })
 

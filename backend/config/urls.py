@@ -23,11 +23,13 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     
 )
+from apps.login.views import api_logout
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/logout/', api_logout, name='api_logout'),
     path('login/', include('apps.login.urls')),
     path('', include('apps.home.urls')),
     path('', include('apps.configuration.urls')),

@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { API_LOGIN, API_HOME_INDEX } from '../api/paths'
+import { API_LOGIN, API_HOME_INDEX, API_LOGOUT } from '../api/paths'
 import { ensureCsrf, setCsrfToken } from '../api/csrf'
 import router from '../router'
 
 export const useAuthStore = defineStore('auth', () => {
-	// Initialize state from localStorage to enable persistence
+	// Initialize state (user persists in localStorage; token kept in memory only)
 	const user = ref(JSON.parse(localStorage.getItem('user')))
-	const token = ref(localStorage.getItem('token'))
+	const token = ref(null)
     const permissions = ref(JSON.parse(localStorage.getItem('permissions') || '[]'))
 
 	function setUser(payload) {
@@ -21,11 +21,6 @@ export const useAuthStore = defineStore('auth', () => {
 
 	function setToken(t) {
 		token.value = t
-		if (t) {
-			localStorage.setItem('token', t)
-		} else {
-			localStorage.removeItem('token')
-		}
 	}
 
 	function clear() {
@@ -35,7 +30,19 @@ export const useAuthStore = defineStore('auth', () => {
 	}
 
 	function logout() {
+		// Immediately clear local state (remove access token from memory/localStorage)
 		clear()
+
+		// attempt server-side logout to blacklist refresh tokens and clear session
+		try {
+			// backend reads refresh from HttpOnly cookie if present; no need to send token in body
+			fetch(API_LOGOUT(), {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			}).catch(() => {})
+		} catch (e) {}
 		try { router.push('/login') } catch (e) { try { window.location.href = '/login' } catch (ee) {} }
 	}
 

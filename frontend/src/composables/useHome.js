@@ -111,8 +111,6 @@ export function useHome() {
             { key: 'expire_at', label: 'Expire Date' },
             { key: 'created_by', label: 'Created by' },
             { key: 'download', label: 'Download', sortable: false },
-            { key: 'limit_access_time', label: 'Limit Access Time' },
-            { key: 'description', label: 'Description' }
           ]
         }
       } else {

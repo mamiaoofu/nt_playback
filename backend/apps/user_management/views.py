@@ -24,6 +24,8 @@ from apps.core.utils.permissions import require_action, get_user_actions
 from apps.core.model.authorize.serializers import UserProfileSerializer,DepartmentSerializer,UserGroupSerializer,UserTeamSerializer
 
 from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from django.contrib.sessions.models import Session
 
 User = get_user_model()
 
@@ -425,6 +427,16 @@ def ApiGetUser(request):
                         dt = ca
 
                     if dt and hasattr(dt, 'strftime'):
+                        try:
+                            if dt.tzinfo is None:
+                                tz = timezone.get_current_timezone()
+                                dt = timezone.make_aware(dt, timezone=tz)
+                        except Exception:
+                            pass
+                        try:
+                            dt = timezone.localtime(dt)
+                        except Exception:
+                            pass
                         data[i]['create_at'] = dt.strftime('%Y-%m-%d %H:%M:%S')
             except Exception:
                 pass
@@ -840,7 +852,29 @@ def ApiResetPassword(request, user_id):
         user = User.objects.get(id=user_id)
         user.set_password(user.username)
         user.save()
-        
+
+        # Invalidate tokens: blacklist all outstanding refresh tokens for this user
+        try:
+            for ot in OutstandingToken.objects.filter(user=user):
+                try:
+                    BlacklistedToken.objects.get_or_create(token=ot)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # Remove server-side sessions for this user
+        try:
+            for s in Session.objects.all():
+                try:
+                    data = s.get_decoded()
+                except Exception:
+                    continue
+                if str(data.get('_auth_user_id')) == str(user.id):
+                    s.delete()
+        except Exception:
+            pass
+
         create_user_log(user=request.user, action="Reset Password", detail=f"Successfully reset password for user: {user.username} (ID: {user_id})", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': f'Password reset successful.'+'<br>'+ f'Password is: <b>{user.username}</b> (username)' })
     except User.DoesNotExist:
@@ -877,6 +911,28 @@ def ApiChangePassword(request):
     try:
         user.set_password(new_password)
         user.save()
+        # Invalidate tokens: blacklist all outstanding refresh tokens for this user
+        try:
+            for ot in OutstandingToken.objects.filter(user=user):
+                try:
+                    BlacklistedToken.objects.get_or_create(token=ot)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # Remove server-side sessions for this user
+        try:
+            for s in Session.objects.all():
+                try:
+                    data = s.get_decoded()
+                except Exception:
+                    continue
+                if str(data.get('_auth_user_id')) == str(user.id):
+                    s.delete()
+        except Exception:
+            pass
+
         create_user_log(user=request.user, action="Change Password", detail=f"Successfully changed password for user: {user.username}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': 'Password changed successfully.'})
     except Exception as e:

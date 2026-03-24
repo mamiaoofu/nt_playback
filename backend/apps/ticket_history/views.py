@@ -316,7 +316,8 @@ def ApiGetTicketHistory(request,type):
 
         create_at_val = getattr(ticket_history, 'create_at', None) or getattr(ticket_history, 'create_at', None)
         if isinstance(create_at_val, datetime):
-            create_at_str = create_at_val.strftime("%Y-%m-%d %H:%M:%S")
+            ca = timezone.localtime(create_at_val)
+            create_at_str = ca.strftime("%Y-%m-%d %H:%M:%S")
         else:
             create_at_str = str(create_at_val) if create_at_val is not None else ''
 
@@ -347,14 +348,24 @@ def ApiGetTicketHistory(request,type):
 
         files_audio_display = ', '.join(file_names) if file_names else ''
 
+        # prepare localized date strings for JSON response
+        start_date_str = ''
+        expire_date_str = ''
+        if getattr(ticket_history, 'start_at', None):
+            sa = timezone.localtime(ticket_history.start_at) if settings.USE_TZ else ticket_history.start_at
+            start_date_str = sa.strftime("%Y-%m-%d")
+        if getattr(ticket_history, 'expire_at', None):
+            ea = timezone.localtime(ticket_history.expire_at) if settings.USE_TZ else ticket_history.expire_at
+            expire_date_str = ea.strftime("%Y-%m-%d")
+
         data.append({
             "id": ticket_history.id,
             "email": ticket_history.email,
             "code": ticket_history.code,
             "create_by": creator_val,
             "files_audio": files_audio_display,
-            "start_date": ticket_history.start_at.strftime("%Y-%m-%d") if ticket_history.start_at else '',
-            "exprie_date": ticket_history.expire_at.strftime("%Y-%m-%d") if ticket_history.expire_at else '',
+            "start_date": start_date_str,
+            "exprie_date": expire_date_str,
             "status": ticket_history.status,
             "create_at": create_at_str,
             "user_id" : ticket_history.user_id

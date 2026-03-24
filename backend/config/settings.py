@@ -26,7 +26,7 @@ load_dotenv(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-h6k8sm!93!(=$fmii-x3jx+bxqjrc6u)kj03_2kw06bq@)v#00')
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -36,14 +36,12 @@ DEBUG = True
 # This computes variables used by DATABASES below and fails fast if password is missing.
 POSTGRES_DB = os.environ.get('POSTGRES_DB', 'app_playback')
 POSTGRES_USER = os.environ.get('POSTGRES_USER', 'postgres')
-POSTGRES_PASSWORD = (os.environ.get('POSTGRES_PASSWORD_DEV') if (DEBUG and os.environ.get('POSTGRES_PASSWORD_DEV'))
-                     else os.environ.get('POSTGRES_PASSWORD'))
-POSTGRES_HOST = (os.environ.get('POSTGRES_HOST_DEV') if (DEBUG and os.environ.get('POSTGRES_HOST_DEV'))
-                 else os.environ.get('POSTGRES_HOST', 'host.docker.internal'))
-POSTGRES_PORT = os.environ.get('POSTGRES_PORT', '5432')
+POSTGRES_PASSWORD = os.environ.get('POSTGRES_PASSWORD')
+POSTGRES_HOST = os.environ.get('POSTGRES_HOST')
+POSTGRES_PORT = os.environ.get('POSTGRES_PORT')
 
 if not POSTGRES_PASSWORD:
-    raise ImproperlyConfigured('POSTGRES_PASSWORD (or POSTGRES_PASSWORD_DEV when DEBUG) is not set in the environment')
+    raise ImproperlyConfigured('POSTGRES_PASSWORD')
 
 ALLOWED_HOSTS = ['*', '127.0.0.1', '172.27.96.1']
 # CORS Configuration
@@ -63,6 +61,17 @@ CORS_ALLOWED_ORIGINS = [
     "https://ecmnichetelcomm.ddns.net:8001",
 ]
 SESSION_COOKIE_DOMAIN = None  # ให้ Django ใช้ host จาก request
+# Security cookie settings - defaults tuned for development; override via env in production
+# In production set SESSION_COOKIE_SECURE and CSRF_COOKIE_SECURE to True (HTTPS required)
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False' if DEBUG else 'True').lower() in ('1', 'true', 'yes')
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'False' if DEBUG else 'True').lower() in ('1', 'true', 'yes')
+# 'Lax' is a reasonable default; use 'Strict' if you want stricter cross-site blocking
+CSRF_COOKIE_SAMESITE = os.environ.get('CSRF_COOKIE_SAMESITE', 'Lax')
+SESSION_EXPIRE_AT_BROWSER_CLOSE = os.environ.get('SESSION_EXPIRE_AT_BROWSER_CLOSE', 'False').lower() in ('1', 'true', 'yes')
+
+# Cookie name configuration (can be overridden via env)
+REFRESH_COOKIE_NAME = os.environ.get('REFRESH_COOKIE_NAME', 'refresh')
+SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'sessionid')
 
 
 # Application definition
@@ -81,10 +90,10 @@ INSTALLED_APPS = [
     
     # core sub-apps (models split into packages)
     'apps.core',
-    'apps.core.model.authorize',
-    'apps.core.model.audio',
-    'apps.core.model.customer',
-    'apps.core.model.licenses',
+    'apps.core.model.customer.apps.CustomerConfig',
+    'apps.core.model.audio.apps.AudioConfig',
+    'apps.core.model.authorize.apps.AuthorizeConfig',
+    'apps.core.model.licenses.apps.LicensesConfig',
     'apps.home',
     'apps.configuration',
     'apps.user_management',
@@ -115,15 +124,15 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 PASSWORD_HASHERS = [
-    'django.contrib.auth.hashers.MD5PasswordHasher',
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -207,7 +216,7 @@ TIME_ZONE = 'Asia/Bangkok'
 
 USE_I18N = True
 
-USE_TZ = False
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
