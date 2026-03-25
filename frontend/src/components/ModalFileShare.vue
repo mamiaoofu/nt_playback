@@ -144,14 +144,16 @@
                         <p style="margin:0 0 8px 0">Dear Sir,</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
+                            <div class="detail-file-share"><strong class="strong-title">To:</strong> <span style="color:#2563eb">{{ resultData.target }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Password:</strong> <code style="background:#f3f4f6; padding:4px 8px; border-radius:4px">{{ resultData.password }}</code>
                             </div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Start:</strong> {{ resultData.validStart }}</div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Expire:</strong> {{ resultData.validExpire }}</div>
+                            <div class="detail-file-share"><strong class="strong-title">Limit Access Times:</strong> {{ resultData.limitAccessTimes }}</div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/login</a></div>
+                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.90/login</a></div>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
@@ -316,8 +318,9 @@ function resetForm() {
 
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
+    const limitAccessTimesValue = limitAccessTimes.value ? parseInt(limitAccessTimes.value) : null
 
-    console.log('ModalFileShare onCreate start', { selectionType: selectionType.value, target: targetValue, start: start.value, expire: expire.value, files: props.files && props.files.length })
+    console.log('ModalFileShare onCreate start', {limitAccessTimes: limitAccessTimesValue,selectionType: selectionType.value, target: targetValue, start: start.value, expire: expire.value, files: props.files && props.files.length })
 
     if (selectionType.value === 'user' && !targetValue) {
         showToast('Please specify a target.', 'warning')
@@ -391,7 +394,9 @@ async function onCreate() {
                         ticketCode: json.ticketCode || tCode,
                         password: tPass,
                         validStart: formatDateOnly(validStartRaw),
-                        validExpire: formatDateOnly(validExpireRaw)
+                        validExpire: formatDateOnly(validExpireRaw),
+                        limitAccessTimes: limitAccessTimesValue,
+
                     }
                 } else {
                     resultType.value = 'user'
@@ -567,7 +572,7 @@ function formatDateOnly(v) {
     const d = new Date(v)
     if (isNaN(d.getTime())) return v
     const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function truncateFileName(s) { if (!s) return ''; return s.length > 100 ? s.slice(0, 57) + '...' : s }
