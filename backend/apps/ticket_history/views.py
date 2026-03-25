@@ -343,7 +343,12 @@ def ApiGetTicketHistory(request,type):
 
         create_at_val = getattr(ticket_history, 'create_at', None) or getattr(ticket_history, 'create_at', None)
         if isinstance(create_at_val, datetime):
-            ca = timezone.localtime(create_at_val)
+            if settings.USE_TZ:
+                if create_at_val.tzinfo is None:
+                    create_at_val = timezone.make_aware(create_at_val, timezone.get_current_timezone())
+                ca = timezone.localtime(create_at_val)
+            else:
+                ca = create_at_val
             create_at_str = ca.strftime("%Y-%m-%d %H:%M:%S")
         else:
             create_at_str = str(create_at_val) if create_at_val is not None else ''
@@ -379,10 +384,22 @@ def ApiGetTicketHistory(request,type):
         start_date_str = ''
         expire_date_str = ''
         if getattr(ticket_history, 'start_at', None):
-            sa = timezone.localtime(ticket_history.start_at) if settings.USE_TZ else ticket_history.start_at
+            sa_val = ticket_history.start_at
+            if settings.USE_TZ:
+                if sa_val.tzinfo is None:
+                    sa_val = timezone.make_aware(sa_val, timezone.get_current_timezone())
+                sa = timezone.localtime(sa_val)
+            else:
+                sa = sa_val
             start_date_str = sa.strftime("%Y-%m-%d")
         if getattr(ticket_history, 'expire_at', None):
-            ea = timezone.localtime(ticket_history.expire_at) if settings.USE_TZ else ticket_history.expire_at
+            ea_val = ticket_history.expire_at
+            if settings.USE_TZ:
+                if ea_val.tzinfo is None:
+                    ea_val = timezone.make_aware(ea_val, timezone.get_current_timezone())
+                ea = timezone.localtime(ea_val)
+            else:
+                ea = ea_val
             expire_date_str = ea.strftime("%Y-%m-%d")
 
         data.append({
