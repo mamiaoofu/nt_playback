@@ -55,14 +55,14 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                        <input required type="text" name="limitAccessTimes" autocomplete="off" class="input" maxlength="10" v-number-only v-model="limitAccessTimes">
+                        <input required type="number" name="limitAccessTimes" autocomplete="off" class="input" :class="{ 'input-disabled': selectionType === 'user' }" min="0" max="99" :disabled="selectionType === 'user'" v-model.number="limitAccessTimes">
                         <label class="title-label">Limit access times</label>
                     </div>
                      
-                                         <div class="input-group" v-has-value>
-                                              <input ref="fromInputAdd" v-model="start" v-flatpickr="{ target: picker, key: 'from' }" required type="text" name="fromModal" autocomplete="off" class="input">
-                      <label class="title-label">From</label>
-                      <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
+                    <div class="input-group" v-has-value>
+                        <input ref="fromInputAdd" v-model="start" v-flatpickr="{ target: picker, key: 'from' }" required type="text" name="fromModal" autocomplete="off" class="input">
+                        <label class="title-label">From</label>
+                        <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
                     </div>
 
                     <div class="input-group" v-has-value>
@@ -244,7 +244,7 @@ const emailTicket = ref('')
 const start = ref('')
 const expire = ref('')
 const descTicket = ref('')
-const limitAccessTimes = ref('')
+const limitAccessTimes = ref(null)
 
 // flatpickr target object — directive will write into `picker.from` / `picker.to`
 const picker = reactive({ from: '', to: '' })
@@ -259,6 +259,28 @@ const toInputAdd = ref(null)
 // keep `start`/`expire` in sync with picker object written by v-flatpickr
 watch(() => picker.from, (v) => { start.value = v })
 watch(() => picker.to, (v) => { expire.value = v })
+
+// When selection type changes, disable or enable the limit input and set defaults
+watch(() => selectionType.value, (v) => {
+    if (v === 'user') {
+        limitAccessTimes.value = null
+    } else {
+        if (limitAccessTimes.value === null) limitAccessTimes.value = 0
+    }
+})
+
+// Clamp limitAccessTimes to allowed range (allow null for disabled/user, allow 0 as default meaning 'no limit')
+watch(() => limitAccessTimes.value, (v) => {
+    if (v === null) return
+    const n = parseInt(v, 10)
+    if (isNaN(n)) {
+        limitAccessTimes.value = 0
+        return
+    }
+    if (n < 0) limitAccessTimes.value = 0
+    else if (n > 99) limitAccessTimes.value = 99
+    else if (n !== v) limitAccessTimes.value = n
+})
 
 const showResult = ref(false)
 const resultType = ref('')
@@ -293,7 +315,7 @@ function resetForm() {
     shareUser.value = ''
     emailTicket.value = ''
     descTicket.value = ''
-    limitAccessTimes.value = ''
+    limitAccessTimes.value = null
     permissions.value = 'false'
     start.value = ''
     expire.value = ''
@@ -317,7 +339,7 @@ function resetForm() {
 
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
-    const limitAccessTimesValue = limitAccessTimes.value ? parseInt(limitAccessTimes.value) : null
+    const limitAccessTimesValue = (limitAccessTimes.value === null || limitAccessTimes.value === '') ? null : parseInt(limitAccessTimes.value, 10)
 
     console.log('ModalFileShare onCreate start', {limitAccessTimes: limitAccessTimesValue,selectionType: selectionType.value, target: targetValue, start: start.value, expire: expire.value, files: props.files && props.files.length })
 
@@ -367,7 +389,7 @@ async function onCreate() {
             ticketCode: tCode,
             password: tPass,
             download: permissions.value === 'true',
-            limitAccessTimes: limitAccessTimes.value ? parseInt(limitAccessTimes.value) : null,
+            limitAccessTimes: (limitAccessTimes.value === null || limitAccessTimes.value === '') ? null : parseInt(limitAccessTimes.value, 10),
             description: descTicket.value 
         }
 
@@ -602,6 +624,12 @@ function truncateFileName(s) { if (!s) return ''; return s.length > 100 ? s.slic
 .custom-role-item {
     padding: 8px 20px;
     margin-bottom: 0px;
+}
+
+.input-disabled {
+    background: #f3f4f6 !important;
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .group-card-title,
