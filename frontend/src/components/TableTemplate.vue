@@ -68,9 +68,9 @@
                   <i v-else class="fa-solid fa-xmark" style="color: #d73a49; font-size: 12px;"></i>
                 </template>
 
-                <template v-else-if="col.key === 'expire_at'">
+                <!-- <template v-else-if="col.key === 'expire_at'">
                   {{ formatDateOnly(r[col.key]) }}
-                </template>
+                </template> -->
 
                 <template v-else-if="col.key === 'status'">
                   <template v-if="r[col.key] === true || String(r[col.key]).toLowerCase() === 'true'">

@@ -105,6 +105,10 @@
                   </label>
               </template>
 
+              <template #cell-limit_access_time="{ row }" v-if="typeUrl === 'ticket'">
+                  {{ row.access_time }} / {{ row.limit_access_time }}
+              </template>
+
               <template #cell-action="{ row }" v-if="typeUrl === 'ticket'">
                   <div class="input-group" >
                   <button type="button" class="group-send-btn" id="Resend" @click="resendTicket(row.id, row.user_id)" >

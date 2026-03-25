@@ -124,11 +124,16 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # Fallback lifetime values; actual expiry is overridden by DailyExpiry*Token
+    # classes which always expire tokens at 23:00 Bangkok time.
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=24),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    # Custom serializers that enforce the daily 23:00 expiry rule
+    'TOKEN_OBTAIN_SERIALIZER': 'apps.core.utils.token_serializers.DailyTokenObtainPairSerializer',
+    'TOKEN_REFRESH_SERIALIZER': 'apps.core.utils.token_serializers.DailyTokenRefreshSerializer',
 }
 
 PASSWORD_HASHERS = [

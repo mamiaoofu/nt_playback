@@ -30,7 +30,7 @@ from django.contrib.sessions.models import Session
 User = get_user_model()
 
 @login_required(login_url='/login')
-@require_action('User Management','User Logs')
+@require_action('User Management','User Logs','Audio Recording')
 def ApiGetUserAll(request):
     try:
         users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')

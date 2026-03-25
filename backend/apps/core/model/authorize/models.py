@@ -168,6 +168,7 @@ class UserFileShare(models.Model):
     email = models.TextField(verbose_name='email')
     audiofile_id = models.TextField(verbose_name='audiofile_id')
     limit_access_time = models.IntegerField(verbose_name='limit_access_time', null=True)
+    access_time = models.IntegerField(verbose_name='access_time', null=True)
     description = models.TextField(verbose_name='description', null=True)
     start_at = models.DateTimeField(verbose_name='start_at')
     expire_at = models.DateTimeField(verbose_name='expire_at')

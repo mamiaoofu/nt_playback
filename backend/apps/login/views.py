@@ -5,8 +5,8 @@ from django.contrib.auth import login
 from django.contrib.auth import logout as django_logout
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.forms import AuthenticationForm
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from apps.core.utils.tokens import DailyExpiryRefreshToken as RefreshToken, _get_daily_expiry
 from django.middleware.csrf import get_token
 from django.contrib.sessions.models import Session
 from django.utils import timezone
@@ -43,21 +43,38 @@ def index(request):
             
             try:
                 if 'UserFileShare' in globals() and UserFileShare:
-                    ticket = UserFileShare.objects.filter(user=user).first()
-                    if ticket and ticket.expire_at and timezone.now() > ticket.expire_at and ticket.type == 'ticket':
-                        ticket.status = 'f'
-                        ticket.save()
-                        user.is_active = False
-                        user.save()
-                        
-                        create_user_log(
-                            user=user,
-                            action="Login",
-                            detail=f"Login failed: Ticket expired for user {user.username}",
-                            status="error",
-                            request=request
-                        )
-                        return JsonResponse({'error': 'Your ticket has expired.'}, status=401)
+                    # Only consider objects of type 'ticket'
+                    ticket = UserFileShare.objects.filter(user=user, type='ticket').first()
+                    if ticket:
+                        # expired ticket
+                        if ticket.expire_at and timezone.now() > ticket.expire_at:
+                            ticket.status = False
+                            ticket.save()
+                            user.is_active = False
+                            user.save()
+                            create_user_log(
+                                user=user,
+                                action="Login",
+                                detail=f"Login failed: Ticket expired for user {user.username}",
+                                status="error",
+                                request=request
+                            )
+                            return JsonResponse({'error': 'Your ticket has expired.'}, status=401)
+
+                        # If access_time is defined and already exhausted, deny login
+                        try:
+                            if ticket.access_time is not None and int(ticket.access_time) <= 0:
+                                create_user_log(
+                                    user=user,
+                                    action="Login",
+                                    detail=f"Login failed: Ticket access_time exhausted for user {user.username}",
+                                    status="error",
+                                    request=request
+                                )
+                                return JsonResponse({'error': 'Your ticket has no remaining accesses.'}, status=401)
+                        except Exception:
+                            # if access_time is not an int or other issue, continue without blocking
+                            pass
             except Exception as e:
                 print(f"Error checking ticket expiration: {e}")
             
@@ -102,6 +119,23 @@ def index(request):
                 request=request
             )
 
+            # If this user has a ticket with a limited access_time, decrement it
+            try:
+                if 'UserFileShare' in globals() and UserFileShare:
+                    ticket = UserFileShare.objects.filter(user=user, type='ticket').first()
+                    if ticket and ticket.access_time is not None:
+                        try:
+                            # decrement by 1 on successful login
+                            ticket.access_time = int(ticket.access_time) - 1
+                            # never allow negative values
+                            if ticket.access_time < 0:
+                                ticket.access_time = 0
+                            ticket.save()
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
             # Blacklist any existing refresh tokens for this user so previous
             # JWTs cannot be used after this new login.
             try:
@@ -135,8 +169,11 @@ def index(request):
                 resp.set_cookie(getattr(settings, 'CSRF_COOKIE_NAME', 'csrftoken'), csrf_token, secure=secure, samesite=samesite)
                 # set refresh token as HttpOnly cookie so frontend JS cannot access it
                 try:
+                    from datetime import datetime
+                    from zoneinfo import ZoneInfo
                     refresh_cookie_name = getattr(settings, 'REFRESH_COOKIE_NAME', 'refresh')
-                    refresh_max_age = int(settings.SIMPLE_JWT.get('REFRESH_TOKEN_LIFETIME', 0).total_seconds()) if settings.SIMPLE_JWT.get('REFRESH_TOKEN_LIFETIME') else None
+                    _now = datetime.now(ZoneInfo('Asia/Bangkok'))
+                    refresh_max_age = max(0, int((_get_daily_expiry() - _now).total_seconds()))
                 except Exception:
                     refresh_cookie_name = 'refresh'
                     refresh_max_age = None

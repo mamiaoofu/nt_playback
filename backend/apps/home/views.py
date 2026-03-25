@@ -178,7 +178,6 @@ def ApiIndexHome(request):
     # get MainDatabase objects allowed for this user
     main_db_ids = list(user_auth_qs.values_list('maindatabase_id', flat=True))
     main_db = MainDatabase.objects.filter(id__in=main_db_ids).order_by('database_name')
-    user_profile = UserProfile.objects.filter(user=request.user).first()
     favorite_search = FavoriteSearch.objects.filter(user=request.user).first()
     favorite_search_all = FavoriteSearch.objects.filter(user=request.user).all()
     audio_column = SetColumnAudioRecord.objects.filter(user=request.user).first()
@@ -193,7 +192,7 @@ def ApiIndexHome(request):
         'show_toast': show_toast,
         'main_db': main_db_serialized,
         'set_audio': set_audio.audio_path if set_audio else None,
-        'user_profile': {'id': user_profile.user.id, 'username': user_profile.user.username} if user_profile else None,
+        'user_profile': {'id': request.user.id, 'username': request.user.username} ,
         'favorite_search': favorite_search_serialized,
         'raw_data': raw_data,
         'favorite_search_all': favorite_search_all_serialized,

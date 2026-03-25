@@ -62,7 +62,6 @@ export function useFileShareManagement() {
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Exprie Date' },
         { key: 'files_audio', label: 'Files Audio', tooltip: true, labelKey: 'files_audio_label' },
-        { key: 'status', label: 'Status' }
     ]
 
     const columns = computed(() => {
@@ -76,7 +75,8 @@ export function useFileShareManagement() {
                 }
             }
         }
-        if (typeUrl.value === 'ticket') cols.push({ key: 'action', label: 'Action' })
+        if (typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' }, { key: 'action', label: 'Action' })
+        if (typeUrl.value === 'delegate') cols.push({ key: 'status', label: 'Status' })
         return cols
     })
 

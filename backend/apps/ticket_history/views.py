@@ -33,16 +33,12 @@ def ApiGetTicketHistory(request,type):
     start = int(request.GET.get("start", 0))
     length = int(request.GET.get("length", 25))
     search_value = request.GET.get("search[value]", "").strip()
-    
-    email = request.POST.get("email") or request.GET.get("email")
     create_by = request.POST.get("create_by") or request.GET.get("create_by")
-    user_name = request.POST.get("user_name") or request.GET.get("user_name")
     ticket_id = request.POST.get("ticket_id") or request.GET.get("ticket_id")
     
     start_date = request.POST.get("start_date") or request.GET.get("start_date")
     end_date = request.POST.get("end_date") or request.GET.get("end_date")
-    files_audio = request.POST.get("files_audio") or request.GET.get("files_audio")
-    status = request.POST.get("status") or request.GET.get("status")
+
     
     def _parse_date_param(val, is_end=False):
         if not val:
@@ -134,6 +130,35 @@ def ApiGetTicketHistory(request,type):
             q_parts = []
             for tok in tokens:
                 lower = tok.lower()
+                try:
+                    m_lim = re.match(r'^(?:(limit_access_time|limit_time|limit|lat|access_time|access|at))\s*(?:(>=|<=|>|<|=|:))\s*(\d+)$', tok, re.I)
+                    if m_lim:
+                        name = (m_lim.group(1) or '').lower()
+                        op = m_lim.group(2)
+                        try:
+                            n = int(m_lim.group(3))
+                        except Exception:
+                            n = None
+                        if n is not None:
+                            # decide which model field the token refers to
+                            if name.startswith('access') or name == 'at':
+                                field = 'access_time'
+                            else:
+                                field = 'limit_access_time'
+
+                            if op in (':', '='):
+                                q_parts.append(Q(**{field: n}))
+                            elif op == '>':
+                                q_parts.append(Q(**{f"{field}__gt": n}))
+                            elif op == '<':
+                                q_parts.append(Q(**{f"{field}__lt": n}))
+                            elif op == '>=':
+                                q_parts.append(Q(**{f"{field}__gte": n}))
+                            elif op == '<=':
+                                q_parts.append(Q(**{f"{field}__lte": n}))
+                            continue
+                except Exception:
+                    pass
                 # skip very short tokens to avoid noise, but allow numeric tokens
                 # (user ids or numeric codes) even if shorter than 3
                 if len(tok.strip()) < 3 and not tok.isdigit():
@@ -245,6 +270,8 @@ def ApiGetTicketHistory(request,type):
 
                         q_tok = (
                             Q(user_id=n) |
+                            Q(limit_access_time=n) |
+                            Q(access_time=n) |
                             date_q |
                             Q(code__icontains=tok)
                         )
@@ -366,6 +393,8 @@ def ApiGetTicketHistory(request,type):
             "files_audio": files_audio_display,
             "start_date": start_date_str,
             "exprie_date": expire_date_str,
+            "limit_access_time": getattr(ticket_history, 'limit_access_time', None),
+            "access_time": getattr(ticket_history, 'access_time', None),
             "status": ticket_history.status,
             "create_at": create_at_str,
             "user_id" : ticket_history.user_id
