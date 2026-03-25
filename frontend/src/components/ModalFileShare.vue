@@ -141,10 +141,9 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear Sir,</p>
+                        <p style="margin:0 0 8px 0">Dear Sir ({{ resultData.recipient }}),</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
-                            <div class="detail-file-share"><strong class="strong-title">To:</strong> <span style="color:#2563eb">{{ resultData.target }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Password:</strong> <code style="background:#f3f4f6; padding:4px 8px; border-radius:4px">{{ resultData.password }}</code>
                             </div>
@@ -562,17 +561,39 @@ function formatDate(v) {
 function formatDateOnly(v) {
     if (!v) return ''
     if (typeof v === 'string') {
-        // if backend format 'YYYY-MM-DD HH:MM' or flatpickr 'YYYY-MM-DD'
+        // if backend format 'YYYY-MM-DD HH:MM(:SS)?' or flatpickr 'YYYY-MM-DD'
+        // Preserve time when present and normalize to include seconds.
         const parts = v.split(' ')
-        if (parts[0] && parts[0].includes('-')) return parts[0]
-        // ISO-like
-        const t = v.split('T')[0]
-        if (t && t.includes('-')) return t
+        if (parts.length > 1 && parts[0] && parts[0].includes('-')) {
+            const datePart = parts[0]
+            let timePart = parts.slice(1).join(' ')
+            timePart = timePart.split('.')[0].replace(/Z$/, '')
+            if (/^\d{1,2}:\d{2}$/.test(timePart)) timePart = `${timePart}:00`
+            const m = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+            if (m.length) {
+                const pad = (n) => String(n).padStart(2, '0')
+                const hh = pad(parseInt(m[1] || '0', 10))
+                const mm = pad(parseInt(m[2] || '0', 10))
+                const ss = pad(parseInt(m[3] || '0', 10))
+                return `${datePart} ${hh}:${mm}:${ss}`
+            }
+            return `${datePart} ${timePart}`
+        }
+        // ISO-like with T separator
+        if (v.includes('T')) {
+            const date = v.split('T')[0]
+            let time = (v.split('T')[1] || '').split('Z')[0].split('.')[0]
+            if (/^\d{2}:\d{2}$/.test(time)) time = `${time}:00`
+            if (time) return `${date} ${time}`
+            if (date && date.includes('-')) return date
+        }
+        // fallback: plain date string
+        if (v.includes('-')) return v
     }
     const d = new Date(v)
     if (isNaN(d.getTime())) return v
     const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 function truncateFileName(s) { if (!s) return ''; return s.length > 100 ? s.slice(0, 57) + '...' : s }
