@@ -1292,6 +1292,7 @@ def ApiCreateFileShare(request):
                     start_at=start_dt or timezone.now(),
                     expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
                     limit_access_time=limit_access_time,
+                    access_time=limit_access_time,
                     description=description,
                     status=True,
                     dowload=bool(download),
