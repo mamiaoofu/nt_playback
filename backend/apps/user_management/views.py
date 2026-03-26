@@ -277,7 +277,7 @@ def ApiGetUser(request):
                     status_value = True
                     status_tokens.add(t)
                     continue
-                if re.match(r'^(in|inactive|i|inact)', lower):
+                if re.match(r'^(ina|inactive|i|inact)', lower):
                     status_value = False
                     status_tokens.add(t)
                     continue
