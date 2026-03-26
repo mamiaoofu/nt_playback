@@ -273,11 +273,11 @@ def ApiGetUser(request):
         try:
             for t in tokens:
                 lower = (t or '').lower()
-                if re.match(r'^(ac|act|active|a|actv)$', lower):
+                if re.match(r'^(act|active|actv)', lower):
                     status_value = True
                     status_tokens.add(t)
                     continue
-                if re.match(r'^(in|inactive|i|inact)$', lower):
+                if re.match(r'^(inc|inactive|inact)', lower):
                     status_value = False
                     status_tokens.add(t)
                     continue
