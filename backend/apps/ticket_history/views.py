@@ -165,15 +165,15 @@ def ApiGetTicketHistory(request,type):
                     continue
 
                 # priority special keyword matches
-                if re.match(r'^(exp|expired|expi|ex|expir)', lower):
+                if re.match(r'^(exp|expired|expi|expir)', lower):
                     q_tok = Q(status=False)
                     q_parts.append(q_tok)
                     continue
-                if re.match(r'^(ac|act|active|a|actv)', lower):
+                if re.match(r'^(act|act|active|actv)', lower):
                     q_tok = Q(status=True)
                     q_parts.append(q_tok)
                     continue
-                if re.match(r'^(in|inactive|i|inact)', lower):
+                if re.match(r'^(inc|inactive|inact)', lower):
                     q_tok = Q(status=False)
                     q_parts.append(q_tok)
                     continue
