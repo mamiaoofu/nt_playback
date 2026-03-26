@@ -43,7 +43,7 @@ def ApiGetUserAll(request):
 @require_action('User Management','User Logs')
 def ApiGetUser(request):
     # prepare base query
-    qs = UserProfile.objects.exclude(user__id=1)
+    qs = UserProfile.objects.exclude(user__id=1).select_related('user', 'team')
 
     user_auths = UserAuth.objects.filter(
         allow=True,
@@ -500,7 +500,7 @@ def ApiGetUser(request):
     return JsonResponse({
         'draw': draw,
         'recordsTotal': records_total,
-        'recordsFiltered': len(data),
+        'recordsFiltered': records_total,
         'data': data
     })
 
