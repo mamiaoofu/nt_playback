@@ -40,7 +40,7 @@ export function useUserManagement() {
     const dbActiveEl = ref(null)
 
     const columns = [
-        { key: 'index', label: '#', isIndex: true, sortable: false },
+        { key: 'index', label: '#', isIndex: true, },
         { key: 'username', label: 'Username' },
         { key: 'full_name', label: 'Full Name' },
         { key: 'email', label: 'Email' },
@@ -512,6 +512,7 @@ export function useUserManagement() {
                 filters.createdBy = []
                 filters.start_date = ''
                 filters.end_date = ''
+                searchQuery.value = ''
                 startInput.value._flatpickrInstance.clear()
                 endInput.value._flatpickrInstance.clear()
 
@@ -523,7 +524,6 @@ export function useUserManagement() {
                         }
 
                 currentPage.value = 1
-                fetchData()
             } catch (e) {
                 console.error('resetFilters error', e)
             }

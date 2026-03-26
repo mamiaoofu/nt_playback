@@ -43,7 +43,7 @@ def ApiGetUserAll(request):
 @require_action('User Management','User Logs')
 def ApiGetUser(request):
     # prepare base query
-    qs = UserProfile.objects.exclude(user__id=1).select_related('user', 'team')
+    qs = UserProfile.objects.exclude(user__id=1)
 
     user_auths = UserAuth.objects.filter(
         allow=True,
@@ -78,17 +78,30 @@ def ApiGetUser(request):
         elif names:
             qs = qs.filter(user__username__in=names)
 
-    # create_by: can be username or 'First Last' string
+    # create_by: can be comma-separated usernames or 'First Last' strings.
+    # If any token equals 'all' (case-insensitive) then skip filtering by create_by.
     create_by_param = (request.GET.get('create_by') or '').strip()
     if create_by_param:
-        tokens = [t for t in re.split(r'[\s]+', create_by_param) if t]
-        if len(tokens) >= 2:
-            # try to match both first and last name
-            fn = tokens[0]
-            ln = ' '.join(tokens[1:])
-            qs = qs.filter(Q(create_by__first_name__icontains=fn) & Q(create_by__last_name__icontains=ln) | Q(create_by__username__iexact=create_by_param))
+        # split on commas or whitespace to support inputs like 'all,svadmin,test' or 'svadmin test'
+        parts = [p.strip() for p in re.split(r'[,\s]+', create_by_param) if p.strip()]
+        # if 'all' present, do not apply any create_by filtering
+        if any(p.lower() == 'all' for p in parts):
+            pass
         else:
-            qs = qs.filter(Q(create_by__username__iexact=create_by_param) | Q(create_by__first_name__icontains=create_by_param) | Q(create_by__last_name__icontains=create_by_param))
+            # build a combined Q for any of the provided tokens
+            combined_q = None
+            for p in parts:
+                # if token looks like a full name (has internal space), try matching first/last
+                sub_tokens = [t for t in re.split(r'[\s]+', p) if t]
+                if len(sub_tokens) >= 2:
+                    fn = sub_tokens[0]
+                    ln = ' '.join(sub_tokens[1:])
+                    tq = Q(create_by__first_name__icontains=fn, create_by__last_name__icontains=ln) | Q(create_by__username__iexact=p)
+                else:
+                    tq = Q(create_by__username__iexact=p) | Q(create_by__first_name__icontains=p) | Q(create_by__last_name__icontains=p)
+                combined_q = tq if combined_q is None else (combined_q | tq)
+            if combined_q is not None:
+                qs = qs.filter(combined_q)
 
     # start_date / end_date filter: expected format 'YYYY-MM-DD HH:MM'
     start_param = (request.GET.get('start_date') or '').strip()
@@ -340,7 +353,9 @@ def ApiGetUser(request):
             'team': 'team__name',
             'phone': 'phone',
             'status': 'user__is_active',
-            'create_by': 'user__userauth',
+            'create_by': 'create_by__username',
+            'create_at': 'create_at',
+            'email': 'user__email',
         }
         
         if sort_field in sort_mapping:
@@ -380,8 +395,25 @@ def ApiGetUser(request):
     except Exception:
         length = 25
 
-    records_total = qs.count()
-    page_qs = qs[start:start + length]
+    # If client requested sorting by database_servers, perform a Python-side sort
+    # on the annotated profile instances before paging (ORM ordering isn't
+    # straightforward for many-to-many-like values collected per-user).
+    if sort_field == 'database_servers':
+        profiles_list = list(qs)
+        def _db_key(p):
+            dbs = getattr(p, 'database_servers', None) or []
+            # join without extra characters for consistent comparison
+            return ','.join(dbs).lower()
+        reverse = (sort_dir == 'desc')
+        try:
+            profiles_list.sort(key=_db_key, reverse=reverse)
+        except Exception:
+            pass
+        records_total = len(profiles_list)
+        page_qs = profiles_list[start:start + length]
+    else:
+        records_total = qs.count()
+        page_qs = qs[start:start + length]
 
     serializer = UserProfileSerializer(page_qs, many=True).data
     # inject computed fields (permission, database_servers) into serialized data

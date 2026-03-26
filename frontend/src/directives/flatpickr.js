@@ -152,9 +152,9 @@ export default {
         const actionBtn = document.createElement('button')
         actionBtn.type = 'button'
         actionBtn.className = 'flatpickr-action-btn'
-        // If a value is already applied, show "Clear" so user can remove it.
-        actionBtn.textContent = applied ? 'Clear' : 'Apply'
-        actionBtn.dataset.state = applied ? 'clear' : 'apply'
+        // Use a single "OK" button to confirm the selection (no Apply/Clear)
+        actionBtn.textContent = 'OK'
+        actionBtn.dataset.state = 'ok'
 
         actions.appendChild(actionBtn)
 
@@ -239,8 +239,8 @@ export default {
                 input.addEventListener('focus', () => {
                   try {
                     applied = false
-                    actionBtn.textContent = 'Apply'
-                    actionBtn.dataset.state = 'apply'
+                    actionBtn.textContent = 'OK'
+                    actionBtn.dataset.state = 'ok'
                   } catch (e) {}
                 })
               })
@@ -350,7 +350,7 @@ export default {
           try { if (target && key) target[key] = finalStr } catch (e) {}
           try { originalValueSetter.call(el, finalStr) } catch (e) { try { el.value = finalStr } catch (e) {} }
           try { el.parentNode && el.parentNode.classList.toggle('has-value', (finalStr || '').toString().trim() !== '') } catch (e) {}
-          try { actionBtn.textContent = 'Clear'; actionBtn.dataset.state = 'clear' } catch (e) {}
+          try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
           try { allowClose = true } catch (e) {}
           try { instance.close() } catch (e) {}
           // reset allowClose shortly after closing to avoid accidental subsequent closes
@@ -382,7 +382,7 @@ export default {
           try { originalValueSetter.call(el, '') } catch (e) { try { el.value = '' } catch (e) {} }
           try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
 
-          try { actionBtn.textContent = 'Apply'; actionBtn.dataset.state = 'apply' } catch (e) {}
+          try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
           try { allowClose = true } catch (e) {}
           try { instance.close() } catch (e) {}
           try { setTimeout(() => { allowClose = false }, 250) } catch (e) {}
@@ -390,7 +390,8 @@ export default {
 
         const onActionClick = (ev) => {
           ev && ev.stopPropagation()
-          if (actionBtn.dataset.state === 'clear') doClear(); else doApply()
+          // Always treat the button as confirmation: commit current selection
+          try { doApply() } catch (e) {}
         }
 
         actionBtn.addEventListener('click', onActionClick)
@@ -415,6 +416,43 @@ export default {
               }
             } catch (e) { suppressWrites = false }
           }
+
+          // If user selects the same date that's already applied, treat as toggle -> clear
+          try {
+            if (!isDurationRange && selectedDates && selectedDates.length) {
+              try {
+                const newStr = instance.formatDate(selectedDates[0], instance.config.dateFormat)
+                const normLast = noTime ? String(lastAppliedValue || '').split(' ')[0] : String(lastAppliedValue || '')
+                if (normLast && String(newStr) === String(normLast)) {
+                  try { doClear() } catch (e) {}
+                  return
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+
+          // For duration ranges: if both From and To match last applied value, clear everything
+          try {
+            if (isDurationRange && selectedDates && selectedDates.length) {
+              try {
+                const fromStr = instance.formatDate(instance.latestSelectedDateObj, instance.config.dateFormat)
+                let toStr = ''
+                if (el._flatpickrToContainer) {
+                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                  const h = (inputs[0] && inputs[0].value) ? String(inputs[0].value).padStart(2, '0') : '00'
+                  const m = (inputs[1] && inputs[1].value) ? String(inputs[1].value).padStart(2, '0') : '00'
+                  const s = (inputs[2] && inputs[2].value) ? String(inputs[2].value).padStart(2, '0') : '00'
+                  toStr = `${h}:${m}:${s}`
+                }
+                const combined = (toStr && toStr !== '00:00:00') ? `${fromStr} - ${toStr}` : fromStr
+                const normLast = noTime ? String(lastAppliedValue || '').split(' ')[0] : String(lastAppliedValue || '')
+                if (normLast && String(combined) === String(normLast)) {
+                  try { doClear() } catch (e) {}
+                  return
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
 
           if (isDurationRange) {
             const fromPresent = Array.isArray(selectedDates) && selectedDates.length > 0
@@ -470,8 +508,8 @@ export default {
           // when a new selection or time edit is made it becomes pending (needs Apply)
             if (selectedDates && selectedDates.length) {
             applied = false
-            actionBtn.textContent = 'Apply'
-            actionBtn.dataset.state = 'apply'
+            actionBtn.textContent = 'OK'
+            actionBtn.dataset.state = 'ok'
           }
 
           // If binding.value was a function, call it directly with our preview
@@ -566,19 +604,12 @@ export default {
                     if (inputs[2]) inputs[2].value = s || '00'
                   }
                 }
-                // Do not flip `applied` to true here — only clicking Apply should do that.
-                // Update button text to reflect pending state
-                if (applied) {
-                  actionBtn.textContent = 'Clear'
-                  actionBtn.dataset.state = 'clear'
-                } else {
-                  actionBtn.textContent = 'Apply'
-                  actionBtn.dataset.state = 'apply'
-                }
+                // Do not flip `applied` to true here — only clicking OK should do that.
+                // Keep the button as confirmation-only ('OK') regardless of pending state
+                try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
               } else {
-                // no visible value -> show Apply state
-                actionBtn.textContent = 'Apply'
-                actionBtn.dataset.state = 'apply'
+                // no visible value -> keep OK confirmation
+                try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
               }
             } catch (e) {}
           })
@@ -657,13 +688,7 @@ export default {
               // Ensure action button reflects whether a value is already applied
               try {
                 applied = !!(el && el.value) || !!lastAppliedValue
-                if (applied) {
-                  actionBtn.textContent = 'Clear'
-                  actionBtn.dataset.state = 'clear'
-                } else {
-                  actionBtn.textContent = 'Apply'
-                  actionBtn.dataset.state = 'apply'
-                }
+                try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
               } catch (e) {}
             } catch (e) {}
           })
@@ -673,13 +698,7 @@ export default {
           try {
             // Do not mark values as applied on blur. Only update button label to
             // reflect whether there is an already-applied value.
-            if (applied) {
-              actionBtn.textContent = 'Clear'
-              actionBtn.dataset.state = 'clear'
-            } else {
-              actionBtn.textContent = 'Apply'
-              actionBtn.dataset.state = 'apply'
-            }
+            try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
           } catch (e) {}
         }
         el.addEventListener('blur', onBlur)

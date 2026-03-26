@@ -82,7 +82,7 @@ export function useHome() {
 
   const defaultColumns = [
     { key: 'checked', label: '', sortable: false, width: '1%' },
-    { key: 'index', label: '#', isIndex: true, sortable: false },
+    { key: 'index', label: '#', isIndex: true},
     { key: 'main_db', label: 'Database Server' },
     { key: 'start_datetime', label: 'Start Date & Time' },
     { key: 'end_datetime', label: 'End Date & Time' },
