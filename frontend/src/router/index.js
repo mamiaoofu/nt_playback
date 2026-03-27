@@ -42,6 +42,11 @@ router.beforeEach(async (to, from, next) => {
 	// reload doesn't falsely redirect to Login before the token is recovered.
 	try { await authStore.waitReady() } catch (e) {}
 
+	// If password reset is required, force user to profile page.
+	if (authStore.passwordResetRequired && to.path !== '/profile') {
+		return next({ path: '/profile' })
+	}
+
 	const isAuthenticated = !!authStore.token
 
 	if (to.name !== 'Login' && !isAuthenticated) {

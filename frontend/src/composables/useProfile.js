@@ -2,7 +2,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { API_GET_USER_PROFILE, API_CHANGE_PASSWORD } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
-import { showToast } from '../assets/js/function-all'
+import { showToast, notify } from '../assets/js/function-all'
 
 export function useProfile() {
     const authStore = useAuthStore()
@@ -28,7 +28,7 @@ export function useProfile() {
             errors.password = false
         } else if (String(val).length < 8) {
             errors.password = 'Password must be at least 8 characters long'
-        } else if (!/^[A-Za-z\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]+$/.test(String(val))) {
+        } else if (!/^[\x21-\x7E]+$/.test(String(val))) {
             errors.password = 'Password must contain only English letters and special characters'
         } else {
             errors.password = false
@@ -113,8 +113,9 @@ export function useProfile() {
             })
             const json = await res.json()
             if (res.ok && json.status === 'success') {
-                showToast('Password changed successfully', 'success')
                 passwordForm.old_password = ''; passwordForm.new_password = ''; passwordForm.confirm_password = ''
+                await notify('Password changed successfully', 'Please log in again with your new password', 'success')
+                authStore.logout()
             } else {
                 showToast(json.message || 'Failed to change password', 'error')
             }

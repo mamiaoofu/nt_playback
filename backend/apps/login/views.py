@@ -101,12 +101,15 @@ def index(request):
             except Exception as e:
                 print('Error clearing other sessions on login:', e)
 
+            password_reset_required = False
             # ดึงข้อมูล Profile และตั้งค่า Session (ตาม Logic เดิม)
             if UserProfile:
                 user_profile = UserProfile.objects.filter(user=user).first()
                 request.session['show_toast'] = True
                 if user_profile:
                     request.session['privilege_history'] = user_profile.privilege_history
+                    if user_profile.reset_password == 9:
+                        password_reset_required = True
                     
             print(f"User login {user.username} logged in successfully.")
 
@@ -161,6 +164,7 @@ def index(request):
                 'csrfToken': csrf_token,
                 'message': 'Login successful',
                 'role': role,
+                'password_reset_required': password_reset_required,
             })
             try:
                 secure = getattr(settings, 'CSRF_COOKIE_SECURE', False)

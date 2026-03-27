@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
 	// Keep session in memory only (no persistence across full page reload)
 	const user = ref(null)
 	const token = ref(null)
+	const passwordResetRequired = ref(false)
 	const permissions = ref([])
 	const lastLoginAt = ref(0)
 
@@ -45,10 +46,15 @@ export const useAuthStore = defineStore('auth', () => {
 		// memory-only
 	}
 
+	function setPasswordResetRequired(status) {
+		passwordResetRequired.value = !!status
+	}
+
 	function clear() {
 		// Clear from both state and localStorage
 		setUser(null)
 		setToken(null)
+		setPasswordResetRequired(false)
 	}
 
 	function logout() {
@@ -122,7 +128,10 @@ export const useAuthStore = defineStore('auth', () => {
 			// record recent login time to avoid immediate force-logout races
 			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
-			if (data && data.username) setUser({ username: data.username, id: data.id || null, role: data.role || null })
+			if (data && data.username) {
+				setUser({ username: data.username, id: data.id || null, role: data.role || null })
+				setPasswordResetRequired(data.password_reset_required)
+			}
 
 			// Quick check: calling the home index may return 403 when the user
 			// authenticates but lacks the required "Audio Recording" permission.
@@ -141,6 +150,24 @@ export const useAuthStore = defineStore('auth', () => {
 			// ensure we have profile (id) and permissions
 			// fetch permissions after login
 			try { await fetchPermissions() } catch (e) { console.error('fetchPermissions', e) }
+
+			if (passwordResetRequired.value) {
+				const swalLib = (typeof Swal !== 'undefined' && Swal) || (typeof window !== 'undefined' && (window.Swal || window.Sweetalert2 || window.SweetAlert || window.sweetAlert))
+				if (swalLib) {
+					swalLib.fire({
+						title: 'Please change your password',
+						html: 'Your password has been reset by the administrator.<br>Please set a new password for security.',
+						icon: 'warning',
+						confirmButtonText: 'Go to profile page',
+						allowOutsideClick: false,
+						allowEscapeKey: false,
+					}).then((result) => {
+						if (result.isConfirmed) {
+							router.push('/profile')
+						}
+					})
+				}
+			}
 
 			// If backend returned csrfToken in the login response, cache it immediately
 			if (data && data.csrfToken) {
@@ -223,5 +250,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, lastLoginAt, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady }
+	return { user, token, permissions, lastLoginAt, passwordResetRequired, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired }
 })

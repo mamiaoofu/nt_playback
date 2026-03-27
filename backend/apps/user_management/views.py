@@ -952,6 +952,13 @@ def ApiChangePassword(request):
     try:
         user.set_password(new_password)
         user.save()
+
+        # Reset the password reset flag in the user's profile
+        user_profile = UserProfile.objects.filter(user=user).first()
+        if user_profile and user_profile.reset_password == 9:
+            user_profile.reset_password = 1
+            user_profile.save()
+
         # Invalidate tokens: blacklist all outstanding refresh tokens for this user
         try:
             for ot in OutstandingToken.objects.filter(user=user):
