@@ -48,6 +48,14 @@ export const useAuthStore = defineStore('auth', () => {
 
 	function setPasswordResetRequired(status) {
 		passwordResetRequired.value = !!status
+		// Persist to localStorage so it survives page refresh
+		try {
+			if (status) {
+				localStorage.setItem('passwordResetRequired', 'true')
+			} else {
+				localStorage.removeItem('passwordResetRequired')
+			}
+		} catch (e) {}
 	}
 
 	function clear() {
@@ -182,6 +190,14 @@ export const useAuthStore = defineStore('auth', () => {
 		// where a background session check triggers handleRedirectOrLoginNext
 		// while the user is in the middle of logging in.
 		try {
+			// Restore passwordResetRequired from localStorage first
+			try {
+				const stored = localStorage.getItem('passwordResetRequired')
+				if (stored === 'true') {
+					setPasswordResetRequired(true)
+				}
+			} catch (e) {}
+
 			const resp = await fetch('/api/token/refresh_from_cookie/', { method: 'POST', credentials: 'include' })
 			if (!resp.ok) {
 				try { _readyResolve() } catch (e) {}
