@@ -147,6 +147,7 @@ class UserProfile(models.Model):
     team = models.ForeignKey(UserTeam, on_delete=models.CASCADE, verbose_name='team',db_column='team_id' )
     user_code = models.CharField(max_length=255, verbose_name='user_code')
     phone = models.CharField(max_length=255, verbose_name='user_code', null=True, blank=True)
+    reset_password = models.IntegerField(verbose_name='reset_password', default=0)
     create_at = models.DateTimeField(auto_now_add=True)
     update_at = models.DateTimeField(auto_now=True)
     create_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='create_by', db_column='create_by',related_name='created_profiles')

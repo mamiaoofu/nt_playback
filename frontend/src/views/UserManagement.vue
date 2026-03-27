@@ -25,31 +25,31 @@
                                     </button>
                                 </router-link>
                                 <div v-if="authStore.hasPermission('Export Recordings')" class="export-group" ref="exportWrap">
-                                    <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
+                                    <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen" >
                                     <i class="fa-solid fa-download" style="color: #fff;"></i>
                                     </button>
                                     <ul v-show="exportOpen" class="export-dropdown" @click.stop>
-                                    <li>
-                                        <label class="dropdown-item">
-                                        <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
-                                        </label>
-                                    </li>
-                                    <li>
-                                        <label class="dropdown-item">
-                                        <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
-                                        </label>
-                                    </li>
-                                    <li>
-                                        <label class="dropdown-item">
-                                        <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
-                                        </label>
-                                    </li>
-                                    <li style="padding:8px;">
-                                        <div class="export-actions">
-                                        <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
-                                        <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
-                                        </div>
-                                    </li>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                                            </label>
+                                        </li>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                                            </label>
+                                        </li>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                                            </label>
+                                        </li>
+                                        <li style="padding:8px;">
+                                            <div class="export-actions">
+                                            <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                                            <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                                            </div>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>
@@ -204,6 +204,7 @@ const {
     searchQuery,
     searchInputRef,
     perWrap,
+    exportWrap,
     perDropdownOpen,
     perPageOptions,
     perPage,
@@ -253,6 +254,7 @@ const {
     toggleUserStatus,
     resendTicket,
     confirmExport,
+    cancelExport,
 } = useUserManagement()
 
 

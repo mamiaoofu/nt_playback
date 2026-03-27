@@ -128,8 +128,8 @@ def ApiGetUser(request):
     # apply search filter if provided (DataTables style: search[value])
     search_term = (request.GET.get('search[value]') or request.GET.get('search') or '').strip()
     if search_term:
-        # split on commas or whitespace (so "Adeline Sterling" -> ['Adeline','Sterling'])
-        tokens = [t.strip() for t in re.split(r'[,\s]+', search_term) if t.strip()]
+        # split on commas first (support multi-value like "dbname,0202020202")
+        tokens = [t.strip() for t in search_term.split(',') if t.strip()]
         # primary search term (use first token if present to avoid trailing-comma issues)
         search_primary = tokens[0] if tokens else search_term
         base_q = (
@@ -884,6 +884,15 @@ def ApiResetPassword(request, user_id):
         user = User.objects.get(id=user_id)
         user.set_password(user.username)
         user.save()
+
+        user_profile = UserProfile.objects.filter(user=user).first()
+        if user_profile:
+            try:
+                user_profile.reset_password = 9
+            except Exception:
+                pass
+            user_profile.save()
+
 
         # Invalidate tokens: blacklist all outstanding refresh tokens for this user
         try:

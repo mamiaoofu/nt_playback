@@ -271,10 +271,10 @@ export function useUserForm(props) {
             if (!form.value.confirmPassword || String(form.value.confirmPassword).trim() === '') { errors.confirmPassword = 'This field is required.'; hasError = true }
             if (form.value.password && form.value.confirmPassword && form.value.password !== form.value.confirmPassword) { errors.confirmPassword = 'Passwords do not match'; hasError = true }
         }
-        if (!form.value.firstName || String(form.value.firstName).trim() === '') { errors.firstName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
-        if (!form.value.lastName || String(form.value.lastName).trim() === '') { errors.lastName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
+        // if (!form.value.firstName || String(form.value.firstName).trim() === '') { errors.firstName = 'This field is required.'; hasError = true }
+        // else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
+        // if (!form.value.lastName || String(form.value.lastName).trim() === '') { errors.lastName = 'This field is required.'; hasError = true }
+        // else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
         if (!selectedGroupId.value) { errors.group = true; hasError = true }
         if (!selectedTeamId.value) { errors.team = true; hasError = true }
         if (form.value.email && String(form.value.email).trim() !== '') {
@@ -669,25 +669,25 @@ export function useUserForm(props) {
         if (val) populateFromInitial(val)
     })
 
-    watch(() => form.value.firstName, (val) => {
-        if (!val || String(val).trim() === '') {
-            errors.firstName = false
-            return
-        }
-        const v = String(val).trim()
-        if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
-        else errors.firstName = false
-    })
+    // watch(() => form.value.firstName, (val) => {
+    //     if (!val || String(val).trim() === '') {
+    //         errors.firstName = false
+    //         return
+    //     }
+    //     const v = String(val).trim()
+    //     if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
+    //     else errors.firstName = false
+    // })
 
-    watch(() => form.value.lastName, (val) => {
-        if (!val || String(val).trim() === '') {
-            errors.lastName = false
-            return
-        }
-        const v = String(val).trim()
-        if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
-        else errors.lastName = false
-    })
+    // watch(() => form.value.lastName, (val) => {
+    //     if (!val || String(val).trim() === '') {
+    //         errors.lastName = false
+    //         return
+    //     }
+    //     const v = String(val).trim()
+    //     if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
+    //     else errors.lastName = false
+    // })
 
     watch(() => form.value.password, (val) => {
         const v = val == null ? '' : String(val)

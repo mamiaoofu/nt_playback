@@ -265,8 +265,8 @@ export function useUserManagement() {
     }
 
     const onDocClick = (e) => {
-        if (!perWrap.value) return
-        if (!perWrap.value.contains(e.target)) perDropdownOpen.value = false
+        if (perWrap.value && !perWrap.value.contains(e.target)) perDropdownOpen.value = false
+        if (exportWrap.value && !exportWrap.value.contains(e.target)) exportOpen.value = false
     }
 
     const onRowEdit = (row, actionId) => {
@@ -314,9 +314,12 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Delete User')) return showToast('Access Denied', 'error')
+            if (!authStore.hasPermission('Reset Password')) return showToast('Access Denied', 'error')
 
-            const confirmed = await confirmDelete('Are you sure?', "You won't be able to revert this!", 'Yes, reset')
+            // show the target username in the confirmation message when available
+            const uname = row && row.user ? (row.user.username || `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim() || row.user.email || '') : (row && (row.username || ''))
+            const displayName = uname || 'this user'
+            const confirmed = await confirmDelete('Are you sure?', `You want to reset the password for "${displayName}"?`, 'Yes, reset')
             if (!confirmed) return
 
             const csrfToken = getCsrfToken()

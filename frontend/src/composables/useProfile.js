@@ -28,6 +28,8 @@ export function useProfile() {
             errors.password = false
         } else if (String(val).length < 8) {
             errors.password = 'Password must be at least 8 characters long'
+        } else if (!/^[A-Za-z\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]+$/.test(String(val))) {
+            errors.password = 'Password must contain only English letters and special characters'
         } else {
             errors.password = false
         }

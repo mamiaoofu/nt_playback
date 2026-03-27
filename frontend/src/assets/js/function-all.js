@@ -233,6 +233,41 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         const key = col.key
         let val = resolveRowValue(row, key)
 
+        // provide special-case resolution for common UI-derived columns
+        const keyLower = String(key || '').toLowerCase()
+        try {
+          if ((val === undefined || val === null) && keyLower === 'role') {
+            val = (row && row.permission) || (row && row.user && (row.user.permission || row.user.role)) || undefined
+          }
+          if ((val === undefined || val === null) && keyLower === 'status') {
+            // prefer top-level is_active, fallback to nested user.is_active
+            const s = (row && typeof row.is_active !== 'undefined') ? row.is_active : (row && row.user && typeof row.user.is_active !== 'undefined' ? row.user.is_active : undefined)
+            if (typeof s !== 'undefined') val = s
+          }
+          if ((val === undefined || val === null) && (keyLower === 'group' || keyLower === 'team')) {
+            // derive from row.team or row.group_team to match UI helpers
+            let derived = ''
+            if (Array.isArray(row.team) && row.team.length) {
+              const t = row.team[0]
+              if (keyLower === 'group') derived = (t && ((t.user_group && (t.user_group.group_name || t.user_group)) || t.user_group)) || ''
+              else derived = (t && (t.name || t.team_name)) || ''
+            } else if (row.team && typeof row.team === 'object') {
+              if (keyLower === 'group') derived = row.team.user_group ? (row.team.user_group.group_name || row.team.user_group) : ''
+              else derived = row.team.name || row.team.team_name || ''
+            } else if (row.group_team && typeof row.group_team === 'string') {
+              const first = row.group_team.split(',').map(s => s.trim()).filter(Boolean)[0] || ''
+              if (first) {
+                if (keyLower === 'group') {
+                  derived = first.includes(' / ') ? first.split(' / ')[0].trim() : ''
+                } else {
+                  derived = first.includes(' / ') ? (first.split(' / ')[1] || '').trim() : first
+                }
+              }
+            }
+            if (derived) val = derived
+          }
+        } catch (e) { /* ignore */ }
+
         // Treat null/undefined or empty-string-like values as empty
         if (val === null || val === undefined) return '-'
 

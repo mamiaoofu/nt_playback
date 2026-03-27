@@ -183,6 +183,8 @@ def ApiIndexHome(request):
     audio_column = SetColumnAudioRecord.objects.filter(user=request.user).first()
     agent = Agent.objects.all()
     raw_data = favorite_search.raw_data if favorite_search else {}
+    user_auth = UserAuth.objects.filter(user=request.user).select_related('user_permission').first()
+    role = user_auth.user_permission.name if user_auth and user_auth.user_permission else None
 
     main_db_serialized = MainDatabaseSerializer(main_db, many=True).data
     favorite_search_all_serialized = FavoriteSearchSerializer(favorite_search_all, many=True).data
@@ -192,7 +194,7 @@ def ApiIndexHome(request):
         'show_toast': show_toast,
         'main_db': main_db_serialized,
         'set_audio': set_audio.audio_path if set_audio else None,
-        'user_profile': {'id': request.user.id, 'username': request.user.username} ,
+        'user_profile': {'id': request.user.id, 'username': request.user.username, 'role': role},
         'favorite_search': favorite_search_serialized,
         'raw_data': raw_data,
         'favorite_search_all': favorite_search_all_serialized,

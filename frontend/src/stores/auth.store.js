@@ -194,7 +194,7 @@ export const useAuthStore = defineStore('auth', () => {
 						// merge id into user state
 						if (up.id) {
 							const current = user.value || {}
-							setUser(Object.assign({}, current, { id: up.id, username: up.username }))
+							setUser(Object.assign({}, current, { id: up.id, username: up.username, role: up.role }))
 						}
 					}
 				}
