@@ -39,6 +39,12 @@ export const useAuthStore = defineStore('auth', () => {
 	function setUser(payload) {
 		user.value = payload
 		// memory-only; do not persist across reloads
+		// But store username in localStorage for password reset flow
+		try {
+			if (payload && payload.username) {
+				localStorage.setItem('lastUsername', payload.username)
+			}
+		} catch (e) {}
 	}
 
 	function setToken(t) {
@@ -63,6 +69,8 @@ export const useAuthStore = defineStore('auth', () => {
 		setUser(null)
 		setToken(null)
 		setPasswordResetRequired(false)
+		// Clear stored username
+		try { localStorage.removeItem('lastUsername') } catch (e) {}
 	}
 
 	function logout() {
@@ -195,6 +203,14 @@ export const useAuthStore = defineStore('auth', () => {
 				const stored = localStorage.getItem('passwordResetRequired')
 				if (stored === 'true') {
 					setPasswordResetRequired(true)
+				}
+			} catch (e) {}
+
+			// Restore username from localStorage for password reset flow
+			try {
+				const userName = localStorage.getItem('lastUsername')
+				if (userName) {
+					setUser({ username: userName })
 				}
 			} catch (e) {}
 
