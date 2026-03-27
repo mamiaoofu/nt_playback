@@ -108,14 +108,22 @@ export function useLogin() {
       })
       const json = await res.json()
       if (res.ok && json.status === 'success') {
-        showToast('Password changed successfully', 'success')
-        authStore.setPasswordResetRequired(false)
-        // Re-login implicitly to get fresh tokens as backend invalidated the old ones
-        await authStore.login(form.username, passwordForm.new_password)
+        // Capture the new password before clearing the form
+        const newPassword = passwordForm.new_password
+        
+        // Clear the form
         passwordForm.old_password = ''
         passwordForm.new_password = ''
         passwordForm.confirm_password = ''
-        router.push('/')
+        
+        // Re-login implicitly to get fresh tokens as backend invalidated the old ones
+        const loginSuccess = await authStore.login(form.username, newPassword)
+        if (loginSuccess && !authStore.passwordResetRequired) {
+          showToast('Password changed successfully', 'success')
+          router.push('/')
+        } else {
+          showToast('Failed to re-authenticate after password change', 'error')
+        }
       } else {
         showToast(json.message || 'Failed to change password', 'error')
       }
