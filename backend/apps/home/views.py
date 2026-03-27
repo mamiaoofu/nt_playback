@@ -167,7 +167,7 @@ def ApiSendShareEmail(request):
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 @login_required(login_url='/login')
-@require_action('Audio Recording','User Logs')
+# @require_action('Audio Recording','User Logs')
 def ApiIndexHome(request):
     show_toast = request.session.get('show_toast', False)
     if show_toast:

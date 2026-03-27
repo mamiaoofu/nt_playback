@@ -133,6 +133,17 @@ export const useAuthStore = defineStore('auth', () => {
 				setPasswordResetRequired(data.password_reset_required)
 			}
 
+			// ถ้า Backend ส่ง csrfToken มาด้วย ให้บันทึกทันทีก่อนที่จะหยุดการทำงานกลางคัน
+			if (data && data.csrfToken) {
+				try { setCsrfToken(data.csrfToken) } catch (e) { console.warn('setCsrfToken failed', e) }
+			}
+
+			// If password reset is required, skip permission checks and return.
+			// The UI will show the password change modal on the login page.
+			if (passwordResetRequired.value) {
+				return true
+			}
+
 			// Quick check: calling the home index may return 403 when the user
 			// authenticates but lacks the required "Audio Recording" permission.
 			// If we detect 403 here, route the user to the Denied page instead
@@ -151,28 +162,8 @@ export const useAuthStore = defineStore('auth', () => {
 			// fetch permissions after login
 			try { await fetchPermissions() } catch (e) { console.error('fetchPermissions', e) }
 
-			if (passwordResetRequired.value) {
-				const swalLib = (typeof Swal !== 'undefined' && Swal) || (typeof window !== 'undefined' && (window.Swal || window.Sweetalert2 || window.SweetAlert || window.sweetAlert))
-				if (swalLib) {
-					swalLib.fire({
-						title: 'Please change your password',
-						html: 'Your password has been reset by the administrator.<br>Please set a new password for security.',
-						icon: 'warning',
-						confirmButtonText: 'Go to profile page',
-						allowOutsideClick: false,
-						allowEscapeKey: false,
-					}).then((result) => {
-						if (result.isConfirmed) {
-							router.push('/profile')
-						}
-					})
-				}
-			}
-
-			// If backend returned csrfToken in the login response, cache it immediately
-			if (data && data.csrfToken) {
-				try { setCsrfToken(data.csrfToken) } catch (e) { console.warn('setCsrfToken failed', e) }
-			} else {
+			// กรณีที่ไม่ได้ส่งมาพร้อม Login ก็ให้ดึงใหม่
+			if (!data || !data.csrfToken) {
 				// fallback: attempt to fetch via ensureCsrf()
 				try { await ensureCsrf() } catch (e) {}
 			}
@@ -222,6 +213,11 @@ export const useAuthStore = defineStore('auth', () => {
 						if (up.id) {
 							const current = user.value || {}
 							setUser(Object.assign({}, current, { id: up.id, username: up.username, role: up.role }))
+						}
+						if (up.reset_password === 9) {
+							setPasswordResetRequired(true)
+						} else {
+							setPasswordResetRequired(false)
 						}
 					}
 				}

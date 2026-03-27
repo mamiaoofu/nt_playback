@@ -42,9 +42,9 @@ router.beforeEach(async (to, from, next) => {
 	// reload doesn't falsely redirect to Login before the token is recovered.
 	try { await authStore.waitReady() } catch (e) {}
 
-	// If password reset is required, force user to profile page.
-	if (authStore.passwordResetRequired && to.path !== '/profile') {
-		return next({ path: '/profile' })
+	// If password reset is required, force user to stay on login page to change password
+	if (authStore.passwordResetRequired && to.name !== 'Login') {
+		return next({ name: 'Login' })
 	}
 
 	const isAuthenticated = !!authStore.token
@@ -53,7 +53,9 @@ router.beforeEach(async (to, from, next) => {
 		return next({ name: 'Login' })
 	}
 	if (to.name === 'Login' && isAuthenticated) {
-		return next({ name: 'Home' })
+		if (!authStore.passwordResetRequired) {
+			return next({ name: 'Home' })
+		}
 	}
 
 	// Ensure CSRF token is present for authenticated users on every navigation/refresh
