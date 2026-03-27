@@ -11,7 +11,7 @@
                 </div>
             </div>
             <div class="modal-body" style="padding-top: 8px;">
-                <p style="font-size: 13px; margin-bottom: 20px; color: #64748b;">Your password has been reset by the administrator. Please set a new password for security.</p>
+                <p style="font-size: 13px; margin-bottom: 20px; color: #64748b;">Please set a new password for security.</p>
                 
                 <form @submit.prevent="submitPasswordChange" class="col-md-12">
                     <div class="input-group mb-3" v-has-value>

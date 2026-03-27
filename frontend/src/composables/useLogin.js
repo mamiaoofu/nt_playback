@@ -108,7 +108,7 @@ export function useLogin() {
       })
       const json = await res.json()
       if (res.ok && json.status === 'success') {
-        showToast('เปลี่ยนรหัสผ่านสำเร็จ', 'success')
+        showToast('Password changed successfully', 'success')
         authStore.setPasswordResetRequired(false)
         // Re-login implicitly to get fresh tokens as backend invalidated the old ones
         await authStore.login(form.username, passwordForm.new_password)
