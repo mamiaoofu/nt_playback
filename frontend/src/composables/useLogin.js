@@ -110,6 +110,8 @@ export function useLogin() {
       if (res.ok && json.status === 'success') {
         // Capture the new password before clearing the form
         const newPassword = passwordForm.new_password
+        // Use username from authStore (persists across refresh) or form
+        const username = authStore.user?.username || form.username
         
         // Clear the form
         passwordForm.old_password = ''
@@ -117,7 +119,7 @@ export function useLogin() {
         passwordForm.confirm_password = ''
         
         // Re-login implicitly to get fresh tokens as backend invalidated the old ones
-        const loginSuccess = await authStore.login(form.username, newPassword)
+        const loginSuccess = await authStore.login(username, newPassword)
         if (loginSuccess && !authStore.passwordResetRequired) {
           showToast('Password changed successfully', 'success')
           router.push('/')
