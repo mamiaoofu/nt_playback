@@ -54,7 +54,7 @@
                       <i class="fas fa-trash" style="font-size: 12px;"></i>
                     </button>
                     <button
-                      v-if="store.hasPermission('Reset password')"
+                      v-if="store.hasPermission('Reset User Password')"
                       :id="`group-reset-btn-${getActionId(r) ?? r.id ?? idx}`"
                       type="button"
                       class="group-reset-btn"

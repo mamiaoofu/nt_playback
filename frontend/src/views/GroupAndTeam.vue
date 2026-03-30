@@ -22,7 +22,7 @@
                                             class="form-control form-control-sm search-input"
                                             placeholder="Search..." @input="onTyping" @keyup.enter="onSearch" />
                                     </div>
-                                    <button v-if="authStore.hasPermission('Add Group')" class="btn-role btn-primary btn-sm" id="addGroupBtn"
+                                    <button v-if="authStore.hasPermission('Add New Group')" class="btn-role btn-primary btn-sm" id="addGroupBtn"
                                         @click.stop="openCreateGroup">
                                         <i class="fas fa-plus"></i>
                                         Add New Group
@@ -109,7 +109,7 @@
                                             class="form-control form-control-sm search-input"
                                             placeholder="Search..." @input="onTypingTeam" @keyup.enter="onSearchTeam" />
                                     </div>
-                                    <button v-if="authStore.hasPermission('Add Team')" class="btn-role btn-primary btn-sm" id="addTeamBtn"
+                                    <button v-if="authStore.hasPermission('Add New Team')" class="btn-role btn-primary btn-sm" id="addTeamBtn"
                                         @click.stop="openCreateTeam">
                                         <i class="fas fa-plus"></i>
                                         Add New Team

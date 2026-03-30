@@ -314,7 +314,7 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Reset Password')) return showToast('Access Denied', 'error')
+            if (!authStore.hasPermission('Reset User Password')) return showToast('Access Denied', 'error')
 
             // show the target username in the confirmation message when available
             const uname = row && row.user ? (row.user.username || `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim() || row.user.email || '') : (row && (row.username || ''))
@@ -385,7 +385,7 @@ export function useUserManagement() {
     }
 
     async function toggleUserStatus(userId, row) {
-        if (!authStore.hasPermission('Change Status')) return showToast('Access Denied', 'error')
+        if (!authStore.hasPermission('Change User Status')) return showToast('Access Denied', 'error')
         if (!userId) return
         const rec = records.value.find(r => (r.user && r.user.id) === userId)
         if (!rec) return
@@ -533,7 +533,7 @@ export function useUserManagement() {
         }
 
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
-        const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+    const canExport = computed(() => authStore.hasPermission('Save As User Index'))
     
     const resetExportSelections = () => {
         exportSelections.pdf = false

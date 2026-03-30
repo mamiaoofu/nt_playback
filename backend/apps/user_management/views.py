@@ -30,7 +30,7 @@ from django.contrib.sessions.models import Session
 User = get_user_model()
 
 @login_required(login_url='/login')
-@require_action('User Management','User Logs','Audio Recording')
+@require_action('User Management','Audit Log','System Log','Audio Records')
 def ApiGetUserAll(request):
     try:
         users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
@@ -40,7 +40,7 @@ def ApiGetUserAll(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('User Management','User Logs')
+@require_action('User Management','Audit Log','System Log','Audio Records')
 def ApiGetUser(request):
     # prepare base query
     qs = UserProfile.objects.exclude(user__id=1).select_related('user', 'team')
@@ -505,7 +505,7 @@ def ApiGetUser(request):
     })
 
 @login_required
-@require_action('Change Status')
+@require_action('Change User Status')
 @require_POST
 def ApiChangeUserStatus(request, user_id):
     try:
@@ -623,7 +623,7 @@ def ApiGetUSerProfile(request, user_id):
         return JsonResponse({'status': 'error', 'message': 'User not found.'})
 
 @login_required
-@require_action('Change Status')
+@require_action('Change User Status')
 @require_POST
 def ChangeUserStatus(request, user_id):
     try:
@@ -874,7 +874,7 @@ def ApiSaveUser(request, user_id=None):
         return JsonResponse({"status": "error", "message": f"Error: {str(e)}"})
 
 @login_required
-@require_action('Reset password')
+@require_action('Reset User Password')
 @require_POST
 def ApiResetPassword(request, user_id):
     """

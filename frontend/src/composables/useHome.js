@@ -428,7 +428,7 @@ export function useHome() {
     }
   }
 
-  const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+  const canExport = computed(() => authStore.hasPermission('Save As Index'))
   const toggleExport = () => {
     if (!canExport.value) return
     exportOpen.value = !exportOpen.value
@@ -757,7 +757,6 @@ export function useHome() {
   }
 
   async function applyFavorite(fav){
-    console.log('Applying favorite search', fav)
     try{
       const raw = typeof fav.raw_data === 'string' ? JSON.parse(fav.raw_data || '{}') : (fav.raw_data || {})
         const keyMap = {
@@ -1451,7 +1450,7 @@ export function useHome() {
   }
 
   const onRowDblClick = async (row) => {
-    if (!authStore.hasPermission('Playback Audio')) {
+    if (!authStore.hasPermission('Playback Audio Records')) {
       showToast('Access Denied', 'error')
       return
     }

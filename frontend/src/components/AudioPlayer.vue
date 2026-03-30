@@ -119,7 +119,7 @@ let dragTimeout = null
 const audioUrl = ref(null)
 
 const authStore = useAuthStore()
-const canDownload = computed(() => authStore.hasPermission('Download Audio'))
+const canDownload = computed(() => authStore.hasPermission('Download Voice File'))
 
 const showDownload = computed(() => {
   const d = metadata.value && metadata.value.download

@@ -167,7 +167,6 @@ def ApiSendShareEmail(request):
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 @login_required(login_url='/login')
-# @require_action('Audio Recording','User Logs')
 def ApiIndexHome(request):
     show_toast = request.session.get('show_toast', False)
     if show_toast:
@@ -203,7 +202,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Query Audio','Audio Recording')
+@require_action('Query Audio Records','Audio Records')
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
@@ -295,7 +294,7 @@ def ApiGetAudioList(request):
                             share_entries.append({'audiofile_id': key, 'share': entry})
                     except Exception:
                         continue
-            # query audio info for the unique set of referenced ids, preserve duplicates in share_entries
+            # query audio records info for the unique set of referenced ids, preserve duplicates in share_entries
             unique_ids = list({str(x) for x in shared_ids})
             if unique_ids:
                 try:
@@ -744,7 +743,7 @@ def ApiGetMyPermissions(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('My Favorite Search')
+@require_action('Query Audio Records')
 def ApiSaveMyFavoriteSearch(request):
     
     if request.method == "POST":
@@ -845,7 +844,7 @@ def ApiSaveMyFavoriteSearch(request):
     return JsonResponse({"status": "error", "message": "Invalid request"})
 
 @login_required(login_url='/login')
-@require_action('My Favorite Search')
+@require_action('Query Audio Records')
 def ApiCheckMyFavoriteName(request):
     favorite_name = request.GET.get('favoriteName', '').strip()
     favorite_id = request.GET.get('favoriteId', None)
@@ -897,7 +896,7 @@ def ApiGetCredentials(request):
 
 
 @login_required(login_url='/login')
-@require_action('Playback Audio')
+@require_action('Playback Audio Records')
 def ApiProxyAudio(request):
     """
     Proxy endpoint to stream audio files from a network share (SMB).
@@ -992,7 +991,7 @@ def ApiProxyAudio(request):
     
 @login_required
 @require_POST
-@require_action("Playback Audio")
+@require_action("Playback Audio Records")
 def ApiLogPlayAudio(request):
     """
     API endpoint สำหรับรับ Log การเล่นไฟล์เสียงจาก Frontend
@@ -1009,7 +1008,7 @@ def ApiLogPlayAudio(request):
 
 @login_required
 @require_POST
-@require_action('Save file')
+@require_action('Save As Index')
 def ApiLogSaveFile(request):
     try:
         data = json.loads(request.body)

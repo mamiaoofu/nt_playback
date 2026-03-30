@@ -80,8 +80,17 @@ export function useFileShareManagement() {
         return cols
     })
 
-    const type = computed(() => 'ticket')
-    const requiredPermission = computed(() => 'Ticket History')
+    const type = computed(() => {
+        if (typeUrl.value === 'delegate') return 'delegate'
+        if (typeUrl.value === 'ticket') return 'file_share'
+        return 'unknown'
+    })
+
+    const requiredPermission = computed(() => {
+        if (typeUrl.value === 'delegate') return 'Delegate Management'
+        if (typeUrl.value === 'ticket') return 'Ticket Management'
+        return 'Unknown Permission'
+    })
 
     const canView = computed(() => authStore.hasPermission(requiredPermission.value))
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))

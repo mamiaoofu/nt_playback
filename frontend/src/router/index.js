@@ -6,7 +6,7 @@ import { ensureCsrf } from '../api/csrf'
 
 const routes = [
 	{ path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
-	{ path: '/', name: 'Home', component: Home, meta: { permission: 'Audio Recording' } },
+	{ path: '/', name: 'Home', component: Home, meta: { permission: 'Audio Records' } },
 	{ path: '/user-management', name: 'UserManagement', component: () => import('../views/UserManagement.vue'), meta: { permission: 'User Management' } },
 	{ path: '/configuration/role', name: 'role', component: Role },
 	{ path: '/configuration/role', name: 'role', component: Role, meta: { permission: 'Role & Permissions' } },
@@ -15,19 +15,15 @@ const routes = [
 	{ path: '/user-management/add', name: 'AddUser', component: () => import('../views/AddUser.vue'), meta: { permission: 'Add User' } },
 	{ path: '/user-management/edit/:id', name: 'EditUser', component: () => import('../views/EditUser.vue'), meta: { permission: 'Edit User' } },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
-	{ path: '/logs/system', name: 'SystemLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'System Logs' } },
-	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Logs' } },
+	{ path: '/logs/system', name: 'SystemLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'System Log' } },
+	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Log' } },
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
 	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
-	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share' } },
-	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'File Share' } },
-
-
-
+	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Ticket Management' } },
+	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Delegate Management' } },
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },
-
 ]
 
 const router = createRouter({

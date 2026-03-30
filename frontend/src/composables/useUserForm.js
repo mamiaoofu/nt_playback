@@ -106,15 +106,21 @@ export function useUserForm(props) {
     const groupedPermissions = ref({})
     const orderedTypes = [
         'access',
-        'audio recording',
-        'user management',
-        'logs'
+        'Audio records',
+        'Management',
+        'Role & Permissions',
+        'Group & Team',
+        'Logs',
+        'Setting'
     ]
     const typeLabels = {
         'access': 'ACCESS',
-        'audio recording': 'AUDIO RECORDING',
-        'user management': 'USER MANAGEMENT',
-        'logs': 'LOGS'
+        'Audio records': 'AUDIO RECORDING',
+        'Management': 'MANAGEMENT',
+        'Role & Permissions': 'ROLE & PERMISSIONS',
+        'Group & Team': 'GROUP & TEAM',
+        'Logs': 'LOGS',
+        'Setting': 'SETTING'
     }
 
     for (const t of orderedTypes) groupedPermissions.value[t] = []
@@ -633,7 +639,7 @@ export function useUserForm(props) {
                 const map = {}
                 for (const t of orderedTypes) map[t] = []
                 for (const p of perms) {
-                    const t = (p.type || '').toString().trim().toLowerCase()
+                    const t = (p.type || '').toString().trim()
                     if (!map[t]) map[t] = []
                     map[t].push(p)
                 }

@@ -96,8 +96,8 @@ export function useUserLog() {
 
     const requiredPermission = computed(() => {
         const p = route.path || ''
-        if (p === '/logs/system') return 'System Logs'
-        if (p === '/logs/audit') return 'Audit Logs'
+        if (p === '/logs/system') return 'System Log'
+        if (p === '/logs/audit') return 'Audit Log'
         if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
     })

@@ -24,7 +24,7 @@
                                         Add User
                                     </button>
                                 </router-link>
-                                <div v-if="authStore.hasPermission('Export Recordings')" class="export-group" ref="exportWrap">
+                                <div v-if="authStore.hasPermission('Save As User Index')" class="export-group" ref="exportWrap">
                                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen" >
                                     <i class="fa-solid fa-download" style="color: #fff;"></i>
                                     </button>

@@ -18,7 +18,7 @@ def ApiGetUserLogs(request,type):
         return JsonResponse({'status': False, 'message': 'Invalid type'}, status=400)
 
     # permission check depending on log type
-    required_action = 'System Logs' if type == 'system' else ('Audit Logs' if type == 'audit' else 'User Logs')
+    required_action = 'System Log' if type == 'system' else ('Audit Log' if type == 'audit' else 'User Logs')
     user_actions = get_user_actions(request.user)
     if required_action not in user_actions:
         return JsonResponse({'detail': 'Access Denied'}, status=403)
