@@ -22,6 +22,7 @@ import './assets/css/components.css'
 import './assets/css/all.min.css'
 import './assets/css/flatpickr.min.css'
 import './assets/css/datatable.css'
+import './assets/css/dark-theme.css'
 
 
 
@@ -48,6 +49,16 @@ import './assets/css/datatable.css'
 		await ensureCsrf()
 	} catch (e) {
 		console.warn('ensureCsrf failed on startup', e)
+	}
+
+	// Ensure theme attribute is set on initial load (prevents flash)
+	try {
+		if (typeof document !== 'undefined') {
+			const savedTheme = localStorage.getItem('theme') || 'light'
+			document.documentElement.setAttribute('data-bs-theme', savedTheme)
+		}
+	} catch (e) {
+		console.warn('theme init failed', e)
 	}
 
 	app.mount('#app')

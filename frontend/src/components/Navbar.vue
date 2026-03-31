@@ -247,6 +247,35 @@ function goToProfile() {
   try { router.push('/profile') } catch (e) { console.error('Navigate to profile failed', e) }
 }
 
+/* Theme switch: initialize checkbox and persist theme */
+let themeSwitchEl = null;
+function onThemeSwitchChange(e) {
+  const theme = e.target.checked ? 'dark' : 'light'
+  try {
+    document.documentElement.setAttribute('data-bs-theme', theme)
+    localStorage.setItem('theme', theme)
+  } catch (err) {
+    console.warn('set theme failed', err)
+  }
+}
+
+onMounted(() => {
+  try {
+    themeSwitchEl = document.getElementById('themeSwitch')
+    const currentTheme = localStorage.getItem('theme') || document.documentElement.getAttribute('data-bs-theme') || 'light'
+    if (themeSwitchEl) {
+      themeSwitchEl.checked = (currentTheme === 'dark')
+      themeSwitchEl.addEventListener('change', onThemeSwitchChange)
+    }
+  } catch (e) {
+    console.warn('theme switch init failed', e)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (themeSwitchEl) themeSwitchEl.removeEventListener('change', onThemeSwitchChange)
+})
+
 </script>
 
 <style scoped>

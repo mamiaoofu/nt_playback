@@ -1,0 +1,322 @@
+/* Dark theme overrides — uses Bootstrap's data-bs-theme="dark" attribute on <html> */
+
+:root[data-bs-theme="dark"],
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Layout */
+[data-bs-theme="dark"] .layout-wrapper {
+  background-color: #071127; /* deep navy */
+  color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .page-title {
+  background: #071127;
+  color: #dbeafe;
+  border-bottom: 1px solid #1f2937;
+}
+
+[data-bs-theme="dark"] .navbar {
+  background-color: #0b1220 !important;
+}
+
+[data-bs-theme="dark"] .container-navbar {
+  background: transparent;
+}
+
+/* Cards and panels */
+[data-bs-theme="dark"] .card {
+  background-color: #071127;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+}
+
+[data-bs-theme="dark"] .card-body {
+  background: transparent;
+  color: #d1d5db;
+}
+
+[data-bs-theme="dark"] .footer {
+  background-color: #071127;
+  border-top: 1px solid #1f2937;
+  color: #9ca3af;
+}
+
+/* Tables */
+[data-bs-theme="dark"] .table-container,
+[data-bs-theme="dark"] .table-scroll {
+  background: transparent;
+}
+
+[data-bs-theme="dark"] .table-scroll thead th {
+  background: #071127;
+  color: #cbd5e1;
+  border-bottom: 1px solid #1f2937;
+}
+
+[data-bs-theme="dark"] .table-scroll tbody td {
+  color: #d1d5db;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Inputs, selects and custom controls */
+[data-bs-theme="dark"] input,
+[data-bs-theme="dark"] textarea,
+[data-bs-theme="dark"] select,
+[data-bs-theme="dark"] .input,
+[data-bs-theme="dark"] .form-input,
+[data-bs-theme="dark"] .custom-select,
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] .search-input {
+  background-color: #0b1220;
+  color: #e6eef8;
+  border: 1px solid #1f2937;
+}
+
+[data-bs-theme="dark"] ::placeholder {
+  color: #9ca3af;
+}
+
+/* Sidebar / menu */
+[data-bs-theme="dark"] .sidebar-team-menu {
+  background: #071127;
+  border: 1px solid #1f2937;
+  color: #d1d5db;
+  box-shadow: none;
+}
+
+[data-bs-theme="dark"] .menu-link {
+  color: #d1d5db;
+}
+
+[data-bs-theme="dark"] .menu-link:hover {
+  background-color: #0f1724;
+  color: #ffffff;
+}
+
+[data-bs-theme="dark"] .menu-avatar {
+  background-color: #274060;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] .menu-user-role {
+  color: #9ca3af;
+}
+
+[data-bs-theme="dark"] .logout-btn {
+  background: transparent;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+}
+
+/* Tooltips */
+[data-bs-theme="dark"] .file-name-tooltip .tooltip-inner {
+  background: rgba(255,255,255,0.06);
+  color: #e6eef8;
+}
+
+/* Switch control tweaks */
+[data-bs-theme="dark"] .switch .slider {
+  background-color: #1f2937;
+}
+
+[data-bs-theme="dark"] .switch input:checked + .slider {
+  background-color: #6c757d;
+}
+
+/* Make sure text links are readable */
+[data-bs-theme="dark"] a,
+[data-bs-theme="dark"] .no-link {
+  color: inherit;
+}
+
+/* Small utility adjustments */
+[data-bs-theme="dark"] .text-muted {
+  color: #9ca3af;
+}
+
+/* Sidebar toggle (header compact profile button) */
+[data-bs-theme="dark"] #sidebarTeamToggle {
+  background-color: #274060; /* muted deep blue */
+  padding: 13px;
+  height: 40px;
+  border-radius: 25px;
+  border: solid 1px rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  color: #fff;
+}
+
+[data-bs-theme="dark"] #sidebarTeamToggle:hover {
+  background-color: #355974;
+}
+
+/* Select toggle (custom select root) */
+[data-bs-theme="dark"] .select-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 1px solid #1f2937;
+  border-radius: 25px;
+  padding: 6px 12px;
+  background: #0b1220;
+  font-size: 12px;
+  color: #e6eef8;
+  cursor: pointer;
+  margin-bottom: 9px;
+  height: 33px;
+}
+
+[data-bs-theme="dark"] .select-toggle:focus {
+  outline: none;
+  border-color: #416fd6;
+  box-shadow: 0 0 0 0.2rem rgba(65,111,214,0.12);
+}
+
+[data-bs-theme="dark"] .selected-text {
+  color: #9ca3af;
+}
+
+/* Floating label behavior for custom select when open/has value */
+[data-bs-theme="dark"] .custom-select-root.is-open .floating-label,
+[data-bs-theme="dark"] .custom-select-root.has-value .floating-label {
+  transform: translateY(-125%) scale(0.8);
+  color: #93c5fd;
+  background-color: #071127;
+  padding: 0 0.2em;
+}
+
+/* When native custom-select is focused or valid - keep label visible and readable */
+[data-bs-theme="dark"] .custom-select:focus ~ .custom-select-label,
+[data-bs-theme="dark"] .custom-select:valid ~ .custom-select-label {
+  transform: translateY(-50%) scale(0.8);
+  color: #93c5fd;
+  background-color: #071127;
+  padding: 0 0.2em;
+}
+
+[data-bs-theme="dark"] .floating-label {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  transform: translateY(-50%);
+  font-size: clamp(12px, 1.2vw, 13px);
+  pointer-events: none;
+  transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  background: #071127;
+  padding: 0 0.2em;
+  transform-origin: left center;
+}
+
+[data-bs-theme="dark"] .input:focus ~ .floating-label,
+[data-bs-theme="dark"] .input-group.has-value .floating-label,
+[data-bs-theme="dark"] .input:focus ~ .title-label,
+[data-bs-theme="dark"] .input-group.has-value .title-label {
+  transform: translateY(-125%) scale(0.8);
+  color: #93c5fd;
+  background-color: #071127;
+  padding: 0 0.2em;
+}
+[data-bs-theme="dark"] .team-toggle {
+    background-color: #1e293b;
+}
+
+[data-bs-theme="dark"] .menu-user-name {
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .menu-header {
+    border-bottom: 1px solid #1e293b;
+}
+
+[data-bs-theme="dark"] .menu-divider {
+    border-top: 1px solid #1e293b;
+}
+
+[data-bs-theme="dark"] .logout-btn:hover {
+    background-color: #1e293b;
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .show-entries {
+    color: #e6eef8;
+}
+[data-bs-theme="dark"] .custom-select-toggle {
+    border: 1px solid #1f2937;
+    background: #0b1220;
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .custom-select-wrap.up .custom-select-menu{
+    background-color: #071127;
+    border: 1px solid #1f2937;
+}
+
+[data-bs-theme="dark"] .custom-select-wrap.up .custom-select-menu li {
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .custom-select-menu li.active {
+    background-color: #1f2937;
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .btn.btn-primary.btn-sm.export-icon {
+    background-color: #1f2937;
+    border-color: #1f2937;
+}
+
+[data-bs-theme="dark"] .btn-primary {
+    background-color: #1f2937 !important;
+    border-color: #1f2937 !important;
+    background: #1f2937 !important;
+}
+
+[data-bs-theme="dark"] .btn-primary:hover {
+    background-color: #1f2937 !important;
+    border-color: #1f2937 !important;
+    background: #1f2937 !important;
+}
+
+[data-bs-theme="dark"] .btn.btn-light {
+    background-color: #1f2937 !important;
+    border-color: #1f2937 !important;
+    color: #e6eef8 !important;
+}
+
+[data-bs-theme="dark"] .background-title {
+    color: #1f2937;
+}
+
+[data-bs-theme="dark"] .icon-title ,[data-bs-theme="dark"] a, [data-bs-theme="dark"] .no-link,[data-bs-theme="dark"] .fa-solid .fa-house {
+    color: #e6eef8;
+}
+
+[data-bs-theme="dark"] .table-primary {
+  --bs-table-color: #e6eef8;
+  --bs-table-bg: #274060 !important;
+  --bs-table-border-color: rgba(255,255,255,0.06);
+  --bs-table-striped-bg: rgba(255,255,255,0.02);
+  --bs-table-striped-color: #e6eef8;
+  --bs-table-active-bg: rgba(255,255,255,0.03);
+  --bs-table-active-color: #e6eef8;
+  --bs-table-hover-bg: rgba(255,255,255,0.03);
+  --bs-table-hover-color: #e6eef8;
+  color: var(--bs-table-color);
+  border-color: var(--bs-table-border-color);
+}
+
+/* Breadcrumb variables for dark mode — components use these variables */
+:root[data-bs-theme="dark"],
+[data-bs-theme="dark"],
+[data-theme="dark"],
+.theme-dark {
+  --breadcrumb-active-color: #416FD6;
+  --breadcrumb-inactive-color: #9ca3af;
+}
+
+
+
+/* End dark-theme.css */

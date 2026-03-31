@@ -5,6 +5,7 @@
  */
 :root,
 [data-bs-theme="light"] {
+  --bs-table: #416fd6 ;
   --bs-blue: #416FD6;
   --bs-indigo: #6610f2;
   --bs-purple: #6f42c1;
@@ -126,6 +127,7 @@
 }
 [data-bs-theme="dark"] {
   color-scheme: dark;
+  --bs-table: #1f2937 ;
   --bs-body-color: #dee2e6;
   --bs-body-color-rgb: 222, 226, 230;
   --bs-body-bg: #212529;
@@ -1858,7 +1860,9 @@ progress {
 }
 .table-primary {
   --bs-table-color: #fff;
+  /* --bs-table-bg: #416fd6; */
   --bs-table-bg: #416fd6;
+
   --bs-table-border-color: #a6b5cc;
   --bs-table-striped-bg: #c5d7f2;
   --bs-table-striped-color: #000;
