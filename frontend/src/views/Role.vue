@@ -79,14 +79,14 @@
             <template v-else>
               <div v-if="filteredRoles.length" class="custom-roles-container">
                   <div v-for="role in filteredRoles" :key="role.id" class="custom-role-item"
-                    @click.stop="authStore.hasPermission('Edit Custom Role') && openEditRole(role.id, 'edit')">
+                    @click.stop="authStore.hasPermission('Edit Custom Roles') && openEditRole(role.id, 'edit')">
                   <div class="custom-role-info">
                     <div class="custom-role-name">{{ role.name }}</div>
                     <span class="custom-role-perms">Permissions</span>
                   </div>
                   <div class="custom-role-actions">
-                    <span v-if="authStore.hasPermission('Edit Custom Role')" class="role-box-badge">Click to edit</span>
-                    <button v-if="authStore.hasPermission('Delete Custom Role')" type="button" class="group-delete-btn" @click.stop="deleteCustomRole(role.id)">
+                    <span v-if="authStore.hasPermission('Edit Custom Roles')" class="role-box-badge">Click to edit</span>
+                    <button v-if="authStore.hasPermission('Delete Custom Roles')" type="button" class="group-delete-btn" @click.stop="deleteCustomRole(role.id)">
                       <i class="fas fa-trash" style="font-size: 12px;"></i>
                     </button>
                   </div>
