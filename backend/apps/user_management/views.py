@@ -136,6 +136,7 @@ def ApiGetUser(request):
             Q(user__username__icontains=search_primary)
             | Q(user__first_name__icontains=search_primary)
             | Q(user__last_name__icontains=search_primary)
+            | Q(user__first_name__icontains=search_primary, user__last_name__icontains=search_primary)
             | Q(user__email__icontains=search_primary)
             | Q(phone__icontains=search_primary)
             | Q(team__name__icontains=search_primary)
@@ -146,6 +147,7 @@ def ApiGetUser(request):
             | Q(create_by__username__icontains=search_primary)
             | Q(create_by__first_name__icontains=search_primary)
             | Q(create_by__last_name__icontains=search_primary)
+            | Q(create_by__first_name__icontains=search_primary, create_by__last_name__icontains=search_primary)
         )
 
         # detect date-like tokens and allow matching against create_at date
@@ -299,6 +301,7 @@ def ApiGetUser(request):
                     Q(user__username__icontains=t)
                     | Q(user__first_name__icontains=t)
                     | Q(user__last_name__icontains=t)
+                    | Q(user__first_name__icontains=t, user__last_name__icontains=t)
                     | Q(user__email__icontains=t)
                     | Q(phone__icontains=t)
                     | Q(team__name__icontains=t)
@@ -309,6 +312,9 @@ def ApiGetUser(request):
                     | Q(create_by__username__icontains=t)
                     | Q(create_by__first_name__icontains=t)
                     | Q(create_by__last_name__icontains=t)
+                    #Full name
+                    | Q(create_by__first_name__icontains=t, create_by__last_name__icontains=t)
+
                 )
                 per_token_qs.append(tq)
 
