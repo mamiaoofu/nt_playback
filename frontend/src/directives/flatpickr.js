@@ -351,6 +351,7 @@ export default {
           try { originalValueSetter.call(el, finalStr) } catch (e) { try { el.value = finalStr } catch (e) {} }
           try { el.parentNode && el.parentNode.classList.toggle('has-value', (finalStr || '').toString().trim() !== '') } catch (e) {}
           try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
+          try { suppressWrites = false } catch (e) {}
           try { allowClose = true } catch (e) {}
           try { instance.close() } catch (e) {}
           // reset allowClose shortly after closing to avoid accidental subsequent closes
@@ -398,6 +399,13 @@ export default {
 
         // update button state when user changes selection
           instance.config.onChange.push((selectedDates, dateStr) => {
+          // when a new selection or time edit is made it becomes pending (needs Apply)
+          if (selectedDates && selectedDates.length) {
+            applied = false
+            actionBtn.textContent = 'OK'
+            actionBtn.dataset.state = 'ok'
+          }
+
           // For non-duration pickers: suppress programmatic writes while the
           // calendar is open and the user hasn't clicked Apply. We set a
           // suppress flag so our element-level setter blocks preview writes.
@@ -505,16 +513,9 @@ export default {
             }
           } catch (e) {}
 
-          // when a new selection or time edit is made it becomes pending (needs Apply)
-            if (selectedDates && selectedDates.length) {
-            applied = false
-            actionBtn.textContent = 'OK'
-            actionBtn.dataset.state = 'ok'
-          }
-
           // If binding.value was a function, call it directly with our preview
           if (typeof userOnChange === 'function') {
-            try { userOnChange(selectedDates, preview || dateStr) } catch (e) {}
+            try { userOnChange(selectedDates, (typeof preview !== 'undefined' ? preview : dateStr)) } catch (e) {}
           }
         })
 
@@ -582,8 +583,6 @@ export default {
                             }
                           } catch (e) {}
                         }, 150)
-                        // allow writes again after short delay
-                        setTimeout(() => { try { suppressWrites = false } catch (e) {} }, 200)
                       } else {
                         // ensure empty state is enforced when there is no last applied value
                         try { if (el) el.value = '' } catch (e) {}
@@ -591,6 +590,9 @@ export default {
                       }
                     } catch (e) {}
                   }
+
+                // allow writes again after short delay
+                setTimeout(() => { try { suppressWrites = false } catch (e) {} }, 200)
 
               // Sync "To" picker for visual consistency, but do NOT mark as applied.
                 if (el && el.value) {
@@ -681,10 +683,10 @@ export default {
                 try {
                   el.value = noTime ? String(el.value).split(' ')[0] : String(el.value).replace(/\s*,\s*/g, ' - ')
                 } catch (e) {}
+              }
               // When opening the calendar, ensure we suppress preview writes
               // if there is a pending, unapplied selection.
               try { suppressWrites = !applied } catch (e) {}
-              }
               // Ensure action button reflects whether a value is already applied
               try {
                 applied = !!(el && el.value) || !!lastAppliedValue
