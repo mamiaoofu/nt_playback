@@ -59,7 +59,7 @@ export function useFileShareManagement() {
         { key: 'download', label: 'Download' },
         { key: 'email', label: 'Email'},
         { key: 'create_by', label: 'Created By' },
-        { key: 'description', label: 'Description',width: '1%' },
+        { key: 'description', label: 'Description',tooltip: true },
         { key: 'create_at', label: 'Created Date' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Exprie Date' },
