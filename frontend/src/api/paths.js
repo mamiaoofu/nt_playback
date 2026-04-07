@@ -1,6 +1,6 @@
 import { getRuntime } from './runtimeConfig'
 
-const ENV_API_BASE = import.meta.env.VITE_API_BASE || 'http://172.27.96.1:8000'
+const ENV_API_BASE = import.meta.env.VITE_API_BASE || 'http://172.27.96.1:6000'
 
 export const getApiBase = () => getRuntime('VITE_API_BASE', ENV_API_BASE)
 

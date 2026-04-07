@@ -20,4 +20,4 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . /app/
 
 # Command เริ่มต้น (จะถูก override ด้วย docker-compose ได้)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:6001"]

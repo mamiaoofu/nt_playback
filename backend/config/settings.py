@@ -45,20 +45,20 @@ if not POSTGRES_PASSWORD:
 
 ALLOWED_HOSTS = ['*', '127.0.0.1', '172.27.96.1']
 # CORS Configuration
-# อนุญาตให้ Frontend (เช่น localhost:8001) ยิง API เข้ามาได้
+# อนุญาตให้ Frontend (เช่น localhost:6001) ยิง API เข้ามาได้
 CORS_ALLOWED_ORIGINS = [
-    "https://localhost:8001",
-    "https://127.0.0.1:8001",
+    "https://localhost:6001",
+    "https://127.0.0.1:6001",
     "https://localhost:3000",
-    "https://172.27.96.1:8001",
-    "https://192.168.1.90:8001",
+    "https://172.27.96.1:6001",
+    "https://192.168.1.90:6001",
     "https://localhost",
     "https://192.168.1.90",
     
-    "https://192.168.1.202:8001",
+    "https://192.168.1.202:6001",
     "https://192.168.1.202",
     "https://ecmnichetelcomm.ddns.net",
-    "https://ecmnichetelcomm.ddns.net:8001",
+    "https://ecmnichetelcomm.ddns.net:6001",
 ]
 SESSION_COOKIE_DOMAIN = None  # ให้ Django ใช้ host จาก request
 # Security cookie settings - defaults tuned for development; override via env in production
@@ -266,15 +266,15 @@ CORS_ALLOW_CREDENTIALS = True
 
 # เพิ่ม CSRF trusted origins เพื่อให้การส่ง cookie/csrf ทำงานจากทั้ง localhost และ LAN
 CSRF_TRUSTED_ORIGINS = [
-    "https://localhost:8001",
-    "https://127.0.0.1:8001",
-    "https://192.168.1.90:8001",
-    # support nginx default port (no :8001)
+    "https://localhost:6001",
+    "https://127.0.0.1:6001",
+    "https://192.168.1.90:6001",
+    # support nginx default port (no :6001)
     "https://localhost",
     "https://192.168.1.90",
     # frontend LAN host
-    "https://192.168.1.202:8001",
+    "https://192.168.1.202:6001",
     "https://192.168.1.202",
     "https://ecmnichetelcomm.ddns.net",
-    "https://ecmnichetelcomm.ddns.net:8001",
+    "https://ecmnichetelcomm.ddns.net:6001",
 ]

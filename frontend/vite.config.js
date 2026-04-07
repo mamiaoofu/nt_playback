@@ -16,7 +16,7 @@ export default defineConfig({
     },
     // listen on all interfaces inside the container
     host: '0.0.0.0',
-    port: 8001,
+    port: 6001,
     // HMR: let client connect to the page origin (works for localhost and LAN)
     // remove explicit `host` so client uses the current origin automatically
     hmr: {
@@ -29,13 +29,13 @@ export default defineConfig({
     // Proxy API and auth requests from the dev server to the backend container
     proxy: {
       '/api': {
-        target: 'http://backend:8000',
+        target: 'http://backend:6000',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path,
       },
       '/login': {
-        target: 'http://backend:8000',
+        target: 'http://backend:6000',
         changeOrigin: true,
         secure: false,
       }
