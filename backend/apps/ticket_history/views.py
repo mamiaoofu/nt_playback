@@ -391,7 +391,7 @@ def ApiGetTicketHistory(request,type):
                 sa = timezone.localtime(sa_val)
             else:
                 sa = sa_val
-            start_date_str = sa.strftime("%Y-%m-%d")
+            start_date_str = sa.strftime("%Y-%m-%d %H:%M:%S")
         if getattr(ticket_history, 'expire_at', None):
             ea_val = ticket_history.expire_at
             if settings.USE_TZ:
@@ -400,7 +400,7 @@ def ApiGetTicketHistory(request,type):
                 ea = timezone.localtime(ea_val)
             else:
                 ea = ea_val
-            expire_date_str = ea.strftime("%Y-%m-%d")
+            expire_date_str = ea.strftime("%Y-%m-%d %H:%M:%S")
 
         data.append({
             "id": ticket_history.id,
@@ -414,7 +414,10 @@ def ApiGetTicketHistory(request,type):
             "access_time": getattr(ticket_history, 'access_time', None),
             "status": ticket_history.status,
             "create_at": create_at_str,
-            "user_id" : ticket_history.user_id
+            "user_id" : ticket_history.user_id,
+            'username': ticket_history.user.username,
+            'description': ticket_history.description,
+            'dowload': ticket_history.dowload,
         })
         
     return JsonResponse({
@@ -425,7 +428,7 @@ def ApiGetTicketHistory(request,type):
     })
 
 @login_required
-@require_action('Change Status')
+@require_action('Change User Status')
 @require_POST    
 def ApiChangeFileShareStatus(request, user_id, type):
     try:
@@ -439,14 +442,15 @@ def ApiChangeFileShareStatus(request, user_id, type):
             user.save()
             user_file_share.status = not user_file_share.status
             user_file_share.save()
+            status_msg = 'Active' if user.is_active else 'Inactive'
         elif type == "delegate":
             user_file_share.status = not user_file_share.status
             user_file_share.save()
+            status_msg = 'Active' if user_file_share.status else 'Inactive' 
         
         
-        status_msg = 'Active' if user.is_active else 'Inactive'
-        create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user.username} to {status_msg}", status="success", request=request)
-        return JsonResponse({'status': 'success', 'message': f'User {user.username} is now {status_msg}.'})
+        create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request)
+        return JsonResponse({'status': 'success', 'message': f'{type} ID {user_file_share.code} is now {status_msg}.'})
     except User.DoesNotExist:
         create_user_log(user=request.user, action="Change User Status", detail=f"message : User not found", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': 'User not found.'})

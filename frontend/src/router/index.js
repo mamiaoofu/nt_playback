@@ -54,18 +54,22 @@ router.beforeEach(async (to, from, next) => {
 		}
 	}
 
-	// Ensure CSRF token is present for authenticated users on every navigation/refresh
+	// If authenticated, ensure the store has at least the user ID and permissions 
+	// (critical for pages like Profile or those with permission requirements)
 	if (isAuthenticated) {
-		// CSRF is fetched at app startup or after login and cached; no-op here
-	}
+		const needsPermissions = to.meta && to.meta.permission
+		const missingUserId = !authStore.user?.id
+		const missingPermissions = !authStore.permissions || authStore.permissions.length === 0
 
-	const required = to.meta && to.meta.permission
-	if (required) {
-		// ensure permissions are fetched (in case page reload)
-		if (!authStore.permissions || authStore.permissions.length === 0) {
-			try { await authStore.fetchPermissions() } catch (e) { /* ignore */ }
+		if (missingUserId || (needsPermissions && missingPermissions)) {
+			try {
+				await authStore.fetchPermissions()
+			} catch (e) {
+				console.error('Failed to load user info/permissions in router:', e)
+			}
 		}
-		if (!authStore.hasPermission(required)) {
+
+		if (needsPermissions && !authStore.hasPermission(needsPermissions)) {
 			return next({ name: 'Denied' })
 		}
 	}

@@ -97,7 +97,7 @@
                                             <label class="title-label">Confirm New Password</label>
                                             <div v-if="passwordError" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ passwordError }}</div>
                                         </div>
-                                        <button class="btn btn-primary" type="submit" :disabled="submitting" style="font-size: 10px;">
+                                        <button class="btn btn-primary" type="submit" :disabled="submitting || hasError" style="font-size: 10px;">
                                                 <i class="fas fa-save"></i>
                                             Save Changes
                                         </button>

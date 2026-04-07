@@ -90,15 +90,8 @@ export function useProfile() {
     }
 
     async function submitPasswordChange() {
+        if (hasError.value) return
         passwordError.value = ''
-        if (passwordForm.new_password !== passwordForm.confirm_password) {
-            passwordError.value = 'New passwords do not match.'
-            return
-        }
-        if (passwordForm.new_password.length < 8) {
-            passwordError.value = 'Password must be at least 8 characters.'
-            return
-        }
         submitting.value = true
         try {
             const csrfToken = getCsrfToken()
@@ -125,7 +118,20 @@ export function useProfile() {
         } finally { submitting.value = false }
     }
 
-    onMounted(() => { fetchProfile() })
+    // Watch for user ID changes (e.g. after login or session restoration)
+    watch(() => authStore.user?.id, (newId) => {
+        if (newId) {
+            console.log('useProfile: User ID detected, fetching profile...', newId)
+            fetchProfile()
+        }
+    }, { immediate: true })
+
+    onMounted(() => {
+        // Double-check on mount to ensure we fetch if ID was already present
+        if (authStore.user?.id) {
+            fetchProfile()
+        }
+    })
 
     const state = {
         authStore,

@@ -37,10 +37,10 @@
                         <label class="title-label">Confirm New Password</label>
                         <div v-if="passwordError" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ passwordError }}</div>
                     </div>
-                    <button class="btn-submit" type="submit" :disabled="submitting" style="width: 100%; border-radius: 25px;">
-                        <i class="fas fa-save" style="margin-right: 6px;"></i>
-                        Save Changes
-                    </button>
+                    <button class="btn-submit" type="submit" :disabled="submitting || hasError" style="width: 100%; border-radius: 25px;">
+                         <i class="fas fa-save" style="margin-right: 6px;"></i>
+                         Save Changes
+                     </button>
                 </form>
             </div>
         </div>
@@ -115,6 +115,7 @@ const {
   showNewPass,
   showConfirmPass,
   errors,
+  hasError,
   submitPasswordChange
 } = useLogin()
 </script>

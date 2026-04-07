@@ -47,6 +47,7 @@ export function useLogin() {
   const showNewPass = ref(false)
   const showConfirmPass = ref(false)
   const errors = reactive({ password: false, confirmPassword: false })
+  const hasError = ref(false)
 
   watch(() => passwordForm.new_password, (val) => {
     if (!val || String(val).trim() === '') {
@@ -67,10 +68,11 @@ export function useLogin() {
         passwordError.value = ''
       }
     }
+    hasError.value = !!(errors.password || errors.confirmPassword)
   })
 
   watch(() => passwordForm.confirm_password, (val) => {
-    if (!val || String(val).trim() === '') { errors.confirmPassword = false; passwordError.value = ''; return }
+    if (!val || String(val).trim() === '') { errors.confirmPassword = false; passwordError.value = ''; hasError.value = !!errors.password; return }
     if (passwordForm.new_password !== val) {
       errors.confirmPassword = 'Passwords do not match'
       passwordError.value = 'Passwords do not match'
@@ -78,18 +80,12 @@ export function useLogin() {
       errors.confirmPassword = false
       passwordError.value = ''
     }
+    hasError.value = !!(errors.password || errors.confirmPassword)
   })
 
   async function submitPasswordChange() {
+    if (hasError.value) return
     passwordError.value = ''
-    if (passwordForm.new_password !== passwordForm.confirm_password) {
-      passwordError.value = 'New passwords do not match.'
-      return
-    }
-    if (passwordForm.new_password.length < 8) {
-      passwordError.value = 'Password must be at least 8 characters.'
-      return
-    }
     submitting.value = true
     try {
       const csrfToken = getCsrfToken()
@@ -157,7 +153,8 @@ export function useLogin() {
     showOldPass,
     showNewPass,
     showConfirmPass,
-    errors
+    errors,
+    hasError
   }
 
   const actions = {

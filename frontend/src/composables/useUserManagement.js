@@ -401,7 +401,7 @@ export function useUserManagement() {
             const json = await res.json()
             if (!res.ok || json.status === 'error') {
                 rec.user.is_active = current
-                console.error('change status failed', json)
+                console.error('Change User Status failed', json)
             } else {
                 showToast(json.message, 'success')
             }
@@ -583,7 +583,21 @@ export function useUserManagement() {
         if (formats.length === 0) return
 
         // rows to export (no voice selection on this page)
-        const rowsToExport = paginatedRecords.value || []
+        const rowsToExport = (paginatedRecords.value || []).map(r => ({
+            ...r,
+            index: (paginatedRecords.value.indexOf(r) + 1) + (startIndex.value || 0),
+            username: r.user?.username || '-',
+            full_name: `${r.user?.first_name || ''} ${r.user?.last_name || ''}`.trim() || '-',
+            email: r.user?.email || '-',
+            role: r.permission || '-',
+            group: extractGroup(r) || '-',
+            team: extractTeam(r) || '-',
+            database_servers: getDbList(r).join(', ') || '-',
+            phone: r.phone || '-',
+            create_by: (typeof r.create_by === 'object' && r.create_by) ? (r.create_by.username || `${r.create_by.first_name || ''} ${r.create_by.last_name || ''}`.trim() || '-') : (r.create_by || '-'),
+            create_at: r.create_at || '-',
+            status: r.is_active ? 'Active' : 'Inactive'
+        }))
         const exportColumns = (columns || []).filter(c => c && c.key !== 'checked')
         // only create a ZIP when multiple formats requested
         const multipleOutput = (formats.length > 1)

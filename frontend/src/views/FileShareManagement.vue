@@ -18,7 +18,7 @@
                  <div style="width:260px;">
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'" @typing="onTyping" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="canExport" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
@@ -109,6 +109,13 @@
                   {{ row.access_time }} / {{ row.limit_access_time }}
               </template>
 
+                <template #cell-download="{ row }">
+                  <div class="text-center">
+                    <i v-if="row.download === true || row.dowload === true" class="fa-solid fa-check" style="color:green"></i>
+                    <i v-else class="fa-solid fa-xmark" style="color:red"></i>
+                  </div>
+                </template>
+
               <template #cell-action="{ row }" v-if="typeUrl === 'ticket'">
                   <div class="input-group" >
                   <button type="button" class="group-send-btn" id="Resend" @click="resendTicket(row.id, row.user_id)" >
@@ -159,6 +166,7 @@ const {
     columns,
     requiredPermission,
     canView,
+    canExport,
     totalPages,
     startIndex,
     paginatedRecords,

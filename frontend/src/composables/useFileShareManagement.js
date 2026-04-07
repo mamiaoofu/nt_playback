@@ -56,8 +56,10 @@ export function useFileShareManagement() {
     const baseColumns = [
         { key: 'index', label: '#', isIndex: true },
         { key: 'code', label: 'Ticket ID' },
-        { key: 'email', label: 'Email', tooltip: true, labelKey: 'email_label' },
+        { key: 'download', label: 'Download' },
+        { key: 'email', label: 'Email'},
         { key: 'create_by', label: 'Created By' },
+        { key: 'description', label: 'Description' },
         { key: 'create_at', label: 'Created Date' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Exprie Date' },
@@ -65,13 +67,20 @@ export function useFileShareManagement() {
     ]
 
     const columns = computed(() => {
-        const cols = [...baseColumns]
+        // Deep copy of baseColumns to avoid modifying original objects
+        const cols = baseColumns.map(c => ({...c}))
         // If we're on the delegate page, show "Delegate ID" instead of "Ticket ID"
         if (typeUrl.value === 'delegate') {
             for (const c of cols) {
                 if (c && c.key === 'code') {
                     c.label = 'Delegate ID'
-                    break
+                }
+
+                if (c && c.key === 'email') {
+                    c.label = 'Username'
+                    c.key = 'username'
+                    delete c.tooltip
+                    delete c.labelKey
                 }
             }
         }
@@ -167,6 +176,9 @@ export function useFileShareManagement() {
                         const emailTooltip = ecount > 1 ? ('Email:\n' + emailList.map(x => `- ${x}`).join('\n')) : (emailList[0] || rawEmail || '')
                         out.email = emailTooltip
                         out.email_label = ecount >= 1 ? `Email (${ecount})` : '-'
+
+                        // Normalize username for the UI (especially important for delegate page)
+                        out.username = r.username || (r.user && r.user.username) || '-'
 
                         return out
                     })
@@ -331,7 +343,7 @@ export function useFileShareManagement() {
     
 
     async function toggleUserStatus(userId, fileShareId) {
-        if (!authStore.hasPermission('Change Status')) return showToast('Access Denied', 'error')
+        if (!authStore.hasPermission('Change User Status')) return showToast('Access Denied', 'error')
         // Prefer locating the record by fileShareId (row.id) to avoid matching
         // other rows that share the same user_id (common for delegate rows).
         let rec = null
@@ -367,7 +379,7 @@ export function useFileShareManagement() {
             const json = await res.json()
             if (!res.ok || json.status === 'error') {
                 rec.status = current
-                console.error('change status failed', json)
+                console.error('Change User Status failed', json)
             } else {
                 showToast(json.message, 'success')
             }
@@ -415,7 +427,10 @@ export function useFileShareManagement() {
     })
 
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
-    const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+
+    const canExport = computed(() => {
+    return typeUrl.value === 'delegate' && authStore.hasPermission('Save As Delegate File Index')
+})
 
     const resetExportSelections = () => {
         exportSelections.pdf = false
@@ -464,8 +479,27 @@ export function useFileShareManagement() {
         if (formats.length === 0) return
 
         // rows to export (no voice selection on this page)
-        const rowsToExport = paginatedRecords.value || []
-        const exportColumns = (baseColumns || []).filter(c => c && c.key !== 'checked')
+        const rowsToExport = (paginatedRecords.value || []).map(r => {
+            // Re-extract raw lists for clean export (avoiding UI-specific tooltip formatting)
+            const rawFiles = r.files_audio_label ? (r.files_audio || '').replace('File name:\n', '').replace(/^- /gm, '').replace(/\n/g, ', ') : (r.files_audio || '-')
+            const rawEmails = r.email_label ? (r.email || '').replace('Email:\n', '').replace(/^- /gm, '').replace(/\n/g, ', ') : (r.email || '-')
+            
+            return {
+                ...r,
+                index: (paginatedRecords.value.indexOf(r) + 1) + (startIndex.value || 0),
+                code: r.code || r.id || '-',
+                username: r.username || '-',
+                email: rawEmails || '-',
+                create_by: (typeof r.create_by === 'object' && r.create_by) ? (r.create_by.username || `${r.create_by.first_name || ''} ${r.create_by.last_name || ''}`.trim() || '-') : (r.create_by || '-'),
+                create_at: r.create_at || '-',
+                start_date: r.start_date || '-',
+                exprie_date: r.exprie_date || '-',
+                files_audio: rawFiles || '-',
+                limit_access_time: (typeUrl.value === 'ticket') ? `${r.access_time || 0} / ${r.limit_access_time || 0}` : '-',
+                status: r.status ? 'Active' : 'Inactive'
+            }
+        })
+        const exportColumns = (columns.value || []).filter(c => c && c.key !== 'action' && c.key !== 'checked')
         // only create a ZIP when multiple formats requested
         const multipleOutput = (formats.length > 1)
 
