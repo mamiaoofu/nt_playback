@@ -110,8 +110,10 @@
               </template>
 
                 <template #cell-download="{ row }">
+                  <div class="text-start">
                     <i v-if="row.download === true || row.dowload === true" class="fa-solid fa-check" style="color:green"></i>
                     <i v-else class="fa-solid fa-xmark" style="color:red"></i>
+                  </div>
                 </template>
 
               <template #cell-action="{ row }" v-if="typeUrl === 'ticket'">
