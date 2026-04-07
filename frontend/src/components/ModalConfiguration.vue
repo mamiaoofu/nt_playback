@@ -69,7 +69,7 @@
                 <div class="form-group-modal">
                     <label class="form-label-modal">Role Name</label>
                     <div class="input-group" v-has-value>
-                        <input v-model="roleNameInput" required type="text" name="roleNameModal" autocomplete="off" class="input" maxlength="25" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
+                        <input v-model="roleNameInput" required type="text" name="roleNameModal" autocomplete="off" class="input" maxlength="30" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
                         <label class="title-label">Role Name</label>
                         <div v-show="roleNameCheck || roleNameError" class="validate"><i class="fa-solid fa-circle-exclamation"></i>
                             <span v-if="roleNameCheck">This role name is already in the system.</span>
@@ -111,7 +111,7 @@
             <div class="modal-footer">
                 <button class="btn-role btn-secondary" @click="onReset" style="margin-right: auto">
                     <i class="fas fa-undo"></i>
-                    Reset to Default
+                    Reset
                 </button>
                 <button class="btn-role btn-secondary" @click="close">
                     <i class="fas fa-times"></i>
@@ -141,7 +141,7 @@
                 <div class="form-group-modal">
                     <label class="form-label-modal">Role Name</label>
                     <div class="input-group" v-has-value>
-                        <input v-model="roleNameInput" required type="text" name="roleNameModal" id="editRoleName" autocomplete="off" class="input" maxlength="25" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
+                        <input v-model="roleNameInput" required type="text" name="roleNameModal" id="editRoleName" autocomplete="off" class="input" maxlength="30" :class="{ 'form-input-modal': roleNameError || roleNameCheck }">
                         <label class="title-label">Role Name</label>
                         <div v-show="roleNameCheck || roleNameError" class="validate"><i class="fa-solid fa-circle-exclamation"></i>
                             <span v-if="roleNameCheck">This role name is already in the system.</span>
@@ -209,8 +209,41 @@ const emit = defineEmits(['update:modelValue'])
 
 const close = () => emit('update:modelValue', false)
 
+// Expand a list of action values to include required access actions
+function expandWithDependencies(actionsList) {
+    const set = new Set(Array.isArray(actionsList) ? actionsList.slice() : [])
+    if (!Array.isArray(allPermissions.value)) return Array.from(set)
+    const nameToAct = nameToAction.value || {}
+
+    Array.from(set).forEach(actionValue => {
+        const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
+        if (!perm || !perm.name) return
+        const deps = dependencyMap[String(perm.name).trim()] || []
+        deps.forEach(accessName => {
+            const accessAction = nameToAct[String(accessName).trim()]
+            if (accessAction) set.add(accessAction)
+        })
+    })
+
+    return Array.from(set)
+}
+
 const onReset = () => {
-    rolePermissions.value = [...defaultPermissions.value]
+    if (props.mode === 'create') {
+        // In create mode Reset should clear the form
+        roleNameInput.value = ''
+        rolePermissions.value = []
+        defaultPermissions.value = []
+        roleNameError.value = false
+        roleNameCheck.value = false
+        filters.value.roleAll = ''
+        return
+    }
+
+    const expanded = expandWithDependencies(defaultPermissions.value)
+    rolePermissions.value = expanded.slice()
+    // keep defaultPermissions stable so repeated resets are idempotent
+    defaultPermissions.value = expanded.slice()
 }
 
 // CSRF handled centrally
@@ -322,6 +355,7 @@ const roleNameError = ref(false)
 const allPermissions = ref([])
 const rolePermissions = ref([])
 const defaultPermissions = ref([])
+const adminOrder = ref([])
 const isAdministrator = ref(false)
 const checkDisabled = computed(() => String(props.roleId) === '1')
 
@@ -430,6 +464,11 @@ async function fetchRoleDetails(roleId, template = false) {
             // always populate the available permissions list
             allPermissions.value = Array.isArray(data.all_permissions) ? data.all_permissions : []
 
+            // if this is the admin role, capture canonical ordering of actions
+            if (String(roleId) === '1') {
+                adminOrder.value = Array.isArray(data.all_permissions) ? data.all_permissions.map(p => p && p.action).filter(Boolean) : []
+            }
+
             // when not in template mode, populate form inputs (edit flow)
             if (!template) {
                 roleNameInput.value = data.role_name || ''
@@ -520,13 +559,27 @@ watch(() => props.modelValue, async (val) => {
         return
     }
 
+    // ensure we have canonical admin order for consistent sorting
+    if (!adminOrder.value || adminOrder.value.length === 0) {
+        try { await fetchRoleDetails(1, true) } catch (e) { console.error('failed to fetch admin order', e) }
+    }
+
     // default: fetch details for the provided roleId
     fetchRoleDetails(props.roleId)
 })
 
 const groupedPermissions = computed(() => {
-    // sort permissions by numeric `id` then group so groups preserve id order
-    const ap = (allPermissions.value || []).slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0))
+    // sort permissions by canonical admin order when available, falling back to numeric `id`
+    const ap = (allPermissions.value || []).slice().sort((a, b) => {
+        const ia = (adminOrder.value || []).indexOf(a && a.action)
+        const ib = (adminOrder.value || []).indexOf(b && b.action)
+        if (ia !== -1 || ib !== -1) {
+            if (ia === -1) return 1
+            if (ib === -1) return -1
+            return ia - ib
+        }
+        return (Number(a.id) || 0) - (Number(b.id) || 0)
+    })
     const grouped = ap.reduce((acc, perm) => {
         const type = perm.type || 'Other'
         if (!acc[type]) acc[type] = []
@@ -534,10 +587,10 @@ const groupedPermissions = computed(() => {
         return acc
     }, {})
 
-    const order = ['access', 'audio recording', 'user management', 'logs']
+    const order = ['access', 'Audio Records', 'Management', 'Role & Permissions', 'Group & Team', 'Logs', 'Settings']
     const keys = Object.keys(grouped).sort((a, b) => {
-        const ia = order.indexOf(a.toLowerCase())
-        const ib = order.indexOf(b.toLowerCase())
+        const ia = order.indexOf(a.toString().trim())
+        const ib = order.indexOf(b.toString().trim())
         if (ia !== -1 && ib !== -1) return ia - ib
         if (ia !== -1) return -1
         if (ib !== -1) return 1
@@ -552,37 +605,65 @@ const groupedPermissions = computed(() => {
 // Map of permission display names -> required access-group permission names
 // When a permission (non-access) is selected, ensure these access names are checked.
 const dependencyMap = {
-    // AUDIO RECORDS 
-    'Query Audio': ['Audio Recording'],
-    'Playback Audio': ['Audio Recording'],
-    'Download Audio': ['Audio Recording'],
-    'Export Recordings': ['Audio Recording'],
-    'My Favorite Search': ['Audio Recording'],
-    // Edit Column needs Audio Recording + System Setting
-    'Edit Column': ['Audio Recording', 'System Setting'],
+    // Access
+    // 'Audio Records' : [],
+    // 'User Management' : [],
+    // 'Delegate Management' : [],
+    // 'Ticket Management' : [],
+    // 'Role & Permissions' : [],
+    // 'Group & Team' : [],
+    // 'Audit Log' : [],
+    // 'System Log' : [],
+    // 'Ticket History' : [],
+    // 'Settings' : [],
 
-    // USER MANAGEMENT 
-    'Add User': ['User Management'],
-    'Edit User': ['User Management'],
-    'Delete User': ['User Management'],
-    'Change Status': ['User Management'],
-    'Access Role & Permissions': ['User Management'],
-    'Edit Base Role': ['User Management'],
-    'Add Custom Role': ['User Management'],
-    'Edit Custom Role': ['User Management'],
-    'Delete Custom Role': ['User Management'],
-    'Access Group & Team': ['User Management'],
-    'Add Group': ['User Management'],
-    'Edit Group': ['User Management'],
-    'Delete Group': ['User Management'],
-    'Add Team': ['User Management'],
-    'Edit Team': ['User Management'],
-    'Delete Team': ['User Management'],
+    // Audio Records
+    'Query Audio Records' : ['Audio Records'],
+    'Playback Audio Records' : ['Audio Records'],
+    'Download Voice File' : ['Audio Records'],
+    'Save As Index' : ['Audio Records'],
+    'Delegate Files' : ['Audio Records'],
 
-    // LOGS
-    'Audit Logs': ['User Logs'],
-    'System Logs': ['User Logs'],
-    'Export Logs': ['User Logs']
+    //Management
+    'Add User' : ['User Management'],
+    'Edit User' : ['User Management'],
+    'Delete User' : ['User Management'],
+    'Change User Status' : ['User Management'],
+    'Reset User Password' : ['User Management'],
+    'Save As User Index' : ['User Management'],
+    'Create Delegate File' : ['Delegate Management'],
+    'Download Delegate File' : ['Delegate Management'],
+    'Change Delegate File Status' : ['Delegate Management'],
+    'Save As Delegate File Index' : ['Delegate Management'],
+    'Create Ticket' : ['Ticket Management'],
+    'Download Ticket File' : ['Ticket Management'],
+    'Change Ticket Status' : ['Ticket Management'],
+    'Save As Ticket Index' : ['Ticket Management'],
+    'Ticket Resent' : ['Ticket Management'],
+
+    //Role & Permissions
+    'Edit Base Roles' : ['Role & Permissions'],
+    'Add New Custom Roles' : ['Role & Permissions'],
+    'Edit Custom Roles' : ['Role & Permissions'],
+    'Delete Custom Roles' : ['Role & Permissions'],
+
+    //Group & Team
+    'Add New Group' : ['Group & Team'],
+    'Edit Group' : ['Group & Team'],
+    'Delete Group' : ['Group & Team'],
+    'Add New Team' : ['Group & Team'],
+    'Edit Team' : ['Group & Team'],
+    'Delete Team' : ['Group & Team'],
+
+    //Logs
+    'Save As Audit Log' : ['Audit Log'],
+    'Save As System Log' : ['System Log'],
+    'Save As Ticket History' : ['Ticket History'],
+
+    //Setting
+    'Set Column' : ['Settings'],
+    'Download Player' : ['Settings'],
+
 }
 
 // Helper: map permission display name -> action value (from allPermissions)
@@ -592,6 +673,20 @@ const nameToAction = computed(() => {
         if (p && p.name) m[String(p.name).trim()] = p.action
     })
     return m
+})
+
+// Reverse map: access-name -> list of permission names that depend on it
+const reverseDependencyMap = computed(() => {
+    const rev = {}
+    Object.keys(dependencyMap).forEach(name => {
+        const deps = dependencyMap[name] || []
+        deps.forEach(d => {
+            const key = String(d).trim()
+            if (!rev[key]) rev[key] = []
+            if (rev[key].indexOf(name) === -1) rev[key].push(name)
+        })
+    })
+    return rev
 })
 
 const _syncingDeps = ref(false)
@@ -618,28 +713,43 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
             })
         })
 
-        // Handle removals: remove access permission only if no other selected permission requires it
+        // Handle removals:
+        // 1) If a non-access permission is removed, remove any now-unneeded access permissions
+        // 2) If an access permission (e.g. "Audio Recording") is removed, also remove dependent permissions
         removed.forEach(actionValue => {
             const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
             if (!perm || !perm.name) return
+
+            // (A) Remove access permissions that are no longer required by any remaining selected permission
             const deps = dependencyMap[String(perm.name).trim()]
-            if (!deps || deps.length === 0) return
-            deps.forEach(accessName => {
-                const accessAction = nameToAction.value[String(accessName).trim()]
-                if (!accessAction) return
-                // check if any remaining selected permission requires this access
-                const stillRequired = (rolePermissions.value || []).some(selectedAction => {
-                    // skip the accessAction itself
-                    if (selectedAction === accessAction) return false
-                    const sPerm = (allPermissions.value || []).find(p => p && p.action === selectedAction)
-                    if (!sPerm || !sPerm.name) return false
-                    const sDeps = dependencyMap[String(sPerm.name).trim()] || []
-                    return sDeps.indexOf(accessName) !== -1
+            if (deps && deps.length) {
+                deps.forEach(accessName => {
+                    const accessAction = nameToAction.value[String(accessName).trim()]
+                    if (!accessAction) return
+                    const stillRequired = (rolePermissions.value || []).some(selectedAction => {
+                        if (selectedAction === accessAction) return false
+                        const sPerm = (allPermissions.value || []).find(p => p && p.action === selectedAction)
+                        if (!sPerm || !sPerm.name) return false
+                        const sDeps = dependencyMap[String(sPerm.name).trim()] || []
+                        return sDeps.indexOf(accessName) !== -1
+                    })
+                    if (!stillRequired) {
+                        rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
+                    }
                 })
-                if (!stillRequired) {
-                    rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
-                }
-            })
+            }
+
+            // (B) If this removed permission is an access-type, remove any dependent permissions that require it
+            const revDeps = reverseDependencyMap.value[String(perm.name).trim()] || []
+            if (revDeps && revDeps.length) {
+                revDeps.forEach(depName => {
+                    const depAction = nameToAction.value[String(depName).trim()]
+                    if (!depAction) return
+                    if ((rolePermissions.value || []).includes(depAction)) {
+                        rolePermissions.value = (rolePermissions.value || []).filter(a => a !== depAction)
+                    }
+                })
+            }
         })
     } finally {
         _syncingDeps.value = false

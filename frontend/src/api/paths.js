@@ -18,9 +18,11 @@ export const API_LOG_PLAY_AUDIO = () => `${getApiBase()}/api/log/play-audio/`
 export const API_GET_CREDENTIALS = () => `${getApiBase()}/api/get/credentials/`
 export const API_LOG_SAVE_FILE = () => `${getApiBase()}/api/log/save-file/`
 export const API_CREATE_FILE_SHARE = () => `${getApiBase()}/api/file-share/create/`
+export const API_CHECK_FILE_SHARE = () => `${getApiBase()}/api/file-share/check/`
 
 // หน้า Login
 export const API_LOGIN = () => `${getApiBase()}/login/`
+export const API_LOGOUT = () => `${getApiBase()}/api/logout/`
 
 // หน้า Role
 export const API_INDEX_ROLE = () => `${getApiBase()}/api/role/index/`
@@ -67,4 +69,7 @@ export const API_SAVE_COLUMN_AUDIO_RECORD = () => `${getApiBase()}/api/setting/s
 export const API_CHANGE_PASSWORD = () => `${getApiBase()}/api/change-password/`
 
 // หน้า Ticket History
-export const API_GET_USER_TICKET = (type) => `${getApiBase()}/api/get/ticket-history/`
+export const API_GET_USER_TICKET = (type) => `${getApiBase()}/api/get/ticket-history/${type}/`
+export const API_FILE_SHARE_MANAGEMENT_CHANGE_STATUS = (id, type) => `${getApiBase()}/api/file-share-management/change-status/${id}/${type}/`
+export const API_SEND_EMAIL = () => `${getApiBase()}/api/send-share-email/`
+export const API_GEN_FORM_TICKET = () => `${getApiBase()}/api/gen-form-ticket/`

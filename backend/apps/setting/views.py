@@ -10,7 +10,7 @@ from apps.home.models import SetColumnAudioRecord
 
 @login_required
 @require_GET
-@require_action('Edit Column','Audio Recording')
+@require_action('Set Column','Audio Records')
 def ApiGetColumnAudioRecord(request):
     try:
         user = request.user
@@ -30,7 +30,7 @@ def ApiGetColumnAudioRecord(request):
         
 @login_required
 @require_POST
-@require_action('Edit Column')
+@require_action('Set Column')
 def ApiSaveColumnAudioRecord(request):
     try:
         data = json.loads(request.body)

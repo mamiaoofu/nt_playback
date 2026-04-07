@@ -98,7 +98,10 @@ export function useRole() {
   function onRoleCreated(role) {
     try {
       if (!role || !role.id) return
-      userPermissionOther.value = [{ id: role.id, name: role.name, type: role.type || 'role_other' }].concat(userPermissionOther.value || [])
+      // Only add to custom roles list when creating a custom role
+      if (selectedModalMode.value === 'create' || (role.type && role.type === 'role_other')) {
+        userPermissionOther.value = [{ id: role.id, name: role.name, type: role.type || 'role_other' }].concat(userPermissionOther.value || [])
+      }
     } catch (e) { console.error('onRoleCreated handler error', e) }
   }
 
@@ -113,7 +116,11 @@ export function useRole() {
         newList.unshift(item)
         userPermissionOther.value = newList
       } else {
-        userPermissionOther.value = [{ id: role.id, name: role.name, type: role.type || 'role_other' }].concat(userPermissionOther.value || [])
+        // If this update isn't for an existing custom role, only add it
+        // when it's a custom role (not a base role).
+        if (selectedModalMode.value !== 'base' && (role.type ? role.type === 'role_other' : true)) {
+          userPermissionOther.value = [{ id: role.id, name: role.name, type: role.type || 'role_other' }].concat(userPermissionOther.value || [])
+        }
       }
     } catch (e) { console.error('onRoleUpdated handler error', e) }
   }

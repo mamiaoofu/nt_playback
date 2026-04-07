@@ -90,26 +90,24 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.from" ref="fromInputAdd" required type="text" name="fromModal" autocomplete="off" class="input">
+                      <input v-model="addForm.from" v-flatpickr="{ target: addForm, key: 'from' }" ref="fromInputAdd" required type="text" name="fromModal" autocomplete="off" class="input">
                       <label class="title-label">From</label>
-                      <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i
-                          class="fa-regular fa-calendar"></i></span>
+                      <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.to" ref="toInputAdd" required type="text" name="toModal" autocomplete="off" class="input">
+                      <input v-model="addForm.to" v-flatpickr="{ target: addForm, key: 'to' }" ref="toInputAdd" required type="text" name="toModal" autocomplete="off" class="input">
                       <label class="title-label">To</label>
-                      <span class="calendar-icon" @click="toInputAdd && toInputAdd.focus()"><i
-                          class="fa-regular fa-calendar"></i></span>
+                      <span class="calendar-icon" @click="toInputAdd && toInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.duration" v-flatpickr="{ target: addForm, key: 'duration',  options: { enableTime: true, noCalendar: true, enableSeconds: true, time_24hr: true, dateFormat: 'H:i:S', defaultHour: 0, defaultMinute: 0 } }" required type="text" name="durationModal" autocomplete="off" class="input" >
+                      <input v-model="addForm.duration" v-flatpickr="{ target: addForm, key: 'duration', mode: 'duration_range',  options: { enableTime: true, noCalendar: true, enableSeconds: true, time_24hr: true, dateFormat: 'H:i:S', defaultHour: 0, defaultMinute: 0 } }" required type="text" name="durationModal" autocomplete="off" class="input" >
                       <label class="title-label">Duration</label>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.fileName" required type="text" name="fileNameModal" autocomplete="off" class="input" maxlength="255">
+                      <input v-model="addForm.fileName" required type="text" name="fileNameModal" autocomplete="off" class="input">
                       <label class="title-label">File Name</label>
                     </div>
 
@@ -120,12 +118,12 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.customerNumber" required type="text" name="customerNumberModal" autocomplete="off" class="input" maxlength="10">
+                      <input v-model="addForm.customerNumber" required type="text" name="customerNumberModal" autocomplete="off" class="input">
                       <label class="title-label">Customer Number</label>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.extension" required type="text" name="extensionModal" autocomplete="off" class="input" maxlength="10">
+                      <input v-model="addForm.extension" required type="text" name="extensionModal" autocomplete="off" class="input">
                       <label class="title-label">Extension</label>
                     </div>
 
@@ -134,7 +132,7 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="addForm.fullName" required type="text" name="fullNameModal" autocomplete="off" class="input" maxlength="30">
+                      <input v-model="addForm.fullName" required type="text" name="fullNameModal" autocomplete="off" class="input" >
                       <label class="title-label">Full Name</label>
                     </div>
 
@@ -176,26 +174,26 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.from" ref="fromInput" required type="text" name="fromModal" autocomplete="off" class="input">
+                      <input v-model="editForm.from" v-flatpickr="{ target: editForm, key: 'from' }" ref="fromInput" required type="text" name="fromModal" autocomplete="off" class="input">
                       <label class="title-label">From</label>
                       <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i
                           class="fa-regular fa-calendar"></i></span>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.to" ref="toInput" required type="text" name="toModal" autocomplete="off" class="input">
+                      <input v-model="editForm.to" v-flatpickr="{ target: editForm, key: 'to' }" ref="toInput" required type="text" name="toModal" autocomplete="off" class="input">
                       <label class="title-label">To</label>
                       <span class="calendar-icon" @click="toInput && toInput.focus()"><i
                           class="fa-regular fa-calendar"></i></span>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.duration" v-flatpickr="{ target: editForm, key: 'duration',  options: { enableTime: true, noCalendar: true, enableSeconds: true, time_24hr: true, dateFormat: 'H:i:S', defaultHour: 0, defaultMinute: 0 } }" required type="text" name="durationModal" autocomplete="off" class="input" >
+                      <input v-model="editForm.duration" v-flatpickr="{ target: editForm, key: 'duration', mode: 'duration_range',  options: { enableTime: true, noCalendar: true, enableSeconds: true, time_24hr: true, dateFormat: 'H:i:S', defaultHour: 0, defaultMinute: 0 } }" required type="text" name="durationModal" autocomplete="off" class="input" >
                       <label class="title-label">Duration</label>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.fileName" required type="text" name="fileNameModal" autocomplete="off" class="input" maxlength="255">
+                      <input v-model="editForm.fileName" required type="text" name="fileNameModal" autocomplete="off" class="input" >
                       <label class="title-label">File Name</label>
                     </div>
 
@@ -206,12 +204,12 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.customerNumber" required type="text" name="customerNumberModal" autocomplete="off" class="input" maxlength="10">
+                      <input v-model="editForm.customerNumber" required type="text" name="customerNumberModal" autocomplete="off" class="input" >
                       <label class="title-label">Customer Number</label>
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.extension" required type="text" name="extensionModal" autocomplete="off" class="input" maxlength="10">
+                      <input v-model="editForm.extension" required type="text" name="extensionModal" autocomplete="off" class="input">
                       <label class="title-label">Extension</label>
                     </div>
 
@@ -220,7 +218,7 @@
                     </div>
 
                     <div class="input-group" v-has-value>
-                      <input v-model="editForm.fullName" required type="text" name="fullNameModal" autocomplete="off" class="input" maxlength="100">
+                      <input v-model="editForm.fullName" required type="text" name="fullNameModal" autocomplete="off" class="input" >
                       <label class="title-label">Full Name</label>
                     </div>
 
@@ -330,6 +328,8 @@ const showEditForm = ref(false)
 
 // reset placeholder when modal opens
 watch(() => props.modelValue, (val) => {
+  // Reset to list tab whenever the modal is opened or closed
+  activeTab.value = 'list'
   if (val) {
     showEditPlaceholder.value = true
     showEditForm.value = false
@@ -362,6 +362,7 @@ function editFavorite(f) {
       full_name: 'fullName',
       custom_field: 'customField'
     }
+    console.log(' editFavorite raw data:', raw)
     for (const [k, v] of Object.entries(raw)) {
       const t = keyMap[k]
       if (!t || !Object.prototype.hasOwnProperty.call(editForm, t)) continue
@@ -409,21 +410,65 @@ function editFavorite(f) {
           el.value = editForm.duration || ''
           // update has-value class
           try { el.parentNode && el.parentNode.classList.toggle('has-value', (el.value || '').toString().trim() !== '') } catch(e){}
-          // sync flatpickr instance: set date if value exists, otherwise clear it
-          if (el._flatpickrInstance) {
-            if (editForm.duration && String(editForm.duration).trim() !== '') {
-              try { el._flatpickrInstance.setDate(String(editForm.duration), true) } catch (e) {}
-            } else {
-              try { el._flatpickrInstance.clear() } catch (e) {}
-              // ensure any cloned "To" time inputs are reset to 00
-              try {
-                if (el._flatpickrToContainer) {
-                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
-                  inputs.forEach(i => i.value = '00')
-                }
-              } catch(e){}
+          // normalize and sync flatpickr instance: handle "start - end" and comma-separated values
+          try {
+            const inst = el._flatpickrInstance || el._flatpickr
+            const dstrRaw = editForm.duration ?? ''
+            const dstr = String(dstrRaw).trim()
+            let normDur = dstr
+            if (Array.isArray(dstrRaw)) {
+              normDur = dstrRaw.map(x => String(x || '').trim()).filter(Boolean).join(' - ')
+            } else if (dstr.indexOf(',') !== -1 && !dstr.includes(' - ')) {
+              normDur = dstr.split(',').map(x => String(x || '').trim()).filter(Boolean).join(' - ')
             }
-          }
+            // update model and input to normalized string
+            try { editForm.duration = normDur } catch (e) {}
+            try { el.value = normDur } catch (e) {}
+
+            const parseTimeToDate = (s) => {
+              if (!s) return null
+              const parts = String(s).split(':').map(x => parseInt(x, 10) || 0)
+              const d = new Date()
+              d.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
+              return d
+            }
+
+            if (inst && typeof inst.setDate === 'function') {
+              if (!normDur) {
+                try { inst.clear() } catch (e) {}
+                try {
+                  if (el._flatpickrToContainer) {
+                    const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                    inputs.forEach(i => i.value = '00')
+                  }
+                } catch (e) {}
+              } else if (normDur.includes(' - ')) {
+                const [startStr, endStr] = normDur.split(' - ').map(x => x.trim())
+                const sd = parseTimeToDate(startStr)
+                const ed = parseTimeToDate(endStr)
+                if (sd && ed) {
+                  try { inst.setDate([sd, ed], true) } catch (e) {}
+                  // ensure input shows normalized separator after flatpickr updates it
+                  setTimeout(() => { try { el.value = normDur } catch (e) {} }, 50)
+                } else if (sd) {
+                  try { inst.setDate(sd, true) } catch (e) {}
+                  setTimeout(() => { try { el.value = startStr } catch (e) {} }, 50)
+                } else {
+                  try { inst.clear() } catch (e) {}
+                }
+              } else if (normDur.indexOf(':') !== -1) {
+                const d = parseTimeToDate(normDur)
+                if (d) {
+                  try { inst.setDate(d, true) } catch (e) {}
+                  setTimeout(() => { try { el.value = normDur } catch (e) {} }, 50)
+                } else {
+                  try { inst.clear() } catch (e) {}
+                }
+              } else {
+                try { el.value = normDur } catch (e) {}
+              }
+            }
+          } catch (e) {}
         }
       } catch (e) {}
     })
@@ -612,16 +657,18 @@ async function saveFavorite() {
       extension: addForm.extension || '',
       agent: Array.isArray(addForm.agent) ? addForm.agent.join(',') : (addForm.agent || ''),
       full_name: addForm.fullName || '',
-      duration: addForm.duration || ''
+      duration: addForm.duration || '',
+      custom_field: addForm.customField || ''
     }
     const json = await postFavoriteAction(payload)
     if (json && json.status === 'success') {
       // notify parent to refresh list
       showToast(`Create ${json.favorite.favorite_name} successfully`, 'success')
       emit('edit', json.favorite)
+      // make sure tab is reset to list after successful save
+      activeTab.value = 'list'
       // clear add form so values are not left behind
       try { resetAddForm() } catch (e) {}
-      emit('update:modelValue', false)
     } else {
       showToast(json.message || 'Failed to create favorite', 'error')
     }
@@ -639,15 +686,18 @@ async function saveFavorite() {
       customer: editForm.customerNumber || '',
       extension: editForm.extension || '',
       agent: Array.isArray(editForm.agent) ? editForm.agent.join(',') : (editForm.agent || ''),
-      full_name: editForm.fullName || ''
+      full_name: editForm.fullName || '',
+      duration: editForm.duration || '',
+      custom_field: editForm.customField || ''
     }
     const json = await postFavoriteAction(payload)
     if (json && json.status === 'success') {
       showToast(`Edit ${json.favorite.favorite_name} successfully`, 'success')
       emit('edit', json.favorite)
+      // make sure tab is reset to list after successful save
+      activeTab.value = 'list'
       // clear edit form after successful save
       try { resetEditForm() } catch (e) {}
-      emit('update:modelValue', false)
     } else {
       showToast(json.message || 'Failed to update favorite', 'error')
     }

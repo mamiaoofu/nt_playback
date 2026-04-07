@@ -32,8 +32,6 @@
                 </div>
 
                 <div class="mt-3">
-                    <label class="form-label">Target</label>
-
                     <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
@@ -48,40 +46,62 @@
 
                 <div class="permissions-grid-2">
                     <div v-if="selectionType === 'user'" class="input-group">
-                        <CustomSelect class="select-checkbox" v-model="shareUser" :options="userOptions" :always-up="true" placeholder="User" name="shareUser" />
+                        <CustomSelect class="select-search select-checkbox" v-model="shareUser" :always-up="true" :options="userOptions"  placeholder="User" name="shareUser" />
                     </div>
 
                     <div v-else class="input-group" v-has-value>
                         <input required type="text" name="emailTicket" autocomplete="off" class="input" v-model="emailTicket" maxlength="255">
                         <label class="title-label">Email</label>
                     </div>
+
                     <div class="input-group" v-has-value>
-                        <input ref="fromInput" v-flatrangepickr="{ target: exp, key: 'period' }" required type="text" name="period" autocomplete="off" :class="['input', { 'form-input-modal': errors.period }]">
-                        <label class="title-label">Period*</label>
-                        <span class="calendar-icon"><i class="fa-regular fa-calendar"></i></span>
-                        <div v-show="errors.period" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This field is required.</div>
+                        <input required type="number" name="limitAccessTimes" autocomplete="off" class="input" :class="{ 'input-disabled': selectionType === 'user' }" min="0" max="99" :disabled="selectionType === 'user'" v-model.number="limitAccessTimes">
+                        <label class="title-label">Limit access times</label>
+                    </div>
+                     
+                    <div class="input-group" v-has-value>
+                        <input ref="fromInputAdd" v-model="start" v-flatpickr="{ target: picker, key: 'from' }" required type="text" name="fromModal" autocomplete="off" class="input">
+                        <label class="title-label">From</label>
+                        <span class="calendar-icon" @click="fromInputAdd && fromInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
+                    </div>
+
+                    <div class="input-group" v-has-value>
+                                              <input ref="toInputAdd" v-model="expire" v-flatpickr="{ target: picker, key: 'to' }" required type="text" name="toModal" autocomplete="off" class="input">
+                      <label class="title-label">To</label>
+                      <span class="calendar-icon" @click="toInputAdd && toInputAdd.focus()"><i class="fa-regular fa-calendar"></i></span>
+                    </div>
+                    
+                </div>
+
+                <div class="permissions-grid">
+                    <div class="input-group" v-has-value>
+                        <textarea rows="4" required type="text" name="descTicket" autocomplete="off" class="input" v-model="descTicket" style="height: auto;"></textarea>
+                        <label class="title-label">Description</label>
                     </div>
                 </div>
 
-                <div class="mt-3">
-                    <label class="form-label">Download</label>
+                <label class="form-label" style="font-weight: 500;">Download</label>
 
-                    <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
-                            <label class="form-check-label" for="permissionsYesDownload">Yes</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="permissionsNoDownload" value="false" v-model="permissions">
-                            <label class="form-check-label" for="permissionsNoDownload">No</label>
-                        </div>
+                <div class="d-flex align-items-center" style="gap:12px;">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
+                        <label class="form-check-label" for="permissionsYesDownload">Yes</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="permissionsNoDownload" value="false" v-model="permissions">
+                        <label class="form-check-label" for="permissionsNoDownload">No</label>
                     </div>
                 </div>
             </div>
 
-            <div class="modal-footer">
-                <button class="btn-role btn-secondary" @click="close"><i class="fas fa-times"></i> Cancel</button>
-                <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i class="fa-solid fa-plus"></i> Create</button>
+            <div class="modal-footer" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;">
+                <div style="display:flex;align-items:center;">
+                    <button class="btn-role btn-secondary" @click="resetForm" style="margin:0; padding:8px 14px;"><i class="fas fa-eraser"></i> Reset</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn-role btn-secondary" @click="close"><i class="fas fa-times"></i> Cancel</button>
+                    <button class="btn-role btn-primary" :disabled="files.length === 0" @click="onCreate"><i class="fa-solid fa-plus"></i> Create</button>
+                </div>
             </div>
         </div>
 
@@ -121,20 +141,21 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear Sir,</p>
-                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on NT Audio Search.</p>
+                        <p style="margin:0 0 8px 0">Dear Sir ({{ resultData.recipient }}),</p>
+                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.ticketCode }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Password:</strong> <code style="background:#f3f4f6; padding:4px 8px; border-radius:4px">{{ resultData.password }}</code>
                             </div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Start:</strong> {{ resultData.validStart }}</div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Expire:</strong> {{ resultData.validExpire }}</div>
+                            <div class="detail-file-share"><strong class="strong-title">Limit Access Times:</strong> {{ resultData.limitAccessTimes }}</div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/login</a></div>
+                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.90/login</a></div>
                         <div>
                             Best regards,<br>
-                            <b>NT Audio Search Team</b>
+                            <b>SeekTrack Team</b>
                         </div>
                     </div>
                 </div>
@@ -146,7 +167,7 @@
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
                         <p>Dear Sir,</p>
-                        <p>Files are shared so you can listen to specific audio records on <br> NT Audio Search.</p>
+                        <p>Files are shared so you can listen to specific audio records on <br> SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div><strong>Valid Start:</strong> {{ resultData.validStart }}</div>
                             <div><strong>Valid Expire:</strong> {{ resultData.validExpire }}</div>
@@ -155,7 +176,7 @@
                         <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/ticket</a></div>
                         <div>
                             Best regards,<br>
-                            <b>NT Audio Search Team</b>
+                            <b>SeekTrack Team</b>
                         </div>
                     </div>
                 </div>
@@ -222,21 +243,62 @@ const fetchUsers = async () => {
 const emailTicket = ref('')
 const start = ref('')
 const expire = ref('')
+const descTicket = ref('')
+const limitAccessTimes = ref(null)
 
-// target object used by v-flatrangepickr (period key will be set)
-const exp = reactive({ period: '' })
-// validation/errors
-const errors = reactive({ period: false })
-// template ref for the picker input
+// flatpickr target object — directive will write into `picker.from` / `picker.to`
+const picker = reactive({ from: '', to: '' })
+
+// validation/errors for start/expire
+const errors = reactive({ start: false, expire: false })
+// template refs for the picker inputs (if directive exposes them)
 const fromInput = ref(null)
+const fromInputAdd = ref(null)
+const toInputAdd = ref(null)
+
+// keep `start`/`expire` in sync with picker object written by v-flatpickr
+watch(() => picker.from, (v) => { start.value = v })
+watch(() => picker.to, (v) => { expire.value = v })
+
+// When selection type changes, disable or enable the limit input and set defaults
+watch(() => selectionType.value, (v) => {
+    if (v === 'user') {
+        limitAccessTimes.value = null
+    } else {
+        if (limitAccessTimes.value === null) limitAccessTimes.value = 0
+    }
+})
+
+// Clamp limitAccessTimes to allowed range (allow null for disabled/user, allow 0 as default meaning 'no limit')
+watch(() => limitAccessTimes.value, (v) => {
+    if (v === null) return
+    const n = parseInt(v, 10)
+    if (isNaN(n)) {
+        limitAccessTimes.value = 0
+        return
+    }
+    if (n < 0) limitAccessTimes.value = 0
+    else if (n > 99) limitAccessTimes.value = 99
+    else if (n !== v) limitAccessTimes.value = n
+})
 
 const showResult = ref(false)
 const resultType = ref('')
 const resultData = ref({})
 
-function genTicketCode() {
-    const n = Math.floor(Math.random() * 900000) + 100000
-    return `TKT-${n}`
+async function genTicketCode() {
+    try {
+        const res = await fetch('/api/file-share/generate-ticket/', { credentials: 'include' })
+        if (!res.ok) throw new Error('Failed to get ticket code')
+        const j = await res.json()
+        if (j && j.ok && j.ticketCode) return j.ticketCode
+        throw new Error(j && j.error ? j.error : 'Invalid response')
+    } catch (e) {
+        console.error('genTicketCode error', e)
+        // fallback to local generation if server fails
+        const n = Math.floor(Math.random() * 900000) + 100000
+        return `TKT-${n}`
+    }
 }
 
 function genPassword() {
@@ -248,79 +310,147 @@ function genPassword() {
 
 function close() { emit('update:modelValue', false) }
 
+function resetForm() {
+    selectionType.value = 'user'
+    shareUser.value = ''
+    emailTicket.value = ''
+    descTicket.value = ''
+    limitAccessTimes.value = null
+    permissions.value = 'false'
+    start.value = ''
+    expire.value = ''
+    errors.start = false
+    errors.expire = false
+    picker.from = ''
+    picker.to = ''
+
+    // clear visual input and flatpickr instance if present
+    try {
+        if (fromInput && fromInput.value) {
+            try { fromInput.value.value = '' } catch (e) {}
+            const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
+            try {
+                if (inst && typeof inst.clear === 'function') inst.clear()
+                else if (inst && typeof inst.setDate === 'function') inst.setDate([], true)
+            } catch (e) {}
+        }
+    } catch (e) {}
+}
+
 async function onCreate() {
     const targetValue = selectionType.value === 'user' ? shareUser.value : emailTicket.value
-    
-    if (!targetValue) {
+    const limitAccessTimesValue = (limitAccessTimes.value === null || limitAccessTimes.value === '') ? null : parseInt(limitAccessTimes.value, 10)
+
+    console.log('ModalFileShare onCreate start', {limitAccessTimes: limitAccessTimesValue,selectionType: selectionType.value, target: targetValue, start: start.value, expire: expire.value, files: props.files && props.files.length })
+
+    if (selectionType.value === 'user' && !targetValue) {
         showToast('Please specify a target.', 'warning')
         return
     }
-    if (!exp.period_start || !exp.period_end) {
-        errors.period = true
+
+    if (selectionType.value === 'ticket' && !targetValue) {
+        showToast('Please specify an email for the ticket.', 'warning')
         return
     }
 
-    const validStartRaw = exp.period_start 
-    const validExpireRaw = exp.period_end 
+    if (!start.value || !expire.value) {
+        errors.start = !start.value
+        errors.expire = !expire.value
+        showToast('Please select a valid From and To date.', 'warning')
+        return
+    }
+
+    const validStartRaw = start.value
+    const validExpireRaw = expire.value
 
     let tCode = ''
     let tPass = ''
 
-    if (selectionType.value === 'ticket') {
-        tCode = genTicketCode()
-        tPass = genPassword()
-    }
+    // If ticket flow, attempt loop: get server ticket code, try create; retry on 409 (collision)
+    const MAX_TRIES = 5
+    let attempt = 0
+    let created = false
+    let lastError = null
 
-    const payload = {
-        files: props.files,
-        type: selectionType.value,
-        target: targetValue,
-        start: validStartRaw,
-        expire: validExpireRaw,
-        ticketCode: tCode,
-        password: tPass,
-        download: permissions.value === 'true'
-    }
+    while (attempt < MAX_TRIES && !created) {
+        attempt += 1
 
-    try {
-        const res = await fetch(API_CREATE_FILE_SHARE(), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken() || ''
-            },
-            body: JSON.stringify(payload)
-        })
-        const json = await res.json()
-
-        if (res.ok && json.ok) {
-            if (selectionType.value === 'ticket') {
-                resultType.value = 'ticket'
-                resultData.value = {
-                    recipient: emailTicket.value,
-                    ticketCode: tCode,
-                    password: tPass,
-                    validStart: formatDateOnly(validStartRaw),
-                    validExpire: formatDateOnly(validExpireRaw)
-                }
-            } else {
-                resultType.value = 'user'
-                resultData.value = {
-                    recipient: shareUser.value,
-                    validStart: formatDateOnly(validStartRaw),
-                    validExpire: formatDateOnly(validExpireRaw)
-                }
-            }
-            
-            emit('share', payload)
-            emit('update:modelValue', false)
-            showResult.value = true
-        } else {
-            showToast(json.message || 'Failed to share files', 'error')
+        if (selectionType.value === 'ticket') {
+            tCode = await genTicketCode()
+            tPass = genPassword()
         }
-    } catch (e) {
-        console.error('onCreate share error', e)
-        showToast('An error occurred while sharing', 'error')
+
+        const payload = {
+            files: props.files,
+            type: selectionType.value,
+            target: targetValue,
+            start: validStartRaw,
+            expire: validExpireRaw,
+            ticketCode: tCode,
+            password: tPass,
+            download: permissions.value === 'true',
+            limitAccessTimes: (limitAccessTimes.value === null || limitAccessTimes.value === '') ? null : parseInt(limitAccessTimes.value, 10),
+            description: descTicket.value 
+        }
+
+        try {
+            const res = await fetch(API_CREATE_FILE_SHARE(), {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken() || ''
+                },
+                body: JSON.stringify(payload)
+            })
+
+            const json = await res.json().catch(() => ({}))
+
+            if (res.ok && json.ok) {
+                // success — use server-confirmed ticketCode if provided
+                if (selectionType.value === 'ticket') {
+                    resultType.value = 'ticket'
+                    resultData.value = {
+                        recipient: emailTicket.value,
+                        ticketCode: json.ticketCode || tCode,
+                        password: tPass,
+                        validStart: formatDateOnly(validStartRaw),
+                        validExpire: formatDateOnly(validExpireRaw),
+                        limitAccessTimes: limitAccessTimesValue,
+
+                    }
+                } else {
+                    resultType.value = 'user'
+                    resultData.value = {
+                        recipient: shareUser.value,
+                        validStart: formatDateOnly(validStartRaw),
+                        validExpire: formatDateOnly(validExpireRaw)
+                    }
+                }
+
+                emit('share', payload)
+                emit('update:modelValue', false)
+                showResult.value = true
+                created = true
+                break
+            } else if (res.status === 409) {
+                // collision — retry (frontend will get a fresh code next loop)
+                lastError = json.message || 'Ticket code collision, retrying'
+                continue
+            } else {
+                showToast(json.message || 'Failed to share files', 'error')
+                lastError = json.message || 'Failed to share files'
+                break
+            }
+        } catch (e) {
+            console.error('onCreate share error', e)
+            lastError = e.message || String(e)
+            break
+        }
+    }
+
+    if (!created) {
+        showToast(lastError || 'Failed to create ticket after retries', 'error')
     }
 }
 
@@ -414,28 +544,32 @@ onMounted(() => {
 watch(() => props.modelValue, async (open) => {
     if (!open) return
     const pad = (n) => String(n).padStart(2, '0')
+    // Do not prefill the input display — leave empty until user selects a date.
     const d = new Date()
     const today = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
-    exp.period = `${today} - ${today}`
-    exp.period_start = `${today} 00:00`
-    exp.period_end = `${today} 23:00`
-    errors.period = false
+    start.value = ''
+    expire.value = ''
+    errors.start = false
+    errors.expire = false
+    picker.from = ''
+    picker.to = ''
 
     // wait for DOM/ directive to mount the flatpickr instance (mirrors Home.vue pattern)
     try {
         await nextTick()
-        if (fromInput && fromInput.value) {
+            if (fromInput && fromInput.value) {
             // ensure input displays the text
-            try { fromInput.value.value = exp.period } catch (e) {}
+            try { fromInput.value.value = '' } catch (e) {}
             // try known instance names used in project
             const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
+            // Do not programmatically set a date on open — keep input empty until user selects.
             if (inst && typeof inst.setDate === 'function') {
-                // setDate accepts display strings matching dateFormat 'Y-m-d'
-                try { inst.setDate([today, today], true) } catch (e) {}
+                try { /* intentionally left blank to avoid auto-populating the input */ } catch (e) {}
             }
         }
     } catch (e) {}
 })
+
 
 function formatDate(v) {
     if (!v) return ''
@@ -449,17 +583,39 @@ function formatDate(v) {
 function formatDateOnly(v) {
     if (!v) return ''
     if (typeof v === 'string') {
-        // if backend format 'YYYY-MM-DD HH:MM' or flatpickr 'YYYY-MM-DD'
+        // if backend format 'YYYY-MM-DD HH:MM(:SS)?' or flatpickr 'YYYY-MM-DD'
+        // Preserve time when present and normalize to include seconds.
         const parts = v.split(' ')
-        if (parts[0] && parts[0].includes('-')) return parts[0]
-        // ISO-like
-        const t = v.split('T')[0]
-        if (t && t.includes('-')) return t
+        if (parts.length > 1 && parts[0] && parts[0].includes('-')) {
+            const datePart = parts[0]
+            let timePart = parts.slice(1).join(' ')
+            timePart = timePart.split('.')[0].replace(/Z$/, '')
+            if (/^\d{1,2}:\d{2}$/.test(timePart)) timePart = `${timePart}:00`
+            const m = timePart.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/) || []
+            if (m.length) {
+                const pad = (n) => String(n).padStart(2, '0')
+                const hh = pad(parseInt(m[1] || '0', 10))
+                const mm = pad(parseInt(m[2] || '0', 10))
+                const ss = pad(parseInt(m[3] || '0', 10))
+                return `${datePart} ${hh}:${mm}:${ss}`
+            }
+            return `${datePart} ${timePart}`
+        }
+        // ISO-like with T separator
+        if (v.includes('T')) {
+            const date = v.split('T')[0]
+            let time = (v.split('T')[1] || '').split('Z')[0].split('.')[0]
+            if (/^\d{2}:\d{2}$/.test(time)) time = `${time}:00`
+            if (time) return `${date} ${time}`
+            if (date && date.includes('-')) return date
+        }
+        // fallback: plain date string
+        if (v.includes('-')) return v
     }
     const d = new Date(v)
     if (isNaN(d.getTime())) return v
     const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
 function truncateFileName(s) { if (!s) return ''; return s.length > 100 ? s.slice(0, 57) + '...' : s }
@@ -468,6 +624,12 @@ function truncateFileName(s) { if (!s) return ''; return s.length > 100 ? s.slic
 .custom-role-item {
     padding: 8px 20px;
     margin-bottom: 0px;
+}
+
+.input-disabled {
+    background: #f3f4f6 !important;
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .group-card-title,
@@ -510,4 +672,5 @@ strong {
     align-items: center;
     justify-content: center;
 }
+
 </style>

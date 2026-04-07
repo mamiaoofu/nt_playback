@@ -17,7 +17,10 @@ from django.utils import timezone
 from datetime import timedelta
 from django.middleware.csrf import get_token
 from django.conf import settings
-from apps.core.utils.function import create_user_log
+from apps.core.utils.function import create_user_log, get_client_ip
+import secrets
+
+from django.views.decorators.csrf import csrf_exempt
 
 import io
 import os
@@ -30,10 +33,12 @@ from apps.core.utils.permissions import get_user_actions, require_action
 from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
 from django.contrib.auth.models import User
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from .models import FavoriteSearch, SetColumnAudioRecord, ConfigKey
 from .serializers import FavoriteSearchSerializer
 from apps.configuration.models import UserPermission
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 #serializer
 from apps.core.model.authorize.serializers import MainDatabaseSerializer
@@ -68,6 +73,36 @@ def ApiGetCsrfToken(request):
     except Exception:
         pass
     return resp
+
+
+@csrf_exempt
+def debug_meta(request):
+    """Return useful request META and headers for debugging client IP and proxy."""
+    meta = request.META
+    keys = [
+        'REMOTE_ADDR', 'HTTP_X_REAL_IP', 'HTTP_X_FORWARDED_FOR',
+        'HTTP_CF_CONNECTING_IP', 'HTTP_X_CLIENT_IP', 'HTTP_CLIENT_IP',
+        'HTTP_USER_AGENT', 'HTTP_HOST', 'SERVER_NAME'
+    ]
+    summary = {k: meta.get(k) for k in keys}
+    # collect all HTTP_ headers (strip HTTP_ prefix)
+    http_headers = {k[5:]: v for k, v in meta.items() if k.startswith('HTTP_')}
+
+    data = {
+        'summary': summary,
+        'http_headers': http_headers,
+        'server': {
+            'host': request.get_host(),
+            'path': request.path,
+            'method': request.method,
+        }
+    }
+    # computed client ip using project util
+    try:
+        data['computed_client_ip'] = get_client_ip(request)
+    except Exception:
+        data['computed_client_ip'] = None
+    return JsonResponse(data)
 
 
 @login_required(login_url='/login')
@@ -132,7 +167,6 @@ def ApiSendShareEmail(request):
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 @login_required(login_url='/login')
-@require_action('Audio Recording','User Logs')
 def ApiIndexHome(request):
     show_toast = request.session.get('show_toast', False)
     if show_toast:
@@ -143,12 +177,13 @@ def ApiIndexHome(request):
     # get MainDatabase objects allowed for this user
     main_db_ids = list(user_auth_qs.values_list('maindatabase_id', flat=True))
     main_db = MainDatabase.objects.filter(id__in=main_db_ids).order_by('database_name')
-    user_profile = UserProfile.objects.filter(user=request.user).first()
     favorite_search = FavoriteSearch.objects.filter(user=request.user).first()
     favorite_search_all = FavoriteSearch.objects.filter(user=request.user).all()
     audio_column = SetColumnAudioRecord.objects.filter(user=request.user).first()
     agent = Agent.objects.all()
     raw_data = favorite_search.raw_data if favorite_search else {}
+    user_auth = UserAuth.objects.filter(user=request.user).select_related('user_permission').first()
+    role = user_auth.user_permission.name if user_auth and user_auth.user_permission else None
 
     main_db_serialized = MainDatabaseSerializer(main_db, many=True).data
     favorite_search_all_serialized = FavoriteSearchSerializer(favorite_search_all, many=True).data
@@ -158,7 +193,7 @@ def ApiIndexHome(request):
         'show_toast': show_toast,
         'main_db': main_db_serialized,
         'set_audio': set_audio.audio_path if set_audio else None,
-        'user_profile': {'id': user_profile.user.id, 'username': user_profile.user.username} if user_profile else None,
+        'user_profile': {'id': request.user.id, 'username': request.user.username, 'role': role},
         'favorite_search': favorite_search_serialized,
         'raw_data': raw_data,
         'favorite_search_all': favorite_search_all_serialized,
@@ -167,7 +202,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Playback Audio')
+@require_action('Query Audio Records','Audio Records')
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
@@ -189,6 +224,7 @@ def ApiGetAudioList(request):
 
     # Check for file_share parameter or ticket user
     is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
+    file_share_mode = False
     
     if is_ticket :
         audio_list = AudioInfo.objects.filter()
@@ -206,41 +242,73 @@ def ApiGetAudioList(request):
     agent_id = request.POST.get("agent_id") or request.GET.get("agent_id")
     agent_group = request.POST.get("agent_group") or request.GET.get("agent_group")
     time_type = request.POST.get("type") or request.GET.get("type")
-    
     call_direction = request.POST.get("call_direction") or request.GET.get("call_direction")
     extension = request.POST.get("extension") or request.GET.get("extension")
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
-    
+    file_share = request.POST.get("file_share") or request.GET.get("file_share")
 
-
-    if is_ticket or (request.POST.get("file_share") == 'true' or request.GET.get("file_share") == 'true'):
+    if is_ticket or file_share == "true":
         try:
-            valid_shares = UserFileShare.objects.filter(user=request.user, expire_at__gte=timezone.now())
+            valid_shares = UserFileShare.objects.filter(user=request.user,start_at__lte=timezone.now(), expire_at__gte=timezone.now(), status=True)
+            UserFileShare.objects.filter(user=request.user).update(view=True)
             shared_ids = []
             
+            # build a mapping of audiofile id -> list of share entries so we can attach one entry per share
+            share_map = {}
+            share_entries = []
             for share in valid_shares:
                 if share.audiofile_id:
                     try:
                         # Convert {"1","2"} to ["1","2"] for json.loads
                         json_str = share.audiofile_id.replace('{', '[').replace('}', ']')
                         ids = json.loads(json_str)
+                        # preserve original order and duplicates in shared_ids
                         shared_ids.extend(ids)
+                        for aid in ids:
+                            try:
+                                key = str(int(aid))
+                            except Exception:
+                                key = str(aid)
+                            entry = {
+                                'created_by': str(share.create_by) if getattr(share, 'create_by', None) else None,
+                                'type': getattr(share, 'type', None),
+                                'code': getattr(share, 'code', None),
+                                'start_at': (timezone.localtime(share.start_at).strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'start_at', None) else None),
+                                'start_at_dt': share.start_at if getattr(share, 'start_at', None) else None,
+                                'expire_at': (timezone.localtime(share.expire_at).strftime("%Y-%m-%d %H:%M:%S") if getattr(share, 'expire_at', None) else None),
+                                'expire_at_dt': share.expire_at if getattr(share, 'expire_at', None) else None,
+                                'download': bool(getattr(share, 'dowload', False)),
+                                'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
+                                'limit_access_time': getattr(share, 'limit_access_time', None),
+                                'description': getattr(share, 'description', None),
+                                'update_at_dt': share.update_at if getattr(share, 'update_at', None) else None,
+                                'share_id': share.id
+                            }
+                            if key in share_map:
+                                share_map[key].append(entry)
+                            else:
+                                share_map[key] = [entry]
+                            # keep ordered list of entries (one per share reference) for pagination
+                            share_entries.append({'audiofile_id': key, 'share': entry})
                     except Exception:
                         continue
-            
-            if shared_ids:
-                print("shared_ids:", shared_ids)
-                audio_list = audio_list.filter(audiofile__id__in=shared_ids)
+            # query audio records info for the unique set of referenced ids, preserve duplicates in share_entries
+            unique_ids = list({str(x) for x in shared_ids})
+            if unique_ids:
+                try:
+                    audio_list = audio_list.filter(audiofile__id__in=[int(x) for x in unique_ids])
+                except Exception:
+                    audio_list = audio_list.filter(audiofile__id__in=unique_ids)
+                file_share_mode = True
             else:
                 audio_list = audio_list.none()
                 
-            print("audio_list:", audio_list.query)    
         except Exception:
             audio_list = audio_list.none()
     
-    now = datetime.now()
+    now = timezone.now()
     if time_type:
         if time_type == "hour":
             start_date = now - timedelta(hours=1)
@@ -250,9 +318,8 @@ def ApiGetAudioList(request):
             start_date = now - timedelta(days=30)
         elif time_type == "year":
             start_date = now - timedelta(days=365)
-        start_date = start_date.strftime("%Y-%m-%d %H:%M:%S")
-        end_date = now.strftime("%Y-%m-%d %H:%M:%S")
-        
+        # keep as datetime objects (aware when USE_TZ=True) for queryset filtering
+        end_date = now
 
     if database_name and database_name != "all":
         parts = [p.strip() for p in str(database_name).split(',') if p.strip()]
@@ -303,12 +370,20 @@ def ApiGetAudioList(request):
     filter_map = {
         "start_datetime__gte": start_date,
         "start_datetime__lte": end_date,
-        "audiofile__file_name__icontains": file_name,
     }
 
     for field, value in filter_map.items():
         if value:
             audio_list = audio_list.filter(**{field: value})
+
+    # Handle file_name allowing multiple comma-separated values
+    if file_name:
+        parts = [p.strip() for p in str(file_name).split(',') if p.strip()]
+        if parts:
+            q_fn = Q()
+            for p in parts:
+                q_fn |= Q(audiofile__file_name__icontains=p)
+            audio_list = audio_list.filter(q_fn)
 
     # Handle duration filter: accept 'HH:MM:SS', 'MM:SS', 'SS' or range 'HH:MM:SS - HH:MM:SS'
     if duration:
@@ -361,10 +436,10 @@ def ApiGetAudioList(request):
                 except Exception:
                     pass
         else:
-            # single duration value - keep previous behavior (upper bound)
+            # single duration value - treat as lower bound (>=)
             td = parse_duration_to_timedelta(dur_str)
             if td is not None:
-                audio_list = audio_list.filter(audiofile__duration__lte=td)
+                audio_list = audio_list.filter(audiofile__duration__gte=td)
             else:
                 try:
                     audio_list = audio_list.filter(audiofile__duration__icontains=duration)
@@ -513,39 +588,140 @@ def ApiGetAudioList(request):
         audio_list = audio_list.order_by('-start_datetime')
 
 
-    # count after applying filters
-    records_total = audio_list.count()
-
-    # Pagination (slice)
-    audio_page = audio_list[start:start + length]
-
     data = []
-    for idx, audio in enumerate(audio_page, start=start+1):
-        main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
-        start_dt = audio.start_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'start_datetime', None) else "-"
-        end_dt = audio.end_datetime.strftime("%Y-%m-%d %H:%M") if getattr(audio, 'end_datetime', None) else "-"
-        file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
-        duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
-        agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
-        full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
+    if file_share_mode and 'share_entries' in locals():
+        # build lookup of audiofile id -> AudioInfo object
+        try:
+            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=[int(x) for x in unique_ids])
+        except Exception:
+            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=unique_ids)
+        audio_map = { str(a.audiofile.id): a for a in audio_objs if getattr(a, 'audiofile', None) }
 
-        data.append({
-            "no": idx,
-            "main_db": main_db_display,
-            "start_datetime": start_dt,
-            "end_datetime": end_dt,
-            "file_name": file_name,
-            "duration": duration_val,
-            "call_direction": audio.call_direction,
-            "customer_number": audio.customer_number,
-            "extension": audio.extension,
-            "agent": agent_display,
-            "full_name": full_name,
-            "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
-            "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
-            "set_audio": set_audio.audio_path if set_audio else None,
-            "custom_field_1": custom_field
-        })
+        records_total = len(share_entries)
+        page_entries = share_entries[start:start + length]
+        for idx_offset, ent in enumerate(page_entries):
+            idx = start + idx_offset + 1
+            afid = ent.get('audiofile_id')
+            audio = audio_map.get(str(afid))
+
+            main_db_display = str(audio.main_db) if audio and hasattr(audio, 'main_db') else ''
+            if audio and getattr(audio, 'start_datetime', None):
+                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
+                start_dt = sd.strftime("%Y-%m-%d %H:%M")
+            else:
+                start_dt = "-"
+            if audio and getattr(audio, 'end_datetime', None):
+                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
+                end_dt = ed.strftime("%Y-%m-%d %H:%M")
+            else:
+                end_dt = "-"
+            file_name = audio.audiofile.file_name if audio and getattr(audio, 'audiofile', None) else "-"
+            duration_val = str(audio.audiofile.duration) if (audio and getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+            agent_display = str(audio.agent) if audio and getattr(audio, 'agent', None) else "-"
+            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if audio and getattr(audio, 'agent', None) else "-"
+
+            share_info = ent.get('share') or {}
+
+            data.append({
+                "no": idx,
+                "main_db": main_db_display,
+                "start_datetime": start_dt,
+                "end_datetime": end_dt,
+                "file_name": file_name,
+                "duration": duration_val,
+                "call_direction": audio.call_direction if audio else None,
+                "customer_number": audio.customer_number if audio else None,
+                "extension": audio.extension if audio else None,
+                "agent": agent_display,
+                "full_name": full_name,
+                "file_path": audio.audiofile.file_path if audio and getattr(audio, 'audiofile', None) else None,
+                "file_id": audio.audiofile.id if audio and getattr(audio, 'audiofile', None) else afid,
+                "set_audio": set_audio.audio_path if set_audio else None,
+                "custom_field_1": custom_field,
+                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
+                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                    "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
+                    "description": share_info.get('description') if isinstance(share_info, dict) else None,
+                "start_date": share_info.get('start_at') if isinstance(share_info, dict) else None,
+                "ticket_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'ticket' else None),
+                "delegate_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'delegate' else None),
+                "download": share_info.get('download') if isinstance(share_info, dict) else False
+            })
+    else:
+        # count after applying filters
+        records_total = audio_list.count()
+
+        # Pagination (slice)
+        audio_page = audio_list[start:start + length]
+
+        for idx, audio in enumerate(audio_page, start=start+1):
+            main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
+            if getattr(audio, 'start_datetime', None):
+                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
+                start_dt = sd.strftime("%Y-%m-%d %H:%M")
+            else:
+                start_dt = "-"
+            if getattr(audio, 'end_datetime', None):
+                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
+                end_dt = ed.strftime("%Y-%m-%d %H:%M")
+            else:
+                end_dt = "-"
+            file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
+            duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+            agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
+            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
+
+            # try to attach share metadata for this audio (if any)
+            share_info = {}
+            try:
+                afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
+                if afid is not None and 'share_map' in locals():
+                    lst = share_map.get(str(afid), []) or []
+                    if isinstance(lst, list) and len(lst) > 0:
+                        try:
+                            best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
+                        except Exception:
+                            best = lst[0]
+                        share_info = {
+                            'type': best.get('type'),
+                            'code': best.get('code'),
+                            'created_by': best.get('created_by'),
+                            'start_at': best.get('start_at'),
+                            'start_at_dt': best.get('start_at_dt'),
+                            'expire_at': best.get('expire_at'),
+                            'expire_at_dt': best.get('expire_at_dt'),
+                            'download': best.get('download', False),
+                            'limit_access_time': best.get('limit_access_time'),
+                            'description': best.get('description')
+                        }
+                    else:
+                        share_info = {}
+            except Exception:
+                share_info = {}
+
+            data.append({
+                "no": idx,
+                "main_db": main_db_display,
+                "start_datetime": start_dt,
+                "end_datetime": end_dt,
+                "file_name": file_name,
+                "duration": duration_val,
+                "call_direction": audio.call_direction,
+                "customer_number": audio.customer_number,
+                "extension": audio.extension,
+                "agent": agent_display,
+                "full_name": full_name,
+                "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
+                "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
+                "set_audio": set_audio.audio_path if set_audio else None,
+                "custom_field_1": custom_field,
+                # share metadata (present when viewing delegate / file_share mode)
+                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
+                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
+                "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
+                "description": share_info.get('description') if isinstance(share_info, dict) else None,
+                "download": share_info.get('download') if isinstance(share_info, dict) else False
+            })
         
 
 
@@ -553,7 +729,9 @@ def ApiGetAudioList(request):
         "draw": draw,
         "recordsTotal": records_total,
         "recordsFiltered": records_total,
-        "data": data
+        "data": data,
+        "is_ticket": bool(is_ticket),
+        "file_share": bool(file_share)
     })
 
 @login_required(login_url='/login')
@@ -565,7 +743,7 @@ def ApiGetMyPermissions(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('My Favorite Search')
+@require_action('Query Audio Records')
 def ApiSaveMyFavoriteSearch(request):
     
     if request.method == "POST":
@@ -603,6 +781,7 @@ def ApiSaveMyFavoriteSearch(request):
             "agent": request.POST.get("agent", ""),
             "full_name": full_name,
             "duration": request.POST.get("duration", ""),
+            "custom_field": request.POST.get("custom_field", "")
         }
 
         if action == "create":
@@ -665,7 +844,7 @@ def ApiSaveMyFavoriteSearch(request):
     return JsonResponse({"status": "error", "message": "Invalid request"})
 
 @login_required(login_url='/login')
-@require_action('My Favorite Search')
+@require_action('Query Audio Records')
 def ApiCheckMyFavoriteName(request):
     favorite_name = request.GET.get('favoriteName', '').strip()
     favorite_id = request.GET.get('favoriteId', None)
@@ -684,6 +863,9 @@ def ApiCheckMyFavoriteName(request):
     
 # --- Encryption Helper (Simple XOR + Base64) ---
 SECRET_KEY = b"9Xv2M4p7Q8r1Z3w5Y6t8B0n2V4c6X8m0L2k4J6h8F0d2S4a" # (ต้องตรงกับ Wrapper exe)
+# NT_SECRET_KEY = os.getenv("NT_SECRET_KEY").encode("utf-8")
+# NT_KEY_USERNAME = os.getenv("NT_KEY_USERNAME")
+# NT_KEY_PASSWORD = os.getenv("NT_KEY_PASSWORD")
 
 def encrypt_credential(text):
     if not text: return ""
@@ -714,7 +896,7 @@ def ApiGetCredentials(request):
 
 
 @login_required(login_url='/login')
-@require_action('Playback Audio')
+@require_action('Playback Audio Records')
 def ApiProxyAudio(request):
     """
     Proxy endpoint to stream audio files from a network share (SMB).
@@ -756,11 +938,9 @@ def ApiProxyAudio(request):
         except Exception as e:
             tb = traceback.format_exc()
             err = f'Failed to establish SMB connection: {repr(e)}'
-            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "trace": tb}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
         if not connected:
             err = 'Failed to connect to SMB host (connect returned False)'
-            create_user_log(user=request.user, action="Proxy Audio", detail={"error": err}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
 
         bio = None
@@ -789,16 +969,13 @@ def ApiProxyAudio(request):
                     conn.retrieveFile(share, path_in_share, tmp)
                     tmp.seek(0)
                     bio = tmp
-                    create_user_log(user=request.user, action="Proxy Audio", detail={"info": f"Read file from share {share}"}, status="success", request=request)
                     break
                 except Exception as e:
                     tb = traceback.format_exc()
                     attempts.append({'share': share, 'error': repr(e), 'trace': tb})
-                    create_user_log(user=request.user, action="Proxy Audio", detail={"error": f"Failed reading from share {share}", "trace": tb}, status="error", request=request)
             
             if bio is None:
                 err = f'Failed to read remote file from any share. Attempts: {json.dumps([{"share": a["share"], "error": a["error"]} for a in attempts])}'
-                create_user_log(user=request.user, action="Proxy Audio", detail={"error": err, "attempts": attempts}, status="error", request=request)
                 return JsonResponse({'error': err, 'attempts': attempts}, status=502)
         finally:
             try: conn.close()
@@ -810,29 +987,28 @@ def ApiProxyAudio(request):
         response['Content-Disposition'] = f'attachment; filename="{base}"'
         return response
     except Exception as e:
-        create_user_log(user=request.user, action="Proxy Audio", detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({'error': str(e)}, status=500)
     
 @login_required
 @require_POST
-@require_action("Playback Audio")
+@require_action("Playback Audio Records")
 def ApiLogPlayAudio(request):
     """
     API endpoint สำหรับรับ Log การเล่นไฟล์เสียงจาก Frontend
     """
     try:
         data = json.loads(request.body)
-        create_user_log(user=request.user, action="Playback Audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
+        create_user_log(user=request.user, action="Play audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
 
         return JsonResponse({"message": "Log received"}, status=201)
     except Exception as e:
-        create_user_log(user=request.user, action="Playback Audio", detail={"error": str(e)}, status="error", request=request)
+        create_user_log(user=request.user, action="Play audio", detail={"error": str(e)}, status="error", request=request)
         
         return JsonResponse({"error": str(e)}, status=400)
 
 @login_required
 @require_POST
-@require_action('Save file')
+@require_action('Save As Index')
 def ApiLogSaveFile(request):
     try:
         data = json.loads(request.body)
@@ -846,6 +1022,32 @@ def ApiLogSaveFile(request):
             # swallow secondary errors when logging fails
             pass
         return JsonResponse({"status": "error", "message": str(e)}, status=400)
+
+
+@login_required
+def ApiLogDownload(request):
+    """
+    Log a successful file download. Accepts GET (query param `file`) or POST JSON {"file_name": "..."}.
+    """
+    try:
+        file_name = ''
+        if request.method == 'GET':
+            file_name = request.GET.get('file') or ''
+        else:
+            try:
+                data = json.loads(request.body or '{}')
+                file_name = data.get('file_name') or data.get('file') or ''
+            except Exception:
+                file_name = ''
+
+        create_user_log(user=request.user, action="Dowload", detail=f"file: {file_name}", status="success", request=request)
+        return JsonResponse({"status": "ok"}, status=201)
+    except Exception as e:
+        try:
+            create_user_log(user=request.user, action="Dowload", detail={"error": str(e)}, status="error", request=request)
+        except Exception:
+            pass
+        return JsonResponse({"error": str(e)}, status=400)
     
 @login_required
 @require_POST
@@ -854,15 +1056,61 @@ def ApiCreateFileShare(request):
         body = request.body.decode('utf-8') or '{}'
         data = json.loads(body)
 
-        files = data.get('files', [])
+        # Accept legacy `files` or new `raw_data` payloads (frontend changed to send `raw_data`)
+        files_payload = data.get('files') or data.get('raw_data') or data.get('rawData') or []
         target_type = data.get('targetType') or data.get('type')
         target = data.get('target')
         start_raw = data.get('start')
         expire_raw = data.get('expire')
         download = data.get('download', False)
+        # top-level limit (fallback). Prefer explicit 'limitAccessTimes' if provided.
+        limit_access_time = data.get('limitAccessTimes', None)
+        description = data.get('description', None)
 
-        if not target_type or not target:
-            return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
+        # Normalize files_payload into list of dicts with keys 'audiofile_id' and optional 'limit_access_time'
+        audio_items = []
+        for f in files_payload:
+            if isinstance(f, dict):
+                fid = f.get('audiofile_id') or f.get('file_id') or f.get('fileId')
+                lat = None
+                if 'limit_access_time' in f:
+                    lat = f.get('limit_access_time')
+                elif 'limitAccessTime' in f:
+                    lat = f.get('limitAccessTime')
+            else:
+                fid = f
+                lat = None
+            try:
+                if fid is None or fid == '':
+                    continue
+                # try convert to int id when possible
+                try:
+                    fid_conv = int(fid)
+                except Exception:
+                    fid_conv = fid
+                lat_conv = None
+                if lat not in (None, ''):
+                    try:
+                        lat_conv = int(lat)
+                    except Exception:
+                        lat_conv = None
+                audio_items.append({'audiofile_id': fid_conv, 'limit_access_time': lat_conv})
+            except Exception:
+                continue
+
+        # build list of audio ids (preserve as-is for string ids)
+        audio_ids = [item['audiofile_id'] for item in audio_items if item.get('audiofile_id') is not None]
+        audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
+
+        # If no top-level limit provided, but all items share identical per-file limit, use it as shared limit
+        if limit_access_time in (None, '') and audio_items:
+            lat_vals = [item['limit_access_time'] for item in audio_items if item.get('limit_access_time') is not None]
+            if lat_vals:
+                if all(v == lat_vals[0] for v in lat_vals):
+                    limit_access_time = lat_vals[0]
+
+        # if not target_type or not target:
+        #     return JsonResponse({'ok': False, 'message': 'Incomplete information (targetType/target)'}, status=400)
 
         def parse_dt(s):
             if not s:
@@ -879,23 +1127,20 @@ def ApiCreateFileShare(request):
                         return None
             try:
                 if timezone.is_naive(dt):
-                    dt = timezone.make_aware(dt)
+                    try:
+                        tz = timezone.get_current_timezone()
+                    except Exception:
+                        tz = None
+                    if tz:
+                        dt = timezone.make_aware(dt, timezone=tz)
+                    else:
+                        dt = timezone.make_aware(dt)
             except Exception:
                 pass
             return dt
 
         start_dt = parse_dt(start_raw)
         expire_dt = parse_dt(expire_raw)
-
-        audio_ids = []
-        for f in files:
-            try:
-                fid = f.get('file_id') if isinstance(f, dict) else f
-                audio_ids.append(int(fid))
-            except Exception:
-                continue
-
-        audio_ids_str = "{" + ",".join([f'"{aid}"' for aid in audio_ids]) + "}"
 
         if target_type == 'user':
             # Accept single username or list of usernames (or delimited string)
@@ -920,6 +1165,15 @@ def ApiCreateFileShare(request):
 
             missing = []
             created_count = 0
+
+            def _generate_unique_code():
+                while True:
+                    # generate 6-digit number not starting with 0
+                    num = secrets.randbelow(900000) + 100000
+                    code = f"DLG-{num}"
+                    if not UserFileShare.objects.filter(code=code).exists():
+                        return code
+
             with transaction.atomic():
                 for uname in targets:
                     auth_user = User.objects.filter(username=uname).first()
@@ -927,18 +1181,44 @@ def ApiCreateFileShare(request):
                         missing.append(uname)
                         continue
 
+                    code_val = _generate_unique_code()
+
                     UserFileShare.objects.create(
                         user=auth_user,
-                        type='user',
-                        code='',
+                        type='delegate',
+                        code=code_val,
                         audiofile_id=audio_ids_str,
                         start_at=start_dt or timezone.now(),
                         expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                        limit_access_time=limit_access_time,
+                        description=description,
                         status=1,
                         dowload=bool(download),
                         create_by=request.user
                     )
                     created_count += 1
+
+            # notify affected users via channel layer (if available)
+            try:
+                layer = get_channel_layer()
+                if layer is not None:
+                    for uname in targets:
+                        u = User.objects.filter(username=uname).first()
+                        if not u: continue
+                        async_to_sync(layer.group_send)(f'user_{u.id}', {
+                            'type': 'file.share',
+                            'ok': True,
+                            'message': 'You have a new file share',
+                            'data': {'audio_ids': audio_ids}
+                        })
+                        try:
+                            create_user_log(user=request.user, action="Create File Share Notify", detail={"notified_user": u.username, "audio_ids": audio_ids}, status="info", request=request)
+                        except Exception:
+                            # don't break notification loop if logging fails
+                            pass
+            except Exception as e:
+                # don't fail request if notification cannot be sent
+                create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
 
             create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
@@ -967,17 +1247,27 @@ def ApiCreateFileShare(request):
                     email_set = target or ''
                     primary_email = target or ''
 
-                new_user = User.objects.create(
-                    username=ticket_code,
-                    first_name=ticket_code,
-                    last_name=ticket_code,
-                    email=primary_email,
-                    is_active=True,
-                    is_staff=False,
-                    is_superuser=False
-                )
-                new_user.set_password(password)
-                new_user.save()
+                # Do NOT generate or replace ticket codes here. Frontend must request a server-generated
+                # code via the dedicated endpoint before calling this API. If the provided code already
+                # exists, return 409 so the frontend can re-generate and retry.
+                if not ticket_code or User.objects.filter(username=ticket_code).exists() or UserFileShare.objects.filter(code=ticket_code).exists():
+                    return JsonResponse({'ok': False, 'message': 'Ticket code already exists, please re-generate'}, status=409)
+
+                try:
+                    new_user = User.objects.create(
+                        username=ticket_code,
+                        first_name=ticket_code,
+                        last_name=ticket_code,
+                        email=primary_email,
+                        is_active=True,
+                        is_staff=False,
+                        is_superuser=False
+                    )
+                    new_user.set_password(password)
+                    new_user.save()
+                except IntegrityError:
+                    # Collision/race occurred — tell frontend to retry obtaining a fresh code
+                    return JsonResponse({'ok': False, 'message': 'Ticket code collision during create, please retry'}, status=409)
 
                 main_dbs = list(MainDatabase.objects.only('id').order_by('id'))
                 user_auths = []
@@ -1002,10 +1292,26 @@ def ApiCreateFileShare(request):
                     audiofile_id=audio_ids_str,
                     start_at=start_dt or timezone.now(),
                     expire_at=expire_dt or (timezone.now() + timedelta(days=1)),
+                    limit_access_time=limit_access_time,
+                    access_time=limit_access_time,
+                    description=description,
                     status=True,
                     dowload=bool(download),
                     create_by=request.user
                 )
+
+                # notify the created ticket user (if channel layer available)
+                try:
+                    layer = get_channel_layer()
+                    if layer is not None:
+                        async_to_sync(layer.group_send)(f'user_{new_user.id}', {
+                            'type': 'file.share',
+                            'ok': True,
+                            'message': 'You have a new file share',
+                            'data': {'audio_ids': audio_ids}
+                        })
+                except Exception as e:
+                    create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
 
             create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
@@ -1017,3 +1323,27 @@ def ApiCreateFileShare(request):
         create_user_log(user=request.user, action="Create File Share", detail=f"Error creating file share: {str(e)}", status="error", request=request)
         return JsonResponse({'ok': False, 'message': f'error: {str(e)}'}, status=500)
     
+def ApiCheckFileShare(request):
+    view_file_share = UserFileShare.objects.filter(view=False, user_id=request.user.id).first()
+    
+    if view_file_share:
+        return JsonResponse({'ok': True, 'message': 'You have a new file share.'})
+    return JsonResponse({'ok': False, 'message': 'No new file share.'})
+
+
+@login_required(login_url='/login')
+def ApiGenerateTicketCode(request):
+    """Return a server-generated unique TKT-###### code."""
+    try:
+        def _generate_unique_ticket_code():
+            for _ in range(100):
+                num = secrets.randbelow(900000) + 100000
+                code = f"TKT-{num}"
+                if not User.objects.filter(username=code).exists() and not UserFileShare.objects.filter(code=code).exists():
+                    return code
+            raise Exception('Unable to generate unique ticket code')
+
+        code = _generate_unique_ticket_code()
+        return JsonResponse({'ok': True, 'ticketCode': code})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)

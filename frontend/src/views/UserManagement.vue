@@ -2,6 +2,7 @@
     <MainLayout>
         <div class="main-wrapper container-fluid py-3">
             <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: 'User Management' }]" />
+            <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
             <div class="col-lg-12">
                 <div class="card">
                     <div class="card-body card-body-datatable">
@@ -13,19 +14,79 @@
                                 </div>
                                 <h5 class="card-title mb-2 mt-1">User Management</h5>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
                                 <div style="width:260px;">
                                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'" @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                                 </div>
                                 <router-link v-if="authStore.hasPermission('Add User')" to="/user-management/add">
-                                <button class="btn-role btn-primary btn-sm" id="addGroupBtn"
-                                    @click.stop="openCreateGroup">
-                                    <i class="fas fa-plus"></i>
-                                    Add User
-                                </button>
+                                    <button class="btn-role btn-primary btn-sm" id="addGroupBtn" @click.stop="openCreateGroup" >
+                                        <i class="fas fa-plus"></i>
+                                        Add User
+                                    </button>
                                 </router-link>
+                                <div v-if="authStore.hasPermission('Save As User Index')" class="export-group" ref="exportWrap">
+                                    <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen" >
+                                    <i class="fa-solid fa-download" style="color: #fff;"></i>
+                                    </button>
+                                    <ul v-show="exportOpen" class="export-dropdown" @click.stop>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                                            </label>
+                                        </li>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                                            </label>
+                                        </li>
+                                        <li>
+                                            <label class="dropdown-item">
+                                            <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                                            </label>
+                                        </li>
+                                        <li style="padding:8px;">
+                                            <div class="export-actions">
+                                            <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                                            <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
+
+
+                        
+                        <div>
+                            <form  id="filterForm" class="filter-row">
+                                <div class="input-group">
+                                    <CustomSelect class="select-search select-checkbox" v-model="filters.user" :options="userOptions" placeholder="Select User" name="user" />
+                                </div>
+
+                                <div class="input-group">
+                                    <CustomSelect class="select-search select-checkbox" v-model="filters.createdBy" :options="createdByOptions" placeholder="Select Create By" name="create_by" />
+                                </div>
+
+                               <div :class="['input-group', { 'has-value': !!filters.start_date }]">
+                                    <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date'}" required type="text" name="start_date" autocomplete="off" class="input">
+                                    <label class="floating-label">From</label>
+                                    <span class="calendar-icon" @click="startInput && startInput.focus()"><i class="fa-regular fa-calendar"></i></span>
+                                </div>
+                                <div :class="['input-group', { 'has-value': !!filters.end_date }]">
+                                    <input ref="endInput" v-flatpickr="{ target: filters, key: 'end_date'}" required type="text" name="end_date" autocomplete="off" class="input">
+                                    <label class="floating-label">To</label>
+                                    <span class="calendar-icon" @click="endInput && endInput.focus()"><i class="fa-regular fa-calendar"></i></span>
+                                </div>
+
+                                <div class="input-group" style="flex: 0 0 auto;">
+                                    <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters" style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
+                                        <i class="fas fa-undo"></i> Reset
+                                    </button>
+                                </div>
+
+                            </form>
+                        </div>
+
                         <TableTemplate
                             :columns="columns"
                             :rows="paginatedRecords"
@@ -51,6 +112,16 @@
 
                             <template #cell-full_name="{ row }">
                                 {{ (row.user?.first_name || '') + ' ' + (row.user?.last_name || '') }}
+                            </template>
+
+                            
+                            <template #cell-create_by="{ row }">
+                                {{ (row.create_by || '-') }}
+                            </template>
+
+
+                            <template #cell-email="{ row }">
+                                {{ row.user?.email || '-' }}
                             </template>
 
                             <template #cell-role="{ row }">
@@ -119,17 +190,21 @@
 </template>
 
 <script setup>
+import { ref, reactive } from 'vue'
 import SearchInput from '../components/SearchInput.vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import Breadcrumbs from '../components/Breadcrumbs.vue'
 import TableTemplate from '../components/TableTemplate.vue'
+import CustomSelect from '../components/CustomSelect.vue'
 import { useUserManagement } from '../composables/useUserManagement'
+import ModalDowload from '../components/ModalDowload.vue'
 
 const {
     authStore,
     searchQuery,
     searchInputRef,
     perWrap,
+    exportWrap,
     perDropdownOpen,
     perPageOptions,
     perPage,
@@ -147,6 +222,17 @@ const {
     totalPages,
     startIndex,
     paginatedRecords,
+    exportOpen,
+    filters,
+    userOptions,
+    createdByOptions,
+    startInput,
+    endInput,
+    exportSelections,
+    downloading,
+    downloadProgress,
+    downloadSpeed,
+    downloadRemaining,
     onTyping,
     onSearch,
     clearSearchQuery,
@@ -159,12 +245,20 @@ const {
     extractGroup,
     extractTeam,
     getDbList,
-    toggleUserStatus,
     showDbTooltip,
     hideDbTooltip,
     cancelHideDb,
-    openCreateGroup
+    openCreateGroup,
+    resetFilters,
+    toggleExport,
+    toggleUserStatus,
+    resendTicket,
+    confirmExport,
+    cancelExport,
 } = useUserManagement()
+
+
 </script>
 
 <style scoped src="../assets/css/user-management.css"></style>
+<style scoped src="../assets/css/user-log.css"></style>

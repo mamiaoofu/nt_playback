@@ -56,3 +56,12 @@
 :deep(.card-body-datatable .table-container .table-scroll) {
   height: calc(100vh - 315px) !important;
 }
+
+.export-actions {
+  display: flex;
+  gap: 6px;
+}
+.export-action-btn {
+  flex: 1 1 auto;
+  font-size: 8px;
+}

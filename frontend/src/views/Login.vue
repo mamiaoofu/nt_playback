@@ -1,10 +1,56 @@
 <template>
   <div class="login-root" style="background-color: #F9FAFB;">
+
+    <!-- Modal for Force Password Change -->
+    <div v-if="authStore.passwordResetRequired" class="modal-backdrop" style="z-index: 9999;">
+        <div class="modal-box" style="max-width: 400px; padding: 24px; border-radius: 12px; background: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+                <div style="display: flex; align-items: center; gap: 8px">
+                    <div class="blue-icon" style="background: #fef08a; color: #b45309;"><i class="fa-solid fa-shield-halved"></i></div>
+                    <h3 class="modal-title ad" style="font-size: 18px; font-weight: bold;">Change your password.</h3>
+                </div>
+            </div>
+            <div class="modal-body" style="padding-top: 8px;">
+                <p style="font-size: 13px; margin-bottom: 20px; color: #64748b;">Please set a new password for security.</p>
+                
+                <form @submit.prevent="submitPasswordChange" class="col-md-12">
+                    <div class="input-group mb-3" v-has-value>
+                        <input :type="showOldPass ? 'text' : 'password'" v-model="passwordForm.old_password" class="input" required>
+                        <button type="button" class="toggle-visibility" @click="showOldPass = !showOldPass">
+                            <i :class="showOldPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+                        </button>
+                        <label class="title-label">Old Password</label>
+                    </div>
+                    <div class="input-group mb-3" v-has-value>
+                        <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" class="input" required minlength="8">
+                        <button type="button" class="toggle-visibility" @click="showNewPass = !showNewPass">
+                            <i :class="showNewPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+                        </button>
+                        <label class="title-label">New Password</label>
+                        <div v-show="errors.password" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.password === 'string' ? errors.password : '' }}</div>
+                    </div>
+                    <div class="input-group mb-4" v-has-value>
+                        <input :type="showConfirmPass ? 'text' : 'password'" v-model="passwordForm.confirm_password" class="input" required>
+                        <button type="button" class="toggle-visibility" @click="showConfirmPass = !showConfirmPass">
+                            <i :class="showConfirmPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+                        </button>
+                        <label class="title-label">Confirm New Password</label>
+                        <div v-if="passwordError" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ passwordError }}</div>
+                    </div>
+                    <button class="btn-submit" type="submit" :disabled="submitting" style="width: 100%; border-radius: 25px;">
+                        <i class="fas fa-save" style="margin-right: 6px;"></i>
+                        Save Changes
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="login-card">
 
     <div class="login-header">
       <img src="/src/assets/images/logo-nichtel.png" alt="logo" class="logo" />
-      <h1 class="app-title">NT Audio Search</h1>
+      <h1 class="app-title">SeekTrack</h1>
       <div class="app-sub">Centralized Search and Playback System</div>
     </div>
 
@@ -58,9 +104,18 @@
 import { useLogin } from '../composables/useLogin'
 
 const {
+  authStore,
   passwordVisible,
   form,
-  handleLogin
+  handleLogin,
+  submitting,
+  passwordForm,
+  passwordError,
+  showOldPass,
+  showNewPass,
+  showConfirmPass,
+  errors,
+  submitPasswordChange
 } = useLogin()
 </script>
 

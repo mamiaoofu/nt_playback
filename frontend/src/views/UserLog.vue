@@ -1,7 +1,8 @@
 <template>
   <MainLayout>
     <div class="main-wrapper container-fluid py-3">
-      <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: 'User Logs' }]" />
+      <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: cardTitle }]" />
+      <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       <div class="col-lg-12">
         <div class="card">
           <div class="card-body card-body-datatable" style="position: relative;">
@@ -18,14 +19,32 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @clear="clearSearchQuery" />
                   </div>
-                <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
-                    <ul v-show="exportOpen" class="export-dropdown">
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('pdf')">PDF</button></li>
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('excel')">Excel</button></li>
-                      <li><button class="dropdown-item" type="button" @click="onExportFormat('csv')">CSV</button></li>
+                    <ul v-show="exportOpen" class="export-dropdown" @click.stop>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.pdf" style="margin-right:8px;"> PDF
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.excel" style="margin-right:8px;"> Excel
+                        </label>
+                      </li>
+                      <li>
+                        <label class="dropdown-item">
+                          <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
+                        </label>
+                      </li>
+                      <li style="padding:8px;">
+                        <div class="export-actions">
+                          <button class="btn btn-sm btn-light export-action-btn" type="button" @click="cancelExport">Cancel</button>
+                          <button class="btn btn-sm btn-primary export-action-btn" type="button" @click="confirmExport">Confirm</button>
+                        </div>
+                      </li>
                     </ul>
                   </div>
               </div>
@@ -35,18 +54,12 @@
               <form v-if="canView" id="filterForm" class="filter-row">
 
                 <div class="input-group" >
-                  <CustomSelect class="select-search select-checkbox" v-model="filters.name"
-                    :options="userOptions"
-                    placeholder="Select User" name="name" />
+                  <CustomSelect class="select-search select-checkbox" v-model="filters.name" :options="userOptions" placeholder="Select User" name="name" />
                 </div>
-
 
                 <div class="input-group" >
-                  <CustomSelect class="select-search select-checkbox" v-model="filters.action"
-                    :options="actionOptions"
-                    placeholder="Select Action" name="action" />
+                  <CustomSelect class="select-search select-checkbox" v-model="filters.action" :options="actionOptions" placeholder="Select Action" name="action" />
                 </div>
-
 
                 <div :class="['input-group', { 'has-value': !!filters.start_date }]">
                   <input ref="startInput" v-flatpickr="{ target: filters, key: 'start_date' }" required type="text" name="start_date" autocomplete="off" class="input">
@@ -60,8 +73,7 @@
                 </div>
 
                 <div class="input-group" style="flex: 0 0 auto;">
-                  <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters"
-                    style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
+                  <button type="button" class="btn btn-light" id="resetFilterBtn" @click="resetFilters" style="height: 31px; border: 1px solid #e2e8f0;border-radius: 10px;font-size: 12px;margin-top: -7px;">
                     <i class="fas fa-undo"></i> Reset
                   </button>
                 </div>
@@ -80,6 +92,9 @@
               :per-page-options="perPageOptions"
               :current-page="currentPage"
               :total-items="totalItems"
+              :sort-column="sortColumn"
+              :sort-direction="sortDirection"
+              @sort-change="onSortChange"
               @edit="onRowEdit"
               @delete="onRowDelete"
               @page-change="changePage"
@@ -108,6 +123,7 @@ import TableTemplate from '../components/TableTemplate.vue'
 import CustomSelect from '../components/CustomSelect.vue'
 import SearchInput from '../components/SearchInput.vue'
 import { useUserLog } from '../composables/useUserLog'
+import ModalDowload from '../components/ModalDowload.vue'
 
 const {
   authStore,
@@ -137,6 +153,12 @@ const {
   totalPages,
   startIndex,
   paginatedRecords,
+  downloading,
+  downloadProgress,
+  downloadSpeed,
+  downloadRemaining,
+  sortColumn,
+  sortDirection,
   onTyping,
   setPerPage,
   changePage,
@@ -147,7 +169,11 @@ const {
   toggleExport,
   onExportFormat,
   fetchData,
-  fetchUsers
+  fetchUsers,
+  cancelExport,
+  confirmExport,
+  onSortChange,
+  exportSelections
 } = useUserLog()
 </script>
 

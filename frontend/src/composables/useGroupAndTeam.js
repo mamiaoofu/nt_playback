@@ -135,6 +135,13 @@ export function useGroupAndTeam() {
 
     function openCreateTeam() {
         selectedModalMode.value = 'createTeam'
+        // pass currently selected group (if any) into the modal so it can preselect
+        if (selectedGroupId.value) {
+            const g = groups.value.find(x => x.id == selectedGroupId.value)
+            editGroup.value = g ? { ...g } : { id: selectedGroupId.value }
+        } else {
+            editGroup.value = null
+        }
         showGroupModal.value = true
     }
 

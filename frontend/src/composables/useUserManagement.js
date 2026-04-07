@@ -1,10 +1,12 @@
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
 import { getCsrfToken } from '../api/csrf'
+import { exportTableToFormat } from '../assets/js/function-all'
+import { useRoute } from 'vue-router'
 
 export function useUserManagement() {
     const router = useRouter()
@@ -38,14 +40,17 @@ export function useUserManagement() {
     const dbActiveEl = ref(null)
 
     const columns = [
-        { key: 'index', label: '#', isIndex: true, sortable: false },
+        { key: 'index', label: '#', isIndex: true, },
         { key: 'username', label: 'Username' },
         { key: 'full_name', label: 'Full Name' },
+        { key: 'email', label: 'Email' },
         { key: 'role', label: 'Role' },
         { key: 'group', label: 'Group' },
         { key: 'team', label: 'Team' },
         { key: 'database_servers', label: 'Database Server' },
         { key: 'phone', label: 'Phone' },
+        { key: 'create_by', label: 'Created By' },
+        { key: 'create_at', label: 'Create Date'},
         { key: 'status', label: 'Status' },
         { key: 'actions', label: 'Actions', isAction: true }
     ]
@@ -53,6 +58,25 @@ export function useUserManagement() {
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))
     const startIndex = computed(() => (currentPage.value - 1) * perPage.value)
     const paginatedRecords = computed(() => records.value)
+
+    // Filter form state and options
+    const filters = reactive({ 
+        user: null, 
+        createdBy: null, 
+        start_date: '',
+        end_date: ''
+     })
+    let userFilterTimeout = null
+    const userOptions = ref([])
+    const createdByOptions = ref([])
+    const actionOptions = ref([])
+    const startInput = ref('')
+    const endInput = ref(null)
+
+
+    // Export dropdown state
+    const exportOpen = ref(false)
+    const exportWrap = ref(null)
 
     const fetchData = async () => {
         loading.value = true
@@ -69,10 +93,83 @@ export function useUserManagement() {
                 params.set('sort[0][dir]', sortDirection.value)
             }
 
+            // user filter: allow array (multi-select) or single value; skip 'all'
+            try {
+                let userParam = ''
+                if (Array.isArray(filters.user)) {
+                    userParam = filters.user.map(u => (u && typeof u === 'object' ? (u.value ?? u) : u)).filter(Boolean).join(',')
+                } else if (filters.user && filters.user !== 'all') {
+                    const fu = filters.user
+                    userParam = (fu && typeof fu === 'object') ? (fu.value ?? fu) : fu
+                }
+                if (userParam) params.set('user', userParam)
+            } catch (e) { console.error('user param build error', e) }
+
+            // create_by filter: accept string or select value; skip 'all'
+            try {
+                const cb = filters.createdBy
+                let cbVal = ''
+                if (cb && cb !== 'all') cbVal = (typeof cb === 'object') ? (cb.value ?? cb) : String(cb)
+                if (cbVal) params.set('create_by', cbVal)
+            } catch (e) { console.error('create_by param build error', e) }
+
+            // start/end date: format to 'YYYY-MM-DD HH:MM'
+            try {
+                const pad = (n) => String(n).padStart(2, '0')
+                function fmtDate(v) {
+                    if (!v) return ''
+                    const d = new Date(v)
+                    if (isNaN(d)) return String(v)
+                    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+                }
+                if (filters.start_date) {
+                    const s = fmtDate(filters.start_date)
+                    if (s) params.set('start_date', s)
+                }
+                if (filters.end_date) {
+                    const e = fmtDate(filters.end_date)
+                    if (e) params.set('end_date', e)
+                }
+            } catch (e) { console.error('date param build error', e) }
+
             const res = await fetch(`${API_GET_USER()}?${params.toString()}`, { credentials: 'include' })
             if (!res.ok) throw new Error('Failed to fetch')
             const json = await res.json()
             records.value = json.data || json.user_management || []
+            // Build userOptions / createdByOptions / actionOptions from returned records
+            try {
+                const uSet = new Set()
+                const uOpts = [{ label: 'All Users', value: 'all' }]
+                const cSet = new Set()
+                const cOpts = [{ label: 'All Create By', value: 'all' }]
+                const aSet = new Set()
+                if (Array.isArray(records.value)) {
+                    for (const r of records.value) {
+                        const uname = r && r.user && (r.user.username || r.user.name) || ''
+                        const uid = r && r.user && r.user.id
+                        const uVal = uid ?? uname
+                        if (uVal && !uSet.has(uVal)) {
+                            uSet.add(uVal)
+                            uOpts.push({ label: String(uname || uVal), value: uVal })
+                        }
+
+                        const creatorRaw = r && (r.create_by || '')
+                        let creatorVal = ''
+                        if (creatorRaw && typeof creatorRaw === 'object') {
+                            creatorVal = creatorRaw.username || `${creatorRaw.first_name || ''} ${creatorRaw.last_name || ''}`.trim() || JSON.stringify(creatorRaw)
+                        } else {
+                            creatorVal = String(creatorRaw || '')
+                        }
+                        if (creatorVal && !cSet.has(creatorVal)) { cSet.add(creatorVal); cOpts.push({ label: creatorVal, value: creatorVal }) }
+
+                        const perm = r && r.permission
+                        if (perm) aSet.add(String(perm))
+                    }
+                }
+                if (!userOptions.value || userOptions.value.length <= 1) userOptions.value = uOpts
+                if (!createdByOptions.value || createdByOptions.value.length <= 1) createdByOptions.value = cOpts
+                actionOptions.value = Array.from(aSet).map(v => ({ label: v, value: v }))
+            } catch (e) { console.error('build filter options error', e) }
             totalItems.value = json.recordsFiltered ?? json.recordsTotal ?? (Array.isArray(records.value) ? records.value.length : 0)
             
             // If there's a pending user transferred from create/edit, promote or insert it
@@ -168,8 +265,8 @@ export function useUserManagement() {
     }
 
     const onDocClick = (e) => {
-        if (!perWrap.value) return
-        if (!perWrap.value.contains(e.target)) perDropdownOpen.value = false
+        if (perWrap.value && !perWrap.value.contains(e.target)) perDropdownOpen.value = false
+        if (exportWrap.value && !exportWrap.value.contains(e.target)) exportOpen.value = false
     }
 
     const onRowEdit = (row, actionId) => {
@@ -217,9 +314,12 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Delete User')) return showToast('Access Denied', 'error')
+            if (!authStore.hasPermission('Reset User Password')) return showToast('Access Denied', 'error')
 
-            const confirmed = await confirmDelete('Are you sure?', "You won't be able to revert this!", 'Yes, reset')
+            // show the target username in the confirmation message when available
+            const uname = row && row.user ? (row.user.username || `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim() || row.user.email || '') : (row && (row.username || ''))
+            const displayName = uname || 'this user'
+            const confirmed = await confirmDelete('Are you sure?', `You want to reset the password for "${displayName}"?`, 'Yes, reset')
             if (!confirmed) return
 
             const csrfToken = getCsrfToken()
@@ -285,7 +385,7 @@ export function useUserManagement() {
     }
 
     async function toggleUserStatus(userId, row) {
-        if (!authStore.hasPermission('Change Status')) return showToast('Access Denied', 'error')
+        if (!authStore.hasPermission('Change User Status')) return showToast('Access Denied', 'error')
         if (!userId) return
         const rec = records.value.find(r => (r.user && r.user.id) === userId)
         if (!rec) return
@@ -395,6 +495,254 @@ export function useUserManagement() {
         document.removeEventListener('click', onDocClick)
     })
 
+    // watch filters (debounced) like useFileShareManagement
+    watch(filters, () => {
+        if (userFilterTimeout) clearTimeout(userFilterTimeout)
+        userFilterTimeout = setTimeout(() => {
+            currentPage.value = 1
+            fetchData()
+            userFilterTimeout = null
+        }, 350)
+    }, { deep: true })
+
+    const requiredPermission = computed(() => 'Ticket History')
+
+    const canView = computed(() => authStore.hasPermission(requiredPermission.value))
+
+            const resetFilters = () => {
+            try {
+                filters.user = []
+                filters.createdBy = []
+                filters.start_date = ''
+                filters.end_date = ''
+                searchQuery.value = ''
+                startInput.value._flatpickrInstance.clear()
+                endInput.value._flatpickrInstance.clear()
+
+                if (startInput.value && startInput.value._flatpickrInstance) {
+                            startInput.value._flatpickrInstance.clear()
+                        }
+                        if (endInput.value && endInput.value._flatpickrInstance) {
+                            endInput.value._flatpickrInstance.clear()
+                        }
+
+                currentPage.value = 1
+            } catch (e) {
+                console.error('resetFilters error', e)
+            }
+        }
+
+    const exportSelections = reactive({ pdf: false, excel: false, csv: false})
+    const canExport = computed(() => authStore.hasPermission('Save As User Index'))
+    
+    const resetExportSelections = () => {
+        exportSelections.pdf = false
+        exportSelections.excel = false
+        exportSelections.csv = false
+    }
+
+    const confirmExport = async () => {
+        const picks = []
+        if (exportSelections.pdf) picks.push('pdf')
+        if (exportSelections.excel) picks.push('excel')
+        if (exportSelections.csv) picks.push('csv')
+        exportOpen.value = false
+        await onExportFormat(picks)
+        resetExportSelections()
+    }
+
+    const cancelExport = () => {
+        resetExportSelections()
+        exportOpen.value = false
+    }
+
+    function toggleExport() {
+        exportOpen.value = !exportOpen.value
+    }
+
+    const route = useRoute()
+
+    const cardTitle = computed(() => {
+        const p = route.path || ''
+        if (p === '/user-management') return 'User Management'
+        return 'User Management'
+    })
+    
+    const downloading = ref(false)
+    const downloadProgress = ref(0) // percent 0-100
+    const downloadSpeed = ref('0 MB/s')
+    const downloadRemaining = ref('')
+
+    const onExportFormat = async (formatOrFormats) => {
+        if (!canExport.value) return
+        let formats = []
+        if (typeof formatOrFormats === 'string') formats = [formatOrFormats]
+        else if (Array.isArray(formatOrFormats)) formats = formatOrFormats
+        else formats = []
+
+        if (formats.length === 0) return
+
+        // rows to export (no voice selection on this page)
+        const rowsToExport = paginatedRecords.value || []
+        const exportColumns = (columns || []).filter(c => c && c.key !== 'checked')
+        // only create a ZIP when multiple formats requested
+        const multipleOutput = (formats.length > 1)
+
+        // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
+        const fmtTimestamp = (d) => {
+            const yy = d.getFullYear()
+            const mm = String(d.getMonth() + 1).padStart(2, '0')
+            const dd = String(d.getDate()).padStart(2, '0')
+            const hh = String(d.getHours()).padStart(2, '0')
+            const mi = String(d.getMinutes()).padStart(2, '0')
+            const ss = String(d.getSeconds()).padStart(2, '0')
+            return `${yy}${mm}${dd}${hh}${mi}${ss}`
+        }
+        const timestampForName = fmtTimestamp(new Date())
+
+        // progress helpers
+        let startTime = 0
+        let totalBytes = 0
+        let completedTasks = 0
+        const totalTasks = formats.length || 1
+        const markTaskDone = (bytes) => {
+            try {
+                completedTasks += 1
+                if (bytes && typeof bytes === 'number') totalBytes += bytes
+                const pct = Math.round((completedTasks / totalTasks) * 100)
+                downloadProgress.value = Math.min(100, pct)
+                const elapsed = Math.max(0.001, (Date.now() - startTime) / 1000)
+                const speed = totalBytes / elapsed // bytes/sec
+                const mbps = speed / (1024 * 1024)
+                if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+                const avgPerTask = elapsed / completedTasks
+                const remainSec = Math.max(0, Math.round(avgPerTask * (totalTasks - completedTasks)))
+                const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+                const ss = String(remainSec % 60).padStart(2, '0')
+                downloadRemaining.value = `${mm}:${ss} min.`
+            } catch (e) { console.warn('markTaskDone failed', e) }
+        }
+
+        const finishDownloading = (minDisplayMs = 3000) => {
+            try {
+                const elapsed = Math.max(0, Date.now() - startTime)
+                const wait = Math.max(0, minDisplayMs - elapsed)
+                setTimeout(() => {
+                    try {
+                        const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+                        downloadProgress.value = Math.min(100, Math.max(0, pct))
+                        downloadRemaining.value = ''
+                        downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+                        downloading.value = false
+                    } catch (e) { /* ignore */ }
+                }, wait)
+            } catch (e) { console.warn('finishDownloading failed', e) }
+        }
+
+        try {
+            // initialize UI
+            downloading.value = true
+            downloadProgress.value = 0
+            downloadSpeed.value = '0 MB/s'
+            downloadRemaining.value = ''
+            startTime = Date.now()
+
+            // when multipleOutput, try to package into a ZIP
+            if (multipleOutput) {
+                try {
+                    try {
+                        await import('../assets/js/jszip.min.js')
+                    } catch (e) { /* ignore, try window.JSZip */ }
+
+                    if (window.JSZip) {
+                        const zip = new window.JSZip()
+                        let anyFailed = false
+                        for (const fmt of formats) {
+                            try {
+                                const res = await exportTableToFormat(fmt, cardTitle.value, {
+                                    rows: rowsToExport || [],
+                                    columns: exportColumns,
+                                    startIndex: startIndex.value || 0,
+                                    fileNamePrefix: cardTitle.value,
+                                    returnBlob: true
+                                })
+                                if (res && res.blob) {
+                                    const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                                    const ext = extMap[fmt] || fmt
+                                    const name = res.fileName || `${cardTitle.value} ${timestampForName}.${ext}`
+                                    zip.file(name, res.blob)
+                                    try { markTaskDone(res.blob.size) } catch (e) {}
+                                } else {
+                                    anyFailed = true
+                                    try { markTaskDone() } catch (e) {}
+                                }
+                            } catch (e) {
+                                anyFailed = true
+                                console.error('non-voice export into zip failed', e)
+                                try { markTaskDone() } catch (er) {}
+                            }
+                        }
+                        const zipBlob = await zip.generateAsync({ type: 'blob' })
+                        const zipName = `${cardTitle.value} ${timestampForName}.zip`
+                        const a = document.createElement('a')
+                        a.href = URL.createObjectURL(zipBlob)
+                        a.download = zipName
+                        document.body.appendChild(a)
+                        a.click()
+                        a.remove()
+                        setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+                        if (anyFailed) try { showToast('Some exports failed while creating ZIP', 'warning') } catch (e) {}
+                        finishDownloading()
+                        return
+                    }
+                } catch (e) {
+                    console.error('ZIP creation for non-voice failed', e)
+                }
+                // fall through to individual downloads if JSZip not available
+            }
+
+            // per-format downloads
+            for (const fmt of formats) {
+                try {
+                    const res = await exportTableToFormat(fmt, cardTitle.value, {
+                        rows: rowsToExport || [],
+                        columns: exportColumns,
+                        startIndex: startIndex.value || 0,
+                        fileNamePrefix: cardTitle.value,
+                        returnBlob: true
+                    })
+                    if (res && res.blob) {
+                        try {
+                            const url = URL.createObjectURL(res.blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = res.fileName || `${cardTitle.value} ${timestampForName}`
+                            document.body.appendChild(a)
+                            a.click()
+                            a.remove()
+                            setTimeout(() => URL.revokeObjectURL(url), 3000)
+                        } catch (e) { console.warn('trigger blob download failed', e) }
+                        try { markTaskDone(res.blob.size) } catch (e) {}
+                    } else {
+                        try { markTaskDone() } catch (e) {}
+                    }
+                } catch (e) {
+                    console.error('non-voice export failed', fmt, e)
+                    try { if (typeof showToast === 'function') showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+                }
+            }
+
+            finishDownloading()
+            return
+        } catch (err) {
+            console.error('onExportFormat error', err)
+            try { if (typeof showToast === 'function') showToast('Export failed', 'error') } catch (e) {}
+        }
+        finally {
+            try { if (downloading.value) { finishDownloading() } } catch (e) {}
+        }
+    }
+
     const state = {
         authStore,
         searchQuery,
@@ -416,7 +764,23 @@ export function useUserManagement() {
         columns,
         totalPages,
         startIndex,
-        paginatedRecords
+        paginatedRecords,
+        // expose filter-related props
+        filters,
+        userOptions,
+        createdByOptions,
+        actionOptions,
+        startInput,
+        endInput,
+        // export props
+        exportOpen,
+        exportWrap,
+        exportSelections,
+        canExport,
+        downloadProgress,
+        downloadSpeed,
+        downloadRemaining,
+        downloading
     }
 
     const actions = {
@@ -436,11 +800,15 @@ export function useUserManagement() {
         showDbTooltip,
         hideDbTooltip,
         cancelHideDb,
-        openCreateGroup
+        openCreateGroup,
+        resetFilters,
+        toggleExport,
+        confirmExport,
+        cancelExport,
     }
 
     return {
         ...state,
-        ...actions
+        ...actions,
     }
 }

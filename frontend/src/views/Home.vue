@@ -2,9 +2,10 @@
   <MainLayout>
     <div class="main-wrapper container-fluid-home py-3">
       <Breadcrumbs :items="[{ text: 'Home', to: '/' }]" />
+      <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       
       <div class="row col-lg-12">
-        <div v-if="authStore.hasPermission('Query Audio')" class="col-lg-2">
+        <div v-if="authStore.hasPermission('Query Audio Records')" class="col-lg-2">
           <div class="card">
             <div class="card-body">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -29,16 +30,13 @@
                   <input ref="fromInput" v-flatpickr="{ target: filters, key: 'from' }" required type="text" name="from"
                     autocomplete="off" class="input">
                   <label class="floating-label">From</label>
-                  <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i
-                      class="fa-regular fa-calendar"></i></span>
+                  <span class="calendar-icon" @click="fromInput && fromInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
 
                 <div class="input-group" v-has-value>
-                  <input ref="toInput" v-flatpickr="{ target: filters, key: 'to' }" required type="text" name="to"
-                    autocomplete="off" class="input">
+                  <input ref="toInput" v-flatpickr="{ target: filters, key: 'to' }" required type="text" name="to" autocomplete="off" class="input">
                   <label class="floating-label">To</label>
-                  <span class="calendar-icon" @click="toInput && toInput.focus()"><i
-                      class="fa-regular fa-calendar"></i></span>
+                  <span class="calendar-icon" @click="toInput && toInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
 
                 <div class="input-group" v-has-value>
@@ -87,15 +85,16 @@
 
               <div class="my-favorite-search">
                 
-                  <div class="d-flex justify-content-center" v-if="authStore.hasPermission('File Share')" style="padding-right: 12px;padding-left: 8px;">
-                      <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px;">
-                        <i class="fa-solid fa-share-nodes"></i> File Share
+                  <div class="d-flex justify-content-center" v-if="authStore.hasPermission('Delegate Files')" style="padding-right: 12px;padding-left: 8px; position: relative;">
+                      <button class="btn btn-light" type="button" id="fileShare" @click="onFileShareClick" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 6px; position: relative;">
+                        <i class="fa-solid fa-share-nodes"></i> Delegate file 
                       </button>
+                      <span v-if="showFileShareNotification" id="notiFileShare" class="badge badge-danger" style="position: absolute; top: -6px; right: 8px;width: 16px;"><i class="fa-solid fa-exclamation"></i></span>
                      </div>
                 <div class="card">
                   <div class="card-body" style="padding: 8px;">
 
-                    <div class="d-flex justify-content-center" v-if="authStore.hasPermission('My Favorite Search')" >
+                    <div class="d-flex justify-content-center" v-if="authStore.hasPermission('Query Audio Records')" >
                       <button class="btn btn-light" type="button" id="addFavorite" @click="showFavoriteModal = true" style="width: 100%;text-align: left;font-size: 12px;margin-bottom: 4px;">
                         <i class="fa-regular fa-bookmark"></i> My Favorite Search
                       </button>
@@ -137,19 +136,22 @@
             </div>
           </div>
         </div>
-        <div :class="authStore.hasPermission('Query Audio') ? 'col-lg-10' : 'col-lg-12'">
+        <div :class="authStore.hasPermission('Query Audio Records') ? 'col-lg-10' : 'col-lg-12'">
           <div class="card">
             <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
-                <div class="d-flex align-items-center">
+                  <div class="d-flex align-items-center">
                   <div class="d-flex align-items-center justify-content-center me-1"
                     style="width:35px;height:35px;background-color: #D9E2F6;border-radius: 10px !important;">
                     <i class="fa-solid fa-file-audio" style="color:#2b6cb0;font-size:18px"></i>
                   </div>
-                  <h5 class="card-title mb-2 mt-1">Audio Records</h5>
+                  <h5 class="card-title mb-2 mt-1">Audio Records
+                    <span v-if="filters.is_ticket === 'true'"> - Ticket</span>
+                    <span v-else-if="filters.file_share === 'true'"> - Delegate</span>
+                  </h5>
                 </div>
                 <div class="d-flex align-items-center">
-                    <button v-if="authStore.hasPermission('File Share')" class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
+                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && authStore.hasPermission('Create Delegate File','Create Ticket')" class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                         <span v-if="selectedCount > 0" class="badge badge-danger" id="shareCount">{{ selectedCount }}</span>
                       </button>
@@ -157,7 +159,7 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="authStore.hasPermission('Export Recordings')" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="authStore.hasPermission('Save As Index') && (filters.is_ticket !=='true' && filters.file_share !== 'true')" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
@@ -177,7 +179,7 @@
                           <input type="checkbox" v-model="exportSelections.csv" style="margin-right:8px;"> CSV
                         </label>
                       </li>
-                      <li>
+                      <li v-if="authStore.hasPermission('Download Voice File')">
                         <label class="dropdown-item">
                           <input type="checkbox" v-model="exportSelections.voice" style="margin-right:8px;"> Voice
                         </label>
@@ -231,9 +233,9 @@
       </div>
     </div>
   </MainLayout>
-  <ModalHome v-if="authStore.hasPermission('My Favorite Search')" v-model="showFavoriteModal" :favorites="favoriteSearchAll" :mainDbOptions="mainDbOptions" :agentOptions="agentOptions" @apply="applyFavorite" @edit="editFavorite" @delete="deleteFavorite" />
+  <ModalHome v-if="authStore.hasPermission('Query Audio Records')" v-model="showFavoriteModal" :favorites="favoriteSearchAll" :mainDbOptions="mainDbOptions" :agentOptions="agentOptions" @apply="applyFavorite" @edit="editFavorite" @delete="deleteFavorite" />
   <ModalFileShare v-model="showShareModal" :files="selectedFiles" @share="onCreate" />
-  <AudioPlayer v-model="showAudioModal" :src="audioSrc" :metadata="audioMetadata" />
+  <AudioPlayer v-model="showAudioModal" :src="audioSrc" :metadata="audioMetadata" :filters="filters" />
 </template>
 
 <script setup>
@@ -245,8 +247,8 @@ import TableTemplate from '../components/TableTemplate.vue'
 import SearchInput from '../components/SearchInput.vue'
 import AudioPlayer from '../components/AudioPlayer.vue'
 import ModalFileShare from '../components/ModalFileShare.vue'
+import ModalDowload from '../components/ModalDowload.vue'
 import { useHome } from '../composables/useHome'
-import { ref } from 'vue'
 
 const {
   authStore,
@@ -293,6 +295,11 @@ const {
   selectedCount,
   selectAllChecked,
   showShareModal,
+  showFileShareNotification,
+  downloading,
+  downloadProgress,
+  downloadSpeed,
+  downloadRemaining,
   onTyping,
   clearSearchQuery,
   setPerPage,
@@ -322,6 +329,13 @@ const {
 
 function onFileShareClick() {
   filters.file_share = 'true'
+  // hide notification badge when user opens File Share
+  try {
+    showFileShareNotification.value = false
+  } catch (e) {
+    // safe fallback if it's not a ref
+    showFileShareNotification = false
+  }
   onSearch()
 }
 
@@ -348,7 +362,6 @@ function onFileShareClick() {
 
 }
 
-/* Export dropdown action buttons: make Cancel/Confirm expand to fill available width */
 .export-actions {
   display: flex;
   gap: 6px;

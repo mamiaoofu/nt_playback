@@ -25,8 +25,8 @@ class AudioInfo(models.Model):
     customer_number = models.CharField(max_length=20, blank=True, verbose_name='Customer Number')
     start_datetime = models.DateTimeField(auto_now_add=True, verbose_name='Start DateTime')
     end_datetime = models.DateTimeField(auto_now=True, verbose_name='End DateTime')
-    note = models.TextField(blank=True, verbose_name='Note')
-    custom_field_1 = models.CharField(max_length=255, blank=True, verbose_name='Custom Field 1')
+    note = models.TextField(blank=True, verbose_name='Note', null=True)
+    custom_field_1 = models.CharField(max_length=255, blank=True, verbose_name='Custom Field 1', null=True)
     
     
     class Meta:

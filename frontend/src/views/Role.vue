@@ -15,7 +15,7 @@
           </div>
 
           <div class="roles-grid" id="baseRolesGrid">
-            <div class="role-box" data-role="1" @click.stop="authStore.hasPermission('Edit Base Role') && openEditRole(1, 'base')">
+            <div class="role-box" data-role="1" @click.stop="authStore.hasPermission('Edit Base Roles') && openEditRole(1, 'base')">
               <div class="role-box-header">
                 <div class="role-box-icon">
                   <i class="fas fa-crown"></i>
@@ -25,7 +25,7 @@
               <div class="role-box-name">Administrator</div>
               <div class="role-box-desc">Full system access</div>
             </div>
-            <div class="role-box" data-role="2" @click.stop="authStore.hasPermission('Edit Base Role') && openEditRole(2, 'base')">
+            <div class="role-box" data-role="2" @click.stop="authStore.hasPermission('Edit Base Roles') && openEditRole(2, 'base')">
               <div class="role-box-header">
                 <div class="role-box-icon">
                   <i class="fas fa-clipboard-check"></i>
@@ -35,7 +35,7 @@
               <div class="role-box-name">Auditor</div>
               <div class="role-box-desc">Read & audit access</div>
             </div>
-            <div class="role-box" data-role="3" @click.stop="authStore.hasPermission('Edit Base Role') && openEditRole(3, 'base')">
+            <div class="role-box" data-role="3" @click.stop="authStore.hasPermission('Edit Base Roles') && openEditRole(3, 'base')">
               <div class="role-box-header">
                 <div class="role-box-icon">
                   <i class="fas fa-headset"></i>
@@ -65,7 +65,7 @@
                 <input data-v-2dc54a20="" v-model="searchQuery" type="text" class="form-control form-control-sm search-input"
                   placeholder="Search..." fdprocessedid="lf0zjn" />
               </div>
-              <button v-if="authStore.hasPermission('Add Custom Role')" type="button" class="btn-role btn-primary btn-sm" id="addRoleBtn" @click.stop="openCreateRole">
+              <button v-if="authStore.hasPermission('Add New Custom Roles')" type="button" class="btn-role btn-primary btn-sm" id="addRoleBtn" @click.stop="openCreateRole">
                 <i class="fas fa-plus"></i>
                 Add New Role
               </button>
@@ -79,14 +79,14 @@
             <template v-else>
               <div v-if="filteredRoles.length" class="custom-roles-container">
                   <div v-for="role in filteredRoles" :key="role.id" class="custom-role-item"
-                    @click.stop="authStore.hasPermission('Edit Custom Role') && openEditRole(role.id, 'edit')">
+                    @click.stop="authStore.hasPermission('Edit Custom Roles') && openEditRole(role.id, 'edit')">
                   <div class="custom-role-info">
                     <div class="custom-role-name">{{ role.name }}</div>
                     <span class="custom-role-perms">Permissions</span>
                   </div>
                   <div class="custom-role-actions">
-                    <span v-if="authStore.hasPermission('Edit Custom Role')" class="role-box-badge">Click to edit</span>
-                    <button v-if="authStore.hasPermission('Delete Custom Role')" type="button" class="group-delete-btn" @click.stop="deleteCustomRole(role.id)">
+                    <span v-if="authStore.hasPermission('Edit Custom Roles')" class="role-box-badge">Click to edit</span>
+                    <button v-if="authStore.hasPermission('Delete Custom Roles')" type="button" class="group-delete-btn" @click.stop="deleteCustomRole(role.id)">
                       <i class="fas fa-trash" style="font-size: 12px;"></i>
                     </button>
                   </div>

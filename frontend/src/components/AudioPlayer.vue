@@ -1,5 +1,5 @@
 <template>
-  <div v-show="modelValue" class="audio-modal-backdrop" @click.self="close">
+  <div v-show="modelValue" class="audio-modal-backdrop">
     <div class="audio-modal">
       <div class="audio-card">
         <div class="card-header">
@@ -84,23 +84,25 @@
         </div>
 
         <div class="footer-styled">
-          <a v-if="canDownload" :href="src" :download="metadata.fileName || shortName"  class="btn-blue-block">Download</a>
+          <button v-if="showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
           <button class="btn-gray-block" @click="close">Close</button>
         </div>
       </div>
 
       <audio ref="audioRef" preload="metadata" crossorigin="use-credentials"></audio>
     </div>
+    <ModalDowload v-model="showDownloadModal" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
   </div>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted, onBeforeUnmount, toRefs } from 'vue'
+import ModalDowload from './ModalDowload.vue'
 import { useAuthStore } from '../stores/auth.store'
 
 // --- Script ส่วนใหญ่ยังคงเดิม ---
-const props = defineProps({ modelValue: Boolean, src: String, metadata: { type: Object, default: () => ({}) } })
-const { modelValue, src, metadata } = toRefs(props)
+const props = defineProps({ modelValue: Boolean, src: String, metadata: { type: Object, default: () => ({}) }, filters: { type: Object, default: () => ({}) } })
+const { modelValue, src, metadata, filters } = toRefs(props)
 const emit = defineEmits(['update:modelValue'])
 const audioRef = ref(null)
 const playing = ref(false)
@@ -117,7 +119,35 @@ let dragTimeout = null
 const audioUrl = ref(null)
 
 const authStore = useAuthStore()
-const canDownload = computed(() => authStore.hasPermission('Download Audio'))
+const canDownload = computed(() => authStore.hasPermission('Download Voice File'))
+
+const showDownload = computed(() => {
+  const d = metadata.value && metadata.value.download
+  const isTicket = !!(filters && filters.value && (filters.value.is_ticket === 'true' || filters.value.is_ticket === true))
+  const isFileShare = !!(filters && filters.value && (filters.value.file_share === 'true' || filters.value.file_share === true))
+  if (d === true) return true
+  if (isTicket === false && isFileShare === false) return canDownload
+  
+  return false
+})
+
+// Local download modal state
+const showDownloadModal = ref(false)
+const downloadProgress = ref(0)
+const downloadSpeed = ref('0.0 MB/s')
+const downloadRemaining = ref('00:00:00')
+
+const finishDownloadModal = async (minMs = 3000, start = Date.now()) => {
+  try {
+    const elapsed = Math.max(0, Date.now() - start)
+    const wait = Math.max(0, minMs - elapsed)
+    await new Promise(res => setTimeout(res, wait))
+    downloadProgress.value = Math.min(100, downloadProgress.value || 100)
+    downloadRemaining.value = ''
+    downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+    showDownloadModal.value = false
+  } catch (e) { console.warn('finishDownloadModal failed', e) }
+}
 
 const shortName = computed(() => {
   if (!src.value) return ''
@@ -413,6 +443,94 @@ function rewind() { const a = audioRef.value; if (!a) return; a.currentTime = Ma
 function forward() { const a = audioRef.value; if (!a) return; a.currentTime = Math.min((a.duration || 0), a.currentTime + 10) }
 
 function close() { emit('update:modelValue', false); try { const a = audioRef.value; if (a) { a.pause(); a.currentTime = 0; playing.value = false; } } catch (e) { } }
+
+async function downloadAudio() {
+  if (!src.value) return
+  showDownloadModal.value = true
+  downloadProgress.value = 0
+  downloadSpeed.value = '0.0 MB/s'
+  downloadRemaining.value = ''
+  const startTime = Date.now()
+
+  try {
+    const resp = await fetch(src.value, { credentials: 'include' })
+    if (!resp.ok) throw new Error('Download failed: ' + resp.status)
+
+    const contentLength = resp.headers.get('content-length')
+    const totalBytes = contentLength ? parseInt(contentLength, 10) : null
+
+    if (!resp.body || !resp.body.getReader) {
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = metadata.value.fileName || shortName.value || 'audio'
+      document.body.appendChild(a)
+      a.click()
+      try {
+        const lf = encodeURIComponent(metadata.value.fileName || shortName.value || 'audio')
+        fetch(`/api/log/download/?file=${lf}`, { credentials: 'include' }).catch(() => {})
+      } catch (e) { console.warn('log download error', e) }
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 3000)
+      downloadProgress.value = 100
+      downloadSpeed.value = '0.0 MB/s'
+      await finishDownloadModal(3000, startTime)
+      return
+    }
+
+    const reader = resp.body.getReader()
+    const chunks = []
+    let received = 0
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+      received += (value && value.length) || (value && value.byteLength) || 0
+
+      if (totalBytes) {
+        const pct = Math.round((received / totalBytes) * 100)
+        downloadProgress.value = Math.min(99, pct)
+      } else {
+        downloadProgress.value = Math.min(98, downloadProgress.value + 1)
+      }
+
+      const elapsedSec = Math.max(0.001, (Date.now() - startTime) / 1000)
+      const speed = received / elapsedSec
+      const mbps = speed / (1024 * 1024)
+      if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+
+      if (totalBytes && received > 0) {
+        const remainSec = Math.max(0, Math.round((totalBytes - received) / (received / elapsedSec)))
+        const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+        const ss = String(remainSec % 60).padStart(2, '0')
+        downloadRemaining.value = `${mm}:${ss} min.`
+      } else {
+        downloadRemaining.value = ''
+      }
+    }
+
+    const blob = new Blob(chunks)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = metadata.value.fileName || shortName.value || 'audio'
+    document.body.appendChild(a)
+    a.click()
+    try {
+      const lf = encodeURIComponent(metadata.value.fileName || shortName.value || 'audio')
+      fetch(`/api/log/download/?file=${lf}`, { credentials: 'include' }).catch(() => {})
+    } catch (e) { console.warn('log download error', e) }
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 3000)
+
+    downloadProgress.value = 100
+    await finishDownloadModal(3000, startTime)
+  } catch (e) {
+    console.error('downloadAudio error', e)
+    showDownloadModal.value = false
+  }
+}
 
 onMounted(() => {
   const a = audioRef.value

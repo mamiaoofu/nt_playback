@@ -20,8 +20,8 @@
                                         class="form-control form-control-sm search-input"
                                         placeholder="Search..." @input="onTyping" @keyup.enter="onSearch" />
                                 </div>
-                                <button v-if="authStore.hasPermission('Edit Column')" class="btn-role btn-primary btn-sm" id="addGroupBtn"
-                                    @click.stop="authStore.hasPermission('Edit Column') && openCreateGroup()">
+                                <button v-if="authStore.hasPermission('Set Column')" class="btn-role btn-primary btn-sm" id="addGroupBtn"
+                                    @click.stop="authStore.hasPermission('Set Column') && openCreateGroup()">
                                     <i class="fas fa-plus"></i>
                                     Add New Column
                                 </button>
@@ -56,10 +56,10 @@
                                             </div>
 
                                             <div class="group-card-actions">
-                                                <button v-if="authStore.hasPermission('Edit Column')" class="group-edit-btn" @click.stop="authStore.hasPermission('Edit Column') && openEditColumn(column.id)">
+                                                <button v-if="authStore.hasPermission('Set Column')" class="group-edit-btn" @click.stop="authStore.hasPermission('Set Column') && openEditColumn(column.id)">
                                                     Click to edit
                                                 </button>
-                                                <button v-if="authStore.hasPermission('Edit Column')" type="button" class="group-delete-btn"
+                                                <button v-if="authStore.hasPermission('Set Column')" type="button" class="group-delete-btn"
                                                     @click.stop="deleteColumn(column.id)">
                                                     <i class="fas fa-trash" style="font-size: 12px;"></i>
                                                 </button>
@@ -85,7 +85,7 @@
             </div>
         </div>
     </MainLayout>
-    <ModalSetColumn v-if="authStore.hasPermission('Edit Column')" v-model="showModal" :mode="modalMode" :columnData="editColumnData" @saved="onModalSaved"/>
+    <ModalSetColumn v-if="authStore.hasPermission('Set Column')" v-model="showModal" :mode="modalMode" :columnData="editColumnData" @saved="onModalSaved"/>
 </template>
 
 

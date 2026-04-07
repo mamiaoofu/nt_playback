@@ -13,6 +13,7 @@ import './assets/js/jquery-3.6.0.min.js'
 import flatpickrDirective from './directives/flatpickr.js'
 import flatrangepickrDirective from './directives/flatrangepickr.js'
 import hasValueDirective from './directives/hasValue.js'
+import numberOnlyDirective from './directives/numberOnly.js'
 
 // css
 import './assets/css/base.css'
@@ -34,13 +35,13 @@ import './assets/css/datatable.css'
 	app.directive('flatpickr', flatpickrDirective)
 	app.directive('flatrangepickr', flatrangepickrDirective)
 	app.directive('has-value', hasValueDirective)
-	// fetch permissions on startup if user present
+	app.directive('number-only', numberOnlyDirective)
+	// Restore access token from HttpOnly refresh cookie before first navigation.
+	// This ensures router.beforeEach sees a valid token on page reload.
 	try {
 		const auth = useAuthStore()
-		if (auth.user) await auth.fetchPermissions()
-	} catch (e) {
-		console.error('Error fetching permissions on startup', e)
-	}
+		await auth.tryRestoreFromRefresh()
+	} catch (e) {}
 
 	// ensure CSRF token is available for subsequent POST requests
 	try {

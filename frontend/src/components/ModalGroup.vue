@@ -127,7 +127,7 @@
                         <div class="col-lg-12">
                             <div class="form-group-modal">
                                 <div class="input-group">
-                                    <CustomSelect :class="['select-search','select-checkbox', { 'select-toggle-error': selectedGroupError }]" v-model="selectedGroupId" :options="groupOptions" placeholder="Select Group" name="groupModal" />
+                                    <CustomSelect :class="['select-search', { 'select-toggle-error': selectedGroupError }]" v-model="selectedGroupId" :options="groupOptions" placeholder="Select Group" name="groupModal" />
                                     <div v-show="selectedGroupError" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof selectedGroupError === 'string' ? selectedGroupError : 'This field is required.' }}</div>
                                 </div>
                             </div>
@@ -368,7 +368,7 @@ watch(() => name.value, (val) => {
     nameCheck.value = false
     nameError.value = false
     if (_nameTimer) clearTimeout(_nameTimer)
-    _nameTimer = setTimeout(async () => {
+            _nameTimer = setTimeout(async () => {
         try {
             if (!val || String(val).trim() === '') { nameCheck.value = false; return }
             const trimmed = String(val).trim()
@@ -376,8 +376,10 @@ watch(() => name.value, (val) => {
             if (props.mode === 'createGroup' || props.mode === 'editGroup') {
                 url = API_CHECK_GROUP_NAME() + `?group_name=${encodeURIComponent(trimmed)}` + (props.mode === 'editGroup' && props.group && props.group.id ? `&group_id=${encodeURIComponent(String(props.group.id))}` : '')
             } else if (props.mode === 'createTeam' || props.mode === 'editTeam') {
-                // for team check, include team id when editing
-                url = API_CHECK_TEAM_NAME() + `?team_name=${encodeURIComponent(trimmed)}` + (props.mode === 'editTeam' && props.group && props.group.id ? `&team_id=${encodeURIComponent(String(props.group.id))}` : '')
+                // for team check, include group_id (selected) and team_id when editing
+                url = API_CHECK_TEAM_NAME() + `?team_name=${encodeURIComponent(trimmed)}`
+                if (selectedGroupId.value) url += `&group_id=${encodeURIComponent(String(selectedGroupId.value))}`
+                if (props.mode === 'editTeam' && props.group && props.group.id) url += `&team_id=${encodeURIComponent(String(props.group.id))}`
             } else {
                 return
             }
@@ -408,10 +410,14 @@ watch(() => props.modelValue, (val) => {
         description.value = ''
     }
     if (val && props.mode === 'createTeam') {
-        // reset team form
+        // reset team form, but if a group prop is provided, preselect it
         name.value = ''
         description.value = ''
-        selectedGroupId.value = null
+        if (props.group && (props.group.id || props.group.user_group_id || props.group.user_group)) {
+            selectedGroupId.value = props.group.id || props.group.user_group_id || props.group.user_group
+        } else {
+            selectedGroupId.value = null
+        }
         selectedDatabaseIds.value = []
         selectAll.value = false
     }
@@ -442,6 +448,10 @@ watch(() => props.group, (g) => {
         } catch (e) {
             // ignore parse errors
         }
+    }
+    // if modal is open for createTeam and group prop changes, preselect it
+    if (props.modelValue && props.mode === 'createTeam' && g) {
+        selectedGroupId.value = g.id || g.user_group_id || g.user_group || null
     }
 })
 

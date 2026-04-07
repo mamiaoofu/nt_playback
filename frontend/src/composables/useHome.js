@@ -1,12 +1,12 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_CREATE_FILE_SHARE,API_PROXY_AUDIO } from '../api/paths'
-import { ensureCsrf, getCsrfToken } from '../api/csrf'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase,API_PROXY_AUDIO,API_CHECK_FILE_SHARE } from '../api/paths'
+import { getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
 import '../assets/js/jszip.min.js'
-import { exportTableToFormat, getCookie, showToast } from '../assets/js/function-all'
+import { exportTableToFormat, showToast } from '../assets/js/function-all'
 
 export function useHome() {
   const authStore = useAuthStore()
@@ -20,7 +20,11 @@ export function useHome() {
     callDirection: '',
     customerNumber: '',
     agent: '',
-    file_share: ''
+    extension: '',
+    fullName: '',
+    customField: '',
+    file_share: '',
+    is_ticket: ''
   })
 
   const searchQuery = ref('')
@@ -59,17 +63,26 @@ export function useHome() {
   
   const processedSaveLogs = new Set()
   let saveLogsInterval = null
+  // file-share notification (WebSocket-only; polling removed)
+  const showFileShareNotification = ref(false)
+  let fileShareWs = null
 
   const records = ref([])
   const totalItems = ref(0)
   const loading = ref(false)
+
+  // download modal state
+  const downloading = ref(false)
+  const downloadProgress = ref(0) // percent 0-100
+  const downloadSpeed = ref('0 MB/s')
+  const downloadRemaining = ref('')
 
   const sortColumn = ref('')
   const sortDirection = ref('')
 
   const defaultColumns = [
     { key: 'checked', label: '', sortable: false, width: '1%' },
-    { key: 'index', label: '#', isIndex: true, sortable: false },
+    { key: 'index', label: '#', isIndex: true},
     { key: 'main_db', label: 'Database Server' },
     { key: 'start_datetime', label: 'Start Date & Time' },
     { key: 'end_datetime', label: 'End Date & Time' },
@@ -84,6 +97,59 @@ export function useHome() {
   ]
 
   const columns = ref([...defaultColumns])
+
+  // when viewing delegated/file_share results, inject the share-specific columns
+  watch(() => filters.file_share, (v) => {
+    try {
+      if (v === 'true') {
+        if (!columns.value.find(c => c.key === 'created_by')) {
+          const baseCols = defaultColumns.filter(c => c.key !== 'checked')
+          columns.value = [
+            ...baseCols,
+            { key: 'delegate_id', label: 'Delegate ID' },
+            { key: 'start_date', label: 'Start Date' },
+            { key: 'expire_at', label: 'Expire Date' },
+            { key: 'created_by', label: 'Created by' },
+            { key: 'download', label: 'Download', sortable: false },
+          ]
+        }
+      } else {
+        // only revert to default when ticket mode is not active
+        if (filters.is_ticket !== 'true') {
+          // revert to default columns (fetchActiveColumns may override later)
+          columns.value = [...defaultColumns]
+        }
+      }
+    } catch (e) {
+      console.error('update columns for file_share error', e)
+    }
+  })
+
+  // when viewing ticket results, inject the same share-specific columns
+  watch(() => filters.is_ticket, (v) => {
+    try {
+      if (v === 'true') {
+        if (!columns.value.find(c => c.key === 'created_by')) {
+          const baseCols = defaultColumns.filter(c => c.key !== 'checked')
+          columns.value = [
+            ...baseCols,
+            { key: 'ticket_id', label: 'Ticket ID' },
+            { key: 'start_date', label: 'Start Date' },
+            { key: 'expire_at', label: 'Expire Date' },
+            { key: 'created_by', label: 'Created by' },
+            { key: 'download', label: 'Download', sortable: false }
+          ]
+        }
+      } else {
+        // only revert to default when file_share mode is not active
+        if (filters.file_share !== 'true') {
+          columns.value = [...defaultColumns]
+        }
+      }
+    } catch (e) {
+      console.error('update columns for is_ticket error', e)
+    }
+  })
 
   // selection state for file sharing (keyed map to avoid duplicates across pages)
   const _selectedFilesMap = ref({})
@@ -105,12 +171,10 @@ export function useHome() {
       try { const copy = { ..._selectedFilesMap.value }; delete copy[key]; _selectedFilesMap.value = copy } catch (e) {}
       row.checked = false
     } else {
-      const entry = {
-        file_id: row.file_id ?? row.id ?? row.fileId ?? key,
-        file_name: row.file_name ?? row.fileName ?? '',
-        customer_number: row.customer_number ?? row.customerNumber ?? '',
-        start_datetime: (row.start_datetime ?? row.startDatetime ?? row.start) || ''
-      }
+      // store the full row object for exports so exported files contain all available fields
+      const entry = { ...(row || {}) }
+      // ensure a stable file_id exists on the stored entry
+      entry.file_id = entry.file_id ?? entry.id ?? entry.fileId ?? key
       _selectedFilesMap.value = { ..._selectedFilesMap.value, [key]: entry }
       row.checked = true
     }
@@ -186,6 +250,17 @@ export function useHome() {
   }
 
   const applyRecent = async (r) => {
+    // helper to finish downloading UI, guaranteeing minimum display time
+    const finishDownloading = () => {
+      try {
+        const minMs = 30000
+        const elapsed = Math.max(0, Date.now() - startTime)
+        const wait = Math.max(0, minMs - elapsed)
+        downloadProgress.value = 100
+        setTimeout(() => { downloading.value = false }, wait)
+      } catch (e) { downloading.value = false }
+    }
+
     try {
       const raw = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data || '{}') : (r.raw_data || null)
       if (raw) {
@@ -353,7 +428,7 @@ export function useHome() {
     }
   }
 
-  const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+  const canExport = computed(() => authStore.hasPermission('Save As Index'))
   const toggleExport = () => {
     if (!canExport.value) return
     exportOpen.value = !exportOpen.value
@@ -425,6 +500,15 @@ export function useHome() {
       const res = await fetch(`${API_AUDIO_LIST()}?${params.toString()}`, { credentials: 'include' })
       if (!res.ok) throw new Error('Failed to fetch')
       const json = await res.json()
+      // sync server-provided flags into filters (use string 'true' for compatibility)
+      try {
+        if (typeof json.is_ticket !== 'undefined') {
+          filters.is_ticket = json.is_ticket ? 'true' : ''
+        }
+        if (typeof json.file_share !== 'undefined') {
+          filters.file_share = json.file_share ? 'true' : ''
+        }
+      } catch (e) { /* ignore */ }
       records.value = (json.data || []).map(r => {
         try {
           // if this row was previously selected (by key), preserve checked state
@@ -485,12 +569,9 @@ export function useHome() {
         try {
           const k = _makeKey(r)
             if (!Object.prototype.hasOwnProperty.call(copy, k)) {
-            copy[k] = {
-              file_id: r.file_id ,
-              file_name: r.file_name ,
-              customer_number: r.customer_number ,
-              start_datetime: (r.start_datetime ) 
-            }
+            // store full row data so exports include all fields for selected rows
+            copy[k] = { ...(r || {}) }
+            copy[k].file_id = copy[k].file_id ?? copy[k].id ?? copy[k].fileId ?? k
           }
           r.checked = true
         } catch (e) { /* ignore per-row errors */ }
@@ -588,7 +669,9 @@ export function useHome() {
   }
 
   const onReset = async () => {
+    // Reset all UI state to initial values (like a page reload), without reloading
     try {
+      // Reset filter model
       filters.databaseServer = []
       filters.from = ''
       filters.to = ''
@@ -601,46 +684,75 @@ export function useHome() {
       filters.customField = ''
       filters.extension = ''
       filters.file_share = ''
+      filters.is_ticket = ''
+
+      // Reset UI state
+      searchQuery.value = ''
       sortColumn.value = ''
       sortDirection.value = ''
-      searchQuery.value = ''
       currentPage.value = 1
-      await nextTick()
-      try {
-        if (fromInput.value) {
-          if (fromInput.value._flatpickr && typeof fromInput.value._flatpickr.clear === 'function') {
-            fromInput.value._flatpickr.clear()
-          } else {
-            fromInput.value.value = ''
-          }
-        }
-      } catch (e) { console.warn('clear fromInput failed', e) }
-      try {
-        if (toInput.value) {
-          if (toInput.value._flatpickr && typeof toInput.value._flatpickr.clear === 'function') {
-            toInput.value._flatpickr.clear()
-          } else {
-            toInput.value.value = ''
-          }
-        }
-      } catch (e) { console.warn('clear toInput failed', e) }
+      perPage.value = 50
 
+      // Clear selection and exported state
+      _selectedFilesMap.value = {}
+      resetExportSelections()
+      exportOpen.value = false
+      perDropdownOpen.value = false
+      recentOpen.value = false
+
+      // Restore default columns and clear records cache
+      columns.value = [...defaultColumns]
+      records.value = []
+      totalItems.value = 0
+
+      // Helper to clear flatpickr/input refs safely
+      const _clearInput = (refEl) => {
+        try {
+          if (!refEl || !refEl.value) return
+          const el = refEl.value
+          if (typeof el._flatpickrDoClear === 'function') {
+            try {
+              el._flatpickrDoClear()
+              // Also clear any cloned "To" inputs created by the directive
+              if (el._flatpickrToContainer) {
+                const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                inputs.forEach(i => {
+                  try { i.value = '' } catch (e) {}
+                  try { i.dispatchEvent(new Event('change')) } catch (e) {}
+                })
+              }
+              if ('value' in el) el.value = ''
+              try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+            } catch (e) {}
+            return
+          }
+          const inst = el._flatpickrInstance || el._flatpickrRangeInstance || el._flatpickr
+          if (inst && typeof inst.clear === 'function') { inst.clear(); return }
+          if ('value' in el) el.value = ''
+        } catch (e) { /* ignore */ }
+      }
+
+      _clearInput(fromInput)
+      _clearInput(toInput)
+      _clearInput(durationInput)
+
+      // Clear DOM-held input text and has-value classes
       try {
         const wrap = document.querySelector('.filter-card')
         if (wrap) {
-          const groups = wrap.querySelectorAll('.input-group')
-          groups.forEach(g => {
+          wrap.querySelectorAll('.input-group').forEach(g => {
             try {
               g.classList.remove('has-value')
-              const input = g.querySelector('input, textarea, select')
-              if (input) input.value = ''
-            } catch (ign) {}
+              const inp = g.querySelector('input, textarea, select')
+              if (inp) inp.value = ''
+            } catch (e) {}
           })
         }
-      } catch (e) { console.warn('clear filter-card values failed', e) }
+      } catch (e) {}
+
       await fetchData()
-    } catch (e) {
-      console.error('onReset error', e)
+    } catch (err) {
+      console.error('onReset error', err)
     }
   }
 
@@ -738,21 +850,96 @@ export function useHome() {
       try {
         if (durationInput.value) {
           const inst3 = durationInput.value._flatpickrInstance || durationInput.value._flatpickr
-          const dstr = filters.duration
+          const dstrRaw = filters.duration ?? ''
+          const dstr = String(dstrRaw).trim()
+
+          // normalize duration into "start - end" when it's an array or comma-separated
+          let normDur = dstr
+          if (Array.isArray(dstrRaw)) {
+            normDur = dstrRaw.map(x => String(x || '').trim()).filter(Boolean).join(' - ')
+          } else if (dstr.indexOf(',') !== -1 && !dstr.includes(' - ')) {
+            normDur = dstr.split(',').map(x => String(x || '').trim()).filter(Boolean).join(' - ')
+          }
+          // store normalized value back into filters so logs show the desired format
+          try { filters.duration = normDur } catch (e) {}
+
+          const dstrUsed = normDur
+
+          const parseTimeToDate = (s) => {
+            if (!s) return null
+            const parts = String(s).split(':').map(x => parseInt(x, 10) || 0)
+            const d = new Date()
+            d.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
+            return d
+          }
+
           if (inst3 && typeof inst3.setDate === 'function') {
-            if (dstr && dstr.indexOf(':') !== -1) {
-              const parts = String(dstr).split(':').map(x => parseInt(x, 10) || 0)
-              const now = new Date()
-              now.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
-              inst3.setDate(now, true)
-            } else if (!dstr) {
+            try {
+              if (inst3.config) inst3.config.rangeSeparator = ' - '
+            } catch (e) {}
+
+            if (!dstrUsed) {
               inst3.clear()
+            } else if (dstrUsed.includes(' - ')) {
+              const [startStr, endStr] = dstrUsed.split(' - ').map(x => x.trim())
+              const sd = parseTimeToDate(startStr)
+              const ed = parseTimeToDate(endStr)
+              if (sd && ed) {
+                inst3.setDate([sd, ed], true)
+                // ensure the input shows the desired separator after flatpickr updates it
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = dstrUsed } catch (e) {}
+                }, 50)
+              } else if (sd) {
+                inst3.setDate(sd, true)
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = startStr } catch (e) {}
+                }, 50)
+              } else {
+                inst3.clear()
+              }
+            } else if (dstrUsed.indexOf(':') !== -1) {
+              const d = parseTimeToDate(dstrUsed)
+              if (d) {
+                inst3.setDate(d, true)
+                setTimeout(() => {
+                  try { if (durationInput.value && 'value' in durationInput.value) durationInput.value.value = dstrUsed } catch (e) {}
+                }, 50)
+              } else {
+                inst3.clear()
+              }
             } else {
-              durationInput.value.value = dstr || ''
+              try { durationInput.value.value = dstrUsed } catch (e) {}
             }
           } else {
-            durationInput.value.value = filters.duration || ''
+            try { durationInput.value.value = filters.duration || '' } catch (e) {}
           }
+
+          // final safeguard: ensure filter and input remain identical (normalize commas -> ' - ')
+          try {
+            if (durationInput.value && 'value' in durationInput.value) {
+              let val = String(durationInput.value.value || filters.duration || '')
+              val = val.replace(/\s*,\s*/g, ' - ')
+              filters.duration = val
+              durationInput.value.value = val
+
+              // If Flatpickr overwrites the input asynchronously, enforce normalization after it settles
+              setTimeout(() => {
+                try {
+                  if (durationInput.value && 'value' in durationInput.value) {
+                    let v2 = String(durationInput.value.value || '')
+                    v2 = v2.replace(/\s*,\s*/g, ' - ')
+                    if (v2 !== filters.duration) {
+                      filters.duration = v2
+                      durationInput.value.value = v2
+                    }
+                  }
+                } catch (er) {}
+              }, 200)
+            }
+          } catch (e) {}
+
+          console.log('Applied duration filter', filters.duration, 'parsed as', durationInput.value.value)
         }
       } catch (e) { console.warn('applyFavorite update durationInput failed', e) }
 
@@ -818,6 +1005,8 @@ export function useHome() {
     // if voice is requested, ensure at least one row is selected
     const wantVoice = formats.indexOf('voice') !== -1
     const selected = selectedFiles.value || []
+    const rowsToExport = (selected && selected.length > 0) ? selected : (paginatedRecords.value || [])
+    const exportColumns = (columns.value || []).filter(c => c && c.key !== 'checked')
     if (wantVoice && (!selected || selected.length === 0)) {
       showToast('Please select a row to file audio', 'warning')
       return
@@ -829,10 +1018,73 @@ export function useHome() {
     // fileTypeName used for non-audio exports
     let fileTypeName = 'audio-records_'
     const dateStr = new Date().toISOString().slice(0, 10)
+    // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
+    const fmtTimestamp = (d) => {
+      const yy = d.getFullYear()
+      const mm = String(d.getMonth() + 1).padStart(2, '0')
+      const dd = String(d.getDate()).padStart(2, '0')
+      const hh = String(d.getHours()).padStart(2, '0')
+      const mi = String(d.getMinutes()).padStart(2, '0')
+      const ss = String(d.getSeconds()).padStart(2, '0')
+      return `${yy}${mm}${dd}${hh}${mi}${ss}`
+    }
+    const timestampForName = fmtTimestamp(new Date())
     const rangeStart = (startIndex.value || 0) + 1
-    const rangeEnd = (startIndex.value || 0) + (paginatedRecords.value ? (paginatedRecords.value.length || 0) : 0)
+    const rangeEnd = (startIndex.value || 0) + (rowsToExport ? (rowsToExport.length || 0) : 0)
+
+    // setup download progress helpers
+    let startTime = 0
+    let totalBytes = 0
+    let completedTasks = 0
+    const nonVoiceFormats = formats.filter(f => f !== 'voice')
+    const totalTasks = nonVoiceFormats.length + (wantVoice ? Math.max(1, selected.length || 0) : 0) || 1
+    const markTaskDone = (bytes) => {
+      try {
+        completedTasks += 1
+        if (bytes && typeof bytes === 'number') totalBytes += bytes
+        const pct = Math.round((completedTasks / totalTasks) * 100)
+        downloadProgress.value = Math.min(100, pct)
+        const elapsed = Math.max(0.001, (Date.now() - startTime) / 1000)
+        const speed = totalBytes / elapsed // bytes/sec
+        const mbps = speed / (1024 * 1024)
+        if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+        const avgPerTask = elapsed / completedTasks
+        const remainSec = Math.max(0, Math.round(avgPerTask * (totalTasks - completedTasks)))
+        const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+        const ss = String(remainSec % 60).padStart(2, '0')
+        downloadRemaining.value = `${mm}:${ss} min.`
+      } catch (e) { console.warn('markTaskDone failed', e) }
+    }
+
+    // ensure the downloading modal stays visible at least `minDisplayMs`
+    const finishDownloading = (minDisplayMs = 3000) => {
+      try {
+        const elapsed = Math.max(0, Date.now() - startTime)
+        const wait = Math.max(0, minDisplayMs - elapsed)
+        setTimeout(() => {
+          try {
+            // compute a sensible final percentage based on completed tasks
+            try {
+              const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+              downloadProgress.value = Math.min(100, Math.max(0, pct))
+            } catch (e) {
+              downloadProgress.value = Math.min(100, downloadProgress.value ?? 100)
+            }
+            downloadRemaining.value = ''
+            downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+            downloading.value = false
+          } catch (e) { /* ignore */ }
+        }, wait)
+      } catch (e) { console.warn('finishDownloading failed', e) }
+    }
 
     try {
+      // initialize downloading UI
+      downloading.value = true
+      downloadProgress.value = 0
+      downloadSpeed.value = '0 MB/s'
+      downloadRemaining.value = ''
+      startTime = Date.now()
       // handle voice downloads (non-voice exports will be included in ZIP when possible)
       if (wantVoice) {
         const base = getApiBase().replace(/\/$/, '')
@@ -851,8 +1103,8 @@ export function useHome() {
           } catch (e) { reject(e) }
         })
 
-        // if multiple outputs or many selected files, package into a zip
-        if (multipleOutput && (selected.length > 1)) {
+        // if multiple outputs (multiple formats or multiple selected files), package into a zip
+        if (multipleOutput) {
           try {
             await import('../assets/js/jszip.min.js')
           } catch (e) {
@@ -870,33 +1122,36 @@ export function useHome() {
                 for (const fmt of nonVoice) {
                   try {
                     const res = await exportTableToFormat(fmt, 'audio', {
-                      rows: paginatedRecords.value || [],
-                      columns: columns.value || [],
+                      rows: rowsToExport || [],
+                      columns: exportColumns,
                       startIndex: startIndex.value || 0,
                       fileNamePrefix: 'audio-records',
                       returnBlob: true
                     })
                     if (res && res.blob && res.fileName) {
                       zip.file(res.fileName, res.blob)
+                      try { markTaskDone(res.blob.size) } catch (e) {}
                     } else {
                       // fallback: trigger normal download for this format
                       anyFailed = true
-                      await exportTableToFormat(fmt, 'audio', {
-                        rows: paginatedRecords.value || [],
-                        columns: columns.value || [],
+                      const r2 = await exportTableToFormat(fmt, 'audio', {
+                        rows: rowsToExport || [],
+                        columns: exportColumns,
                         startIndex: startIndex.value || 0,
                         fileNamePrefix: 'audio-records'
                       })
+                      try { if (r2 && r2.blob) markTaskDone(r2.blob.size); else markTaskDone() } catch (e) {}
                     }
                   } catch (e) {
                     anyFailed = true
                     console.error('nonVoice export into zip failed', e)
+                    try { markTaskDone() } catch (er) {}
                   }
                 }
               } catch (e) {
                 console.error('including non-voice into zip failed', e)
               }
-              for (const f of selected) {
+                for (const f of selected) {
                 const fname = f.file_name || f.fileName || ''
                 if (!fname) continue
                 const url = API_PROXY_AUDIO(fname)
@@ -916,13 +1171,15 @@ export function useHome() {
                     if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
                   } catch (e) {}
                   zip.file(outName, blob)
+                  try { markTaskDone(blob.size) } catch (er) {}
                 } catch (err) {
                   anyFailed = true
                   console.error('voice fetch failed for zip', err)
+                  try { markTaskDone() } catch (er) {}
                 }
               }
               const zipBlob = await zip.generateAsync({ type: 'blob' })
-              const zipName = `audio-records_${dateStr}_${rangeStart}-${rangeEnd}.zip`
+              const zipName = `Audio record${timestampForName}.zip`
               const a = document.createElement('a')
               a.href = URL.createObjectURL(zipBlob)
               a.download = zipName
@@ -943,15 +1200,54 @@ export function useHome() {
             const nonVoiceFallback = formats.filter(f => f !== 'voice')
             for (const fmt of nonVoiceFallback) {
               try {
-                await exportTableToFormat(fmt, 'audio', {
-                  rows: paginatedRecords.value || [],
-                  columns: columns.value || [],
+                const res = await exportTableToFormat(fmt, 'audio', {
+                  rows: rowsToExport || [],
+                  columns: exportColumns,
                   startIndex: startIndex.value || 0,
                   fileNamePrefix: 'audio-records'
                 })
-              } catch (e) { console.error('nonVoice fallback export failed', e) }
+                try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+              } catch (e) { console.error('nonVoice fallback export failed', e); try { markTaskDone() } catch (er) {} }
             }
           } catch (e) { console.error('nonVoice fallback loop failed', e) }
+        }
+
+        // ensure non-voice exports are handled even when voice is requested
+        const nonVoice = formats.filter(f => f !== 'voice')
+        if (nonVoice.length > 0) {
+          try {
+            for (const fmt of nonVoice) {
+              try {
+                const res = await exportTableToFormat(fmt, 'audio', {
+                  rows: rowsToExport || [],
+                  columns: exportColumns,
+                  startIndex: startIndex.value || 0,
+                  fileNamePrefix: 'audio-records',
+                  returnBlob: true
+                })
+                if (res && res.blob) {
+                  try {
+                    const url = URL.createObjectURL(res.blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                    const ext = extMap[fmt] || fmt
+                    a.download = res.fileName || `Audio record${timestampForName}.${ext}`
+                    document.body.appendChild(a)
+                    a.click()
+                    a.remove()
+                    setTimeout(() => URL.revokeObjectURL(url), 3000)
+                  } catch (e) { console.warn('trigger blob download failed for nonVoice in voice flow', e) }
+                  try { markTaskDone(res.blob.size) } catch (e) {}
+                } else {
+                  try { markTaskDone() } catch (e) {}
+                }
+              } catch (e) {
+                console.error('non-voice export (voice flow) failed', fmt, e)
+                try { markTaskDone() } catch (er) {}
+              }
+            }
+          } catch (e) { console.error('processing nonVoice in voice flow failed', e) }
         }
 
         // fallback or single-file download behavior
@@ -973,7 +1269,7 @@ export function useHome() {
               const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
               if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
             } catch (e) {}
-            const safePrefix = (multipleOutput) ? (`audio-records_${dateStr}_${rangeStart}-${rangeEnd}_`) : ''
+            const safePrefix = (multipleOutput) ? (`Audio record${timestampForName}_`) : ''
             const a = document.createElement('a')
             a.href = URL.createObjectURL(blob)
             a.download = safePrefix + outName
@@ -981,15 +1277,105 @@ export function useHome() {
             a.click()
             a.remove()
             setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+            try { markTaskDone(blob.size) } catch (er) {}
           } catch (err) {
             console.error('voice download error', err)
             showToast(`Failed to download ${fname}`, 'error')
+            try { markTaskDone() } catch (er) {}
           }
         }
+      }
+      // If voice is not requested, handle non-voice exports directly
+      if (!wantVoice) {
+        try {
+          // when multipleOutput (multiple formats or multiple rows), package non-voice exports into a ZIP
+          if (multipleOutput) {
+            try {
+              try {
+                await import('../assets/js/jszip.min.js')
+              } catch (e) { /* ignore, try window.JSZip */ }
+
+              if (window.JSZip) {
+                const zip = new window.JSZip()
+                let anyFailed = false
+                for (const fmt of formats) {
+                  try {
+                    const res = await exportTableToFormat(fmt, 'audio', {
+                      rows: rowsToExport || [],
+                      columns: exportColumns,
+                      startIndex: startIndex.value || 0,
+                      fileNamePrefix: 'audio-records',
+                      returnBlob: true
+                    })
+                    if (res && res.blob) {
+                      const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                      const ext = extMap[fmt] || fmt
+                      const name = res.fileName || `Audio record${timestampForName}.${ext}`
+                      zip.file(name, res.blob)
+                      try { markTaskDone(res.blob.size) } catch (e) {}
+                    } else {
+                      anyFailed = true
+                      try { markTaskDone() } catch (e) {}
+                    }
+                  } catch (e) {
+                    anyFailed = true
+                    console.error('non-voice export into zip failed', e)
+                    try { markTaskDone() } catch (er) {}
+                  }
+                }
+                const zipBlob = await zip.generateAsync({ type: 'blob' })
+                const zipName = `Audio record${timestampForName}.zip`
+                const a = document.createElement('a')
+                a.href = URL.createObjectURL(zipBlob)
+                a.download = zipName
+                document.body.appendChild(a)
+                a.click()
+                a.remove()
+                setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+                if (anyFailed) showToast('Some exports failed while creating ZIP', 'warning')
+                finishDownloading()
+                return
+              }
+            } catch (e) {
+              console.error('ZIP creation for non-voice failed', e)
+            }
+            // if JSZip not available or failed, fall through to individual downloads
+          }
+
+          // per-format downloads (single-output case or JSZip fallback)
+          for (const fmt of formats) {
+            try {
+              const res = await exportTableToFormat(fmt, 'audio', {
+                rows: rowsToExport || [],
+                columns: exportColumns,
+                startIndex: startIndex.value || 0,
+                fileNamePrefix: 'audio-records'
+              })
+              try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+            } catch (e) {
+              console.error('non-voice export failed', fmt, e)
+              try { showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+            }
+          }
+        } catch (e) {
+          console.error('handle non-voice exports failed', e)
+          try { showToast('Export failed', 'error') } catch (er) {}
+        }
+        // finish progress for non-voice-only flows (ensure min display time)
+        finishDownloading()
+        return
       }
     } catch (err) {
       console.error('onExportFormat error', err)
       showToast('Export failed', 'error')
+    }
+    finally {
+      // ensure downloading is turned off after operations finish
+      try {
+        if (downloading.value) {
+          finishDownloading()
+        }
+      } catch (e) {}
     }
   }
 
@@ -1064,7 +1450,7 @@ export function useHome() {
   }
 
   const onRowDblClick = async (row) => {
-    if (!authStore.hasPermission('Playback Audio')) {
+    if (!authStore.hasPermission('Playback Audio Records')) {
       showToast('Access Denied', 'error')
       return
     }
@@ -1085,13 +1471,20 @@ export function useHome() {
         audioMetadata.callDirection = row.call_direction || ''
         audioMetadata.from = row.from || row.start_datetime || ''
         audioMetadata.to = row.to || row.end_datetime || ''
+        // set download flag for AudioPlayer: true/false or null when not provided
+        if (typeof row.download === 'undefined') {
+          audioMetadata.download = null
+        } else {
+          const v = row.download
+          audioMetadata.download = (v === true)
+        }
         showAudioModal.value = true
         const csrfToken = getCsrfToken()
         fetch(API_LOG_PLAY_AUDIO(), {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
-          body: JSON.stringify({ status: 'initiated_browser', detail: `Play in-browser file: ${audioSrc.value}` })
+          body: JSON.stringify({ status: 'success', detail: `Play audio file: ${audioMetadata.fileName}` })
         }).catch(() => {})
       } catch (e) {
         console.error('Failed to initiate in-browser playback', e)
@@ -1153,7 +1546,7 @@ export function useHome() {
             if (data.running || checkCount >= maxChecks) {
               clearInterval(pollInterval)
               loading.value = false
-              if (data.running) sendLog('success', `Playback file: ${uncPath}`)
+              if (data.running) sendLog('success', `Play audio file: ${fileName}`)
               else {
                 sendLog('warning', `Playback initiated but process not detected: ${uncPath}`)
                 try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (e) {}
@@ -1178,7 +1571,7 @@ export function useHome() {
       try {
         showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
       } catch (e) {}
-      sendLog('error', `FAIL_NT_Player_Connect_RUNNING | Could not connect to local NT Player Connect or another error occurred: ${error.message}. File: ${uncPath}`)
+      sendLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${uncPath}`)
       loading.value = false
     }
   }
@@ -1228,13 +1621,82 @@ export function useHome() {
     document.addEventListener('click', onDocClick)
     try {
       pollSaveLogs()
-      saveLogsInterval = setInterval(pollSaveLogs, 3000)
+      // saveLogsInterval = setInterval(pollSaveLogs, 3000)
     } catch (e) { console.warn('start pollSaveLogs failed', e) }
+    // file-share: WebSocket-only (server push). Polling removed.
+    const checkFileShare = async () => {
+      try {
+        const res = await fetch(API_CHECK_FILE_SHARE(), { credentials: 'include' })
+        if (!res.ok) {
+          showFileShareNotification.value = false
+          return
+        }
+        const j = await res.json()
+        showFileShareNotification.value = !!(j && j.ok)
+      } catch (err) {
+        console.error('checkFileShare error', err)
+        showFileShareNotification.value = false
+      }
+    }
+
+    const setupWebSocket = () => {
+      try {
+        // Prefer same-origin websocket (works when frontend is reverse-proxied to backend)
+        let wsUrl = null
+        try {
+          const loc = window.location
+          const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:'
+          wsUrl = `${proto}//${loc.host}/ws/notifications/`
+        } catch (e) {
+          const base = getApiBase().replace(/\/$/, '')
+          wsUrl = base.replace(/^http/, 'ws') + '/ws/notifications/'
+        }
+        console.debug('Connecting FileShare WS ->', wsUrl)
+        fileShareWs = new WebSocket(wsUrl)
+        fileShareWs.onopen = () => {
+          // connected
+        }
+        fileShareWs.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data)
+            if (!data) return
+            if (data.type === 'force_logout') {
+              // Handled globally by useNotifications (with login-race guard);
+              // ignore here to avoid double-trigger.
+              return
+            }
+            if (data && (data.type === 'file_share' || data.type === 'file.share' || data.type === 'file_share')) {
+              showFileShareNotification.value = !!data.ok
+            }
+          } catch (e) { /* ignore malformed */ }
+        }
+        fileShareWs.onclose = () => {
+          showFileShareNotification.value = false
+          // attempt a simple reconnect after a short delay
+          setTimeout(() => {
+            try { setupWebSocket() } catch (e) {}
+          }, 5000)
+        }
+        fileShareWs.onerror = () => {
+          try { fileShareWs.close() } catch (e) {}
+        }
+      } catch (e) {
+        console.warn('setupWebSocket failed', e)
+      }
+    }
+
+    try {
+      // initial API check when Home is opened
+      checkFileShare().catch(() => {})
+      setupWebSocket()
+    } catch (e) { console.warn('start fileShare mechanism failed', e) }
   })
 
   onBeforeUnmount(() => {
     document.removeEventListener('click', onDocClick)
     try { if (saveLogsInterval) clearInterval(saveLogsInterval) } catch (e) {}
+    // polling removed; ensure websocket closed
+    try { if (fileShareWs) { fileShareWs.close(); fileShareWs = null } } catch (e) {}
   })
 
   const showShareModal = ref(false)
@@ -1290,6 +1752,11 @@ export function useHome() {
     selectedCount,
     selectAllChecked,
     showShareModal,
+    showFileShareNotification,
+    downloading,
+    downloadProgress,
+    downloadSpeed,
+    downloadRemaining,
   }
 
   const actions = {

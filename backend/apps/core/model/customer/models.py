@@ -4,7 +4,6 @@ class CustomerContact(models.Model):
     phone_number = models.CharField(max_length=20, verbose_name='Phone Number')
     email = models.EmailField(blank=True, verbose_name='Email')
     address = models.TextField(blank=True, verbose_name='Address')
-    managed = False
     
     class Meta:
         db_table = 'tb_customercontact'
@@ -16,7 +15,6 @@ class CustomerInfo(models.Model):
     customercontact = models.ForeignKey(CustomerContact, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Customer Contact')
     company = models.CharField(max_length=255, blank=True, verbose_name='Company')
     note = models.TextField(blank=True, verbose_name='Note')
-    managed = False
     
     class Meta:
         db_table = 'tb_customerinfo'

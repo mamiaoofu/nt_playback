@@ -30,13 +30,13 @@ export function useUserLog() {
         { label: 'Create Config Team', value: 'Create Config Team' },
         { label: 'Create Custom Role', value: 'Create Custom Role' },
         { label: 'Create Favorite', value: 'Create Favorite' },
-        { label: 'Create Favorite Search', value: 'Create Favorite Search' },
         { label: 'Created User', value: 'Created User' },
         { label: 'Delete Config Group', value: 'Delete Config Group' },
         { label: 'Delete Config Team', value: 'Delete Config Team' },
         { label: 'Delete Custom Role', value: 'Delete Custom Role' },
         { label: 'Delete Favorite', value: 'Delete Favorite' },
         { label: 'Delete User', value: 'Delete User' },
+        { label: 'Download', value: 'Download' },
         { label: 'Edit Favorite', value: 'Edit Favorite' },
         { label: 'Login', value: 'Login' },
         { label: 'Play audio', value: 'Play audio' },
@@ -45,7 +45,7 @@ export function useUserLog() {
         { label: 'Update Config Team', value: 'Update Config Team' },
         { label: 'Update Custom Role', value: 'Update Custom Role' },
         { label: 'Update Favorite Search', value: 'Update Favorite Search' },
-        { label: 'Update User', value: 'Update User' }
+        { label: 'Update User', value: 'Update User' },
     ])
 
     const startInput = ref(null)
@@ -60,22 +60,29 @@ export function useUserLog() {
     const loading = ref(false)
     const expanded = ref(new Set())
 
+    // download modal state (used by export flows)
+    const downloading = ref(false)
+    const downloadProgress = ref(0) // percent 0-100
+    const downloadSpeed = ref('0 MB/s')
+    const downloadRemaining = ref('')
+
     const columns = [
-        { key: 'index', label: '#', isIndex: true, width: '5%' },
-        { key: 'username', label: 'Username', width: '15%' },
-        { key: 'full_name', label: 'Full Name', width: '15%' },
-        { key: 'action', label: 'Action', width: '5%' },
-        { key: 'status', label: 'Status', width: '5%' },
-        { key: 'detail', label: 'Description', tooltip: true, width: '20%', },
-        { key: 'ip_address', label: 'IP Address', width: '10%' },
-        { key: 'timestamp', label: 'Timestamp', width: '10%', },
-        { key: 'client_type', label: 'Client type', width: '15%' }
+        { key: 'index', label: '#', isIndex: true},
+        { key: 'username', label: 'Username' },
+        { key: 'full_name', label: 'Full Name' },
+        { key: 'action', label: 'Action' },
+        { key: 'status', label: 'Status' },
+        { key: 'detail', label: 'Description', tooltip: true },
+        { key: 'ip_address', label: 'IP Address'},
+        { key: 'timestamp', label: 'Timestamp' },
+        { key: 'client_type', label: 'Client type'}
     ]
 
     const type = computed(() => {
         const p = route.path || ''
         if (p === '/logs/system') return 'system'
         if (p === '/logs/audit') return 'audit'
+        if (p === '/logs/ticket-history') return 'ticket'
         return 'user'
     })
 
@@ -83,17 +90,26 @@ export function useUserLog() {
         const p = route.path || ''
         if (p === '/logs/system') return 'System log'
         if (p === '/logs/audit') return 'Audit log'
+        if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
     })
 
     const requiredPermission = computed(() => {
         const p = route.path || ''
-        if (p === '/logs/system') return 'System Logs'
-        if (p === '/logs/audit') return 'Audit Logs'
+        if (p === '/logs/system') return 'System Log'
+        if (p === '/logs/audit') return 'Audit Log'
+        if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
     })
 
     const canView = computed(() => authStore.hasPermission(requiredPermission.value))
+
+    const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+
+    const toggleExport = () => {
+        if (!canExport.value) return
+        exportOpen.value = !exportOpen.value
+    }
 
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))
     const startIndex = computed(() => (currentPage.value - 1) * perPage.value)
@@ -114,6 +130,12 @@ export function useUserLog() {
             params.set('start', start)
             params.set('length', perPage.value)
             params.set('search[value]', searchQuery.value || '')
+
+            if (sortColumn.value && sortDirection.value) {
+                params.set('sort[0][field]', sortColumn.value)
+                params.set('sort[0][dir]', sortDirection.value)
+            }
+
             if (filters.name && filters.name !== 'all') params.set('name', filters.name)
             if (filters.action && filters.action !== 'all') params.set('action', filters.action)
             if (filters.start_date) params.set('start_date', filters.start_date)
@@ -199,41 +221,201 @@ export function useUserLog() {
         })
     }
 
-    const resetFilters = () => {
-        try {
-            filters.name = []
-            filters.action = []
-            filters.start_date = ''
-            filters.end_date = ''
+        const resetFilters = () => {
+                try {
+                        filters.name = ''
+                        filters.action = ''
+                        filters.start_date = ''
+                        filters.end_date = ''
+                        sortColumn.value = ''
+                        sortDirection.value = ''
+                        startInput.value._flatpickrInstance.clear()
+                        endInput.value._flatpickrInstance.clear()
 
-            if (startInput.value && startInput.value._flatpickrInstance) {
-                startInput.value._flatpickrInstance.clear()
-            }
-            if (endInput.value && endInput.value._flatpickrInstance) {
-                endInput.value._flatpickrInstance.clear()
-            }
+                        if (startInput.value && startInput.value._flatpickrInstance) {
+                            startInput.value._flatpickrInstance.clear()
+                        }
+                        if (endInput.value && endInput.value._flatpickrInstance) {
+                            endInput.value._flatpickrInstance.clear()
+                        }
 
-            currentPage.value = 1
-            fetchUsers()
-            fetchData()
-        } catch (e) {
-            console.error('resetFilters error', e)
+                        currentPage.value = 1
+                        fetchUsers()
+                        fetchData()
+                } catch (e) {
+                        console.error('resetFilters error', e)
+                }
         }
-    }
 
-    const toggleExport = () => {
-        exportOpen.value = !exportOpen.value
-    }
+        const onExportFormat = async (formatOrFormats) => {
+            if (!canExport.value) return
+            let formats = []
+            if (typeof formatOrFormats === 'string') formats = [formatOrFormats]
+            else if (Array.isArray(formatOrFormats)) formats = formatOrFormats
+            else formats = []
 
-    const onExportFormat = (format) => {
-        if (!canView.value) return
-        exportTableToFormat(format, cardTitle.value, {
-            rows: paginatedRecords.value || [],
-            columns: columns || [],
-            startIndex: startIndex.value || 0,
-            fileNamePrefix: cardTitle.value
-        })
-    }
+            if (formats.length === 0) return
+
+            // rows to export (no voice selection on this page)
+            const rowsToExport = paginatedRecords.value || []
+            const exportColumns = (columns || []).filter(c => c && c.key !== 'checked')
+            // only create a ZIP when multiple formats requested
+            const multipleOutput = (formats.length > 1)
+
+            // timestamp helper for filenames: Audio recordYYYYmmddHHMMSS
+            const fmtTimestamp = (d) => {
+                const yy = d.getFullYear()
+                const mm = String(d.getMonth() + 1).padStart(2, '0')
+                const dd = String(d.getDate()).padStart(2, '0')
+                const hh = String(d.getHours()).padStart(2, '0')
+                const mi = String(d.getMinutes()).padStart(2, '0')
+                const ss = String(d.getSeconds()).padStart(2, '0')
+                return `${yy}${mm}${dd}${hh}${mi}${ss}`
+            }
+            const timestampForName = fmtTimestamp(new Date())
+
+            // progress helpers
+            let startTime = 0
+            let totalBytes = 0
+            let completedTasks = 0
+            const totalTasks = formats.length || 1
+            const markTaskDone = (bytes) => {
+                try {
+                    completedTasks += 1
+                    if (bytes && typeof bytes === 'number') totalBytes += bytes
+                    const pct = Math.round((completedTasks / totalTasks) * 100)
+                    downloadProgress.value = Math.min(100, pct)
+                    const elapsed = Math.max(0.001, (Date.now() - startTime) / 1000)
+                    const speed = totalBytes / elapsed // bytes/sec
+                    const mbps = speed / (1024 * 1024)
+                    if (isFinite(mbps)) downloadSpeed.value = `${mbps.toFixed(1)} MB/s`
+                    const avgPerTask = elapsed / completedTasks
+                    const remainSec = Math.max(0, Math.round(avgPerTask * (totalTasks - completedTasks)))
+                    const mm = String(Math.floor(remainSec / 60)).padStart(2, '0')
+                    const ss = String(remainSec % 60).padStart(2, '0')
+                    downloadRemaining.value = `${mm}:${ss} min.`
+                } catch (e) { console.warn('markTaskDone failed', e) }
+            }
+
+            const finishDownloading = (minDisplayMs = 3000) => {
+                try {
+                    const elapsed = Math.max(0, Date.now() - startTime)
+                    const wait = Math.max(0, minDisplayMs - elapsed)
+                    setTimeout(() => {
+                        try {
+                            const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 100
+                            downloadProgress.value = Math.min(100, Math.max(0, pct))
+                            downloadRemaining.value = ''
+                            downloadSpeed.value = downloadSpeed.value || '0.0 MB/s'
+                            downloading.value = false
+                        } catch (e) { /* ignore */ }
+                    }, wait)
+                } catch (e) { console.warn('finishDownloading failed', e) }
+            }
+
+            try {
+                // initialize UI
+                downloading.value = true
+                downloadProgress.value = 0
+                downloadSpeed.value = '0 MB/s'
+                downloadRemaining.value = ''
+                startTime = Date.now()
+
+                // when multipleOutput, try to package into a ZIP
+                if (multipleOutput) {
+                    try {
+                        try {
+                            await import('../assets/js/jszip.min.js')
+                        } catch (e) { /* ignore, try window.JSZip */ }
+
+                        if (window.JSZip) {
+                            const zip = new window.JSZip()
+                            let anyFailed = false
+                            for (const fmt of formats) {
+                                try {
+                                    const res = await exportTableToFormat(fmt, cardTitle.value, {
+                                        rows: rowsToExport || [],
+                                        columns: exportColumns,
+                                        startIndex: startIndex.value || 0,
+                                        fileNamePrefix: cardTitle.value,
+                                        returnBlob: true
+                                    })
+                                    if (res && res.blob) {
+                                        const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' }
+                                        const ext = extMap[fmt] || fmt
+                                        const name = res.fileName || `${cardTitle.value} ${timestampForName}.${ext}`
+                                        zip.file(name, res.blob)
+                                        try { markTaskDone(res.blob.size) } catch (e) {}
+                                    } else {
+                                        anyFailed = true
+                                        try { markTaskDone() } catch (e) {}
+                                    }
+                                } catch (e) {
+                                    anyFailed = true
+                                    console.error('non-voice export into zip failed', e)
+                                    try { markTaskDone() } catch (er) {}
+                                }
+                            }
+                            const zipBlob = await zip.generateAsync({ type: 'blob' })
+                            const zipName = `${cardTitle.value} ${timestampForName}.zip`
+                            const a = document.createElement('a')
+                            a.href = URL.createObjectURL(zipBlob)
+                            a.download = zipName
+                            document.body.appendChild(a)
+                            a.click()
+                            a.remove()
+                            setTimeout(() => URL.revokeObjectURL(a.href), 3000)
+                            if (anyFailed) try { showToast('Some exports failed while creating ZIP', 'warning') } catch (e) {}
+                            finishDownloading()
+                            return
+                        }
+                    } catch (e) {
+                        console.error('ZIP creation for non-voice failed', e)
+                    }
+                    // fall through to individual downloads if JSZip not available
+                }
+
+                // per-format downloads
+                for (const fmt of formats) {
+                    try {
+                        const res = await exportTableToFormat(fmt, cardTitle.value, {
+                            rows: rowsToExport || [],
+                            columns: exportColumns,
+                            startIndex: startIndex.value || 0,
+                            fileNamePrefix: cardTitle.value,
+                            returnBlob: true
+                        })
+                        if (res && res.blob) {
+                            try {
+                                const url = URL.createObjectURL(res.blob)
+                                const a = document.createElement('a')
+                                a.href = url
+                                a.download = res.fileName || `${cardTitle.value} ${timestampForName}`
+                                document.body.appendChild(a)
+                                a.click()
+                                a.remove()
+                                setTimeout(() => URL.revokeObjectURL(url), 3000)
+                            } catch (e) { console.warn('trigger blob download failed', e) }
+                            try { markTaskDone(res.blob.size) } catch (e) {}
+                        } else {
+                            try { markTaskDone() } catch (e) {}
+                        }
+                    } catch (e) {
+                        console.error('non-voice export failed', fmt, e)
+                        try { if (typeof showToast === 'function') showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+                    }
+                }
+
+                finishDownloading()
+                return
+            } catch (err) {
+                console.error('onExportFormat error', err)
+                try { if (typeof showToast === 'function') showToast('Export failed', 'error') } catch (e) {}
+            }
+            finally {
+                try { if (downloading.value) { finishDownloading() } } catch (e) {}
+            }
+        }
 
     watch(filters, () => {
         if (userFilterTimeout) clearTimeout(userFilterTimeout)
@@ -254,6 +436,38 @@ export function useUserLog() {
     onBeforeUnmount(() => {
         document.removeEventListener('click', onDocClick)
     })
+
+    const exportSelections = reactive({ pdf: false, excel: false, csv: false})
+
+    const resetExportSelections = () => {
+        exportSelections.pdf = false
+        exportSelections.excel = false
+        exportSelections.csv = false
+    }
+
+    const confirmExport = async () => {
+        const picks = []
+        if (exportSelections.pdf) picks.push('pdf')
+        if (exportSelections.excel) picks.push('excel')
+        if (exportSelections.csv) picks.push('csv')
+        exportOpen.value = false
+        await onExportFormat(picks)
+        resetExportSelections()
+    }
+
+    const cancelExport = () => {
+        resetExportSelections()
+        exportOpen.value = false
+    }
+
+    const sortColumn = ref('')
+    const sortDirection = ref('')
+
+    const onSortChange = ({ column, direction }) => {
+        sortColumn.value = column
+        sortDirection.value = direction
+        fetchData()
+    }
 
     const state = {
         authStore,
@@ -282,7 +496,15 @@ export function useUserLog() {
         canView,
         totalPages,
         startIndex,
-        paginatedRecords
+        paginatedRecords,
+        exportSelections,
+        canExport,
+        downloading,
+        downloadProgress,
+        downloadSpeed,
+        sortColumn,
+        sortDirection,
+        downloadRemaining
     }
 
     const actions = {
@@ -296,7 +518,10 @@ export function useUserLog() {
         toggleExport,
         onExportFormat,
         fetchData,
-        fetchUsers
+        fetchUsers,
+        confirmExport,
+        cancelExport,
+        onSortChange,
     }
 
     return {

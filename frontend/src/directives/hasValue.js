@@ -29,16 +29,48 @@ export default {
       }
     }
 
-    // update on input and change
+    // update on user input events
     input.addEventListener('input', update)
     input.addEventListener('change', update)
 
     // initialize
     update()
 
+    // Also watch for programmatic changes (e.g. v-model or flatpickr setting .value)
+    // Use a MutationObserver for attribute changes (best-effort) and a small
+    // polling loop to reliably detect property updates.
+    let lastVal = input.value
+    const pollInterval = 200
+    const pollId = setInterval(() => {
+      try {
+        const cur = input.value
+        if (cur !== lastVal) {
+          lastVal = cur
+          update()
+        }
+      } catch (e) {}
+    }, pollInterval)
+
+    let observer = null
+    try {
+      observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type === 'attributes' && m.attributeName === 'value') {
+            update()
+            break
+          }
+        }
+      })
+      observer.observe(input, { attributes: true, attributeFilter: ['value'] })
+    } catch (e) {
+      observer = null
+    }
+
     el._hasValue_cleanup = () => {
-      input.removeEventListener('input', update)
-      input.removeEventListener('change', update)
+      try { input.removeEventListener('input', update) } catch (e) {}
+      try { input.removeEventListener('change', update) } catch (e) {}
+      try { clearInterval(pollId) } catch (e) {}
+      try { if (observer) observer.disconnect() } catch (e) {}
     }
   },
 

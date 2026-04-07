@@ -1,42 +1,94 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { API_LOGIN, API_HOME_INDEX } from '../api/paths'
+import { API_LOGIN, API_HOME_INDEX, API_LOGOUT } from '../api/paths'
 import { ensureCsrf, setCsrfToken } from '../api/csrf'
 import router from '../router'
 
 export const useAuthStore = defineStore('auth', () => {
-	// Initialize state from localStorage to enable persistence
-	const user = ref(JSON.parse(localStorage.getItem('user')))
-	// console.log('Initial user from localStorage:', user.value)
-	const token = ref(localStorage.getItem('token'))
-    const permissions = ref(JSON.parse(localStorage.getItem('permissions') || '[]'))
+	// Keep session in memory only (no persistence across full page reload)
+	const user = ref(null)
+	const token = ref(null)
+	const passwordResetRequired = ref(false)
+	const permissions = ref([])
+	const lastLoginAt = ref(0)
+
+	// Promise that resolves once the initial restore-from-refresh attempt finishes.
+	// Router guard awaits this so it never redirects before we know if an
+	// HttpOnly refresh cookie can recover the session.
+	let _readyResolve = null
+	const _readyPromise = new Promise(resolve => { _readyResolve = resolve })
+	function waitReady() { return _readyPromise }
+
+	// Tab-sync channel to notify other tabs when logout/login occurs
+	let bc = null
+	try {
+		if ('BroadcastChannel' in window) {
+			bc = new BroadcastChannel('nt_playback_auth')
+			bc.onmessage = (ev) => {
+				try {
+					const data = ev.data || {}
+					if (data.type === 'logout') {
+						clear()
+						try { router.push('/login') } catch (e) { window.location.href = '/login' }
+					}
+				} catch (e) {}
+			}
+		}
+	} catch (e) {}
 
 	function setUser(payload) {
 		user.value = payload
-		if (payload) {
-			localStorage.setItem('user', JSON.stringify(payload))
-		} else {
-			localStorage.removeItem('user')
-		}
+		// memory-only; do not persist across reloads
+		// But store username in localStorage for password reset flow
+		try {
+			if (payload && payload.username) {
+				localStorage.setItem('lastUsername', payload.username)
+			}
+		} catch (e) {}
 	}
 
 	function setToken(t) {
 		token.value = t
-		if (t) {
-			localStorage.setItem('token', t)
-		} else {
-			localStorage.removeItem('token')
-		}
+		// memory-only
+	}
+
+	function setPasswordResetRequired(status) {
+		passwordResetRequired.value = !!status
+		// Persist to localStorage so it survives page refresh
+		try {
+			if (status) {
+				localStorage.setItem('passwordResetRequired', 'true')
+			} else {
+				localStorage.removeItem('passwordResetRequired')
+			}
+		} catch (e) {}
 	}
 
 	function clear() {
 		// Clear from both state and localStorage
 		setUser(null)
 		setToken(null)
+		setPasswordResetRequired(false)
+		// Clear stored username
+		try { localStorage.removeItem('lastUsername') } catch (e) {}
 	}
 
 	function logout() {
+		// Immediately clear local state (remove access token from memory/localStorage)
 		clear()
+		// notify other tabs
+		try { if (bc) bc.postMessage({ type: 'logout' }) } catch (e) {}
+
+		// attempt server-side logout to blacklist refresh tokens and clear session
+		try {
+			// backend reads refresh from HttpOnly cookie if present; no need to send token in body
+			fetch(API_LOGOUT(), {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			}).catch(() => {})
+		} catch (e) {}
 		try { router.push('/login') } catch (e) { try { window.location.href = '/login' } catch (ee) {} }
 	}
 
@@ -48,7 +100,11 @@ export const useAuthStore = defineStore('auth', () => {
 			const url = response.url || ''
 			const redirected = !!response.redirected
 			if (type === 'opaqueredirect' || redirected || status === 301 || status === 302 || url.includes('/login/?next=')) {
-				logout()
+				// Only clear local state + redirect; do NOT call the server logout
+				// endpoint here, as that would send a WebSocket force_logout that
+				// could kick an active session on another tab / a just-logged-in user.
+				clear()
+				try { router.push('/login') } catch (e) { try { window.location.href = '/login' } catch (ee) {} }
 				return true
 			}
 		} catch (e) {}
@@ -57,8 +113,12 @@ export const useAuthStore = defineStore('auth', () => {
 
 	const fullName = () => {
 		if (!user.value) return null
-		// Adjusted to prioritize username as it's what the new backend provides
 		return user.value.username || null
+	}
+
+	const roleName = () => {
+		if (!user.value) return null
+		return user.value.role || null
 	}
 
 	async function login(username, password) {
@@ -81,8 +141,24 @@ export const useAuthStore = defineStore('auth', () => {
 
 			const data = await response.json()
 			setToken(data.access)
+			// record recent login time to avoid immediate force-logout races
+			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
-			if (data && data.username) setUser({ username: data.username, id: data.id || null })
+			if (data && data.username) {
+				setUser({ username: data.username, id: data.id || null, role: data.role || null })
+				setPasswordResetRequired(data.password_reset_required)
+			}
+
+			// ถ้า Backend ส่ง csrfToken มาด้วย ให้บันทึกทันทีก่อนที่จะหยุดการทำงานกลางคัน
+			if (data && data.csrfToken) {
+				try { setCsrfToken(data.csrfToken) } catch (e) { console.warn('setCsrfToken failed', e) }
+			}
+
+			// If password reset is required, skip permission checks and return.
+			// The UI will show the password change modal on the login page.
+			if (passwordResetRequired.value) {
+				return true
+			}
 
 			// Quick check: calling the home index may return 403 when the user
 			// authenticates but lacks the required "Audio Recording" permission.
@@ -102,10 +178,8 @@ export const useAuthStore = defineStore('auth', () => {
 			// fetch permissions after login
 			try { await fetchPermissions() } catch (e) { console.error('fetchPermissions', e) }
 
-			// If backend returned csrfToken in the login response, cache it immediately
-			if (data && data.csrfToken) {
-				try { setCsrfToken(data.csrfToken) } catch (e) { console.warn('setCsrfToken failed', e) }
-			} else {
+			// กรณีที่ไม่ได้ส่งมาพร้อม Login ก็ให้ดึงใหม่
+			if (!data || !data.csrfToken) {
 				// fallback: attempt to fetch via ensureCsrf()
 				try { await ensureCsrf() } catch (e) {}
 			}
@@ -115,6 +189,45 @@ export const useAuthStore = defineStore('auth', () => {
 			clear()
 			return false
 		}
+	}
+
+
+	async function tryRestoreFromRefresh() {
+		// Attempt to exchange HttpOnly refresh cookie for an access token.
+		// Intentionally does NOT call fetchPermissions() here to avoid a race
+		// where a background session check triggers handleRedirectOrLoginNext
+		// while the user is in the middle of logging in.
+		try {
+			// Restore passwordResetRequired from localStorage first
+			try {
+				const stored = localStorage.getItem('passwordResetRequired')
+				if (stored === 'true') {
+					setPasswordResetRequired(true)
+				}
+			} catch (e) {}
+
+			// Restore username from localStorage for password reset flow
+			try {
+				const userName = localStorage.getItem('lastUsername')
+				if (userName) {
+					setUser({ username: userName })
+				}
+			} catch (e) {}
+
+			const resp = await fetch('/api/token/refresh_from_cookie/', { method: 'POST', credentials: 'include' })
+			if (!resp.ok) {
+				try { _readyResolve() } catch (e) {}
+				return false
+			}
+			const data = await resp.json()
+			if (data && data.access) {
+				setToken(data.access)
+				try { _readyResolve() } catch (e) {}
+				return true
+			}
+		} catch (e) {}
+		try { _readyResolve() } catch (e) {}
+		return false
 	}
 
 
@@ -131,7 +244,12 @@ export const useAuthStore = defineStore('auth', () => {
 						// merge id into user state
 						if (up.id) {
 							const current = user.value || {}
-							setUser(Object.assign({}, current, { id: up.id, username: up.username }))
+							setUser(Object.assign({}, current, { id: up.id, username: up.username, role: up.role }))
+						}
+						if (up.reset_password === 9) {
+							setPasswordResetRequired(true)
+						} else {
+							setPasswordResetRequired(false)
 						}
 					}
 				}
@@ -160,5 +278,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission }
+	return { user, token, permissions, lastLoginAt, passwordResetRequired, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired }
 })

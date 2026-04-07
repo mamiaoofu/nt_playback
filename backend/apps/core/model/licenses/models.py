@@ -17,15 +17,15 @@ class License(models.Model):
         return f"{self.name} ({self.duration_years} ปี)"
 
 
-class UserLicense(models.Model):
-    user_profile = models.ForeignKey("authorize.UserProfile", on_delete=models.CASCADE, verbose_name='User Profile')
-    license = models.ForeignKey(License, on_delete=models.CASCADE, verbose_name='License')
-    start_date = models.DateField(auto_now_add=True)
-    end_date = models.DateField(auto_now=True)
+# class UserLicense(models.Model):
+#     user_profile = models.ForeignKey("authorize.UserProfile", on_delete=models.CASCADE, verbose_name='User Profile')
+#     license = models.ForeignKey(License, on_delete=models.CASCADE, verbose_name='License')
+#     start_date = models.DateField(auto_now_add=True)
+#     end_date = models.DateField(auto_now=True)
 
-    class Meta:
-        db_table = 'tb_userlicense'
-        verbose_name = 'user_license'
+#     class Meta:
+#         db_table = 'tb_userlicense'
+#         verbose_name = 'user_license'
 
-    def __str__(self):
-        return f"{self.user_profile.user.username} - {self.license.name}"
+#     def __str__(self):
+#         return f"{self.user_profile.user.username} - {self.license.name}"

@@ -106,15 +106,21 @@ export function useUserForm(props) {
     const groupedPermissions = ref({})
     const orderedTypes = [
         'access',
-        'audio recording',
-        'user management',
-        'logs'
+        'Audio records',
+        'Management',
+        'Role & Permissions',
+        'Group & Team',
+        'Logs',
+        'Setting'
     ]
     const typeLabels = {
         'access': 'ACCESS',
-        'audio recording': 'AUDIO RECORDING',
-        'user management': 'USER MANAGEMENT',
-        'logs': 'LOGS'
+        'Audio records': 'AUDIO RECORDING',
+        'Management': 'MANAGEMENT',
+        'Role & Permissions': 'ROLE & PERMISSIONS',
+        'Group & Team': 'GROUP & TEAM',
+        'Logs': 'LOGS',
+        'Setting': 'SETTING'
     }
 
     for (const t of orderedTypes) groupedPermissions.value[t] = []
@@ -267,13 +273,14 @@ export function useUserForm(props) {
         if (mode && mode.value !== 'edit') {
             if (!form.value.password || String(form.value.password).trim() === '') { errors.password = 'This field is required.'; hasError = true }
             else if (String(form.value.password).length < 8) { errors.password = 'Password must be at least 8 characters long'; hasError = true }
+            else if (!/^[\x21-\x7E]+$/.test(String(form.value.password))) { errors.password = 'Password must contain only English letters and special characters'; hasError = true }
             if (!form.value.confirmPassword || String(form.value.confirmPassword).trim() === '') { errors.confirmPassword = 'This field is required.'; hasError = true }
             if (form.value.password && form.value.confirmPassword && form.value.password !== form.value.confirmPassword) { errors.confirmPassword = 'Passwords do not match'; hasError = true }
         }
-        if (!form.value.firstName || String(form.value.firstName).trim() === '') { errors.firstName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
-        if (!form.value.lastName || String(form.value.lastName).trim() === '') { errors.lastName = 'This field is required.'; hasError = true }
-        else if (!/^[\p{L}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
+        // if (!form.value.firstName || String(form.value.firstName).trim() === '') { errors.firstName = 'This field is required.'; hasError = true }
+        // else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.firstName).trim())) { errors.firstName = 'Special characters are not allowed in first name'; hasError = true }
+        // if (!form.value.lastName || String(form.value.lastName).trim() === '') { errors.lastName = 'This field is required.'; hasError = true }
+        // else if (!/^[\p{L}\p{M}\s]+$/u.test(String(form.value.lastName).trim())) { errors.lastName = 'Special characters are not allowed in last name'; hasError = true }
         if (!selectedGroupId.value) { errors.group = true; hasError = true }
         if (!selectedTeamId.value) { errors.team = true; hasError = true }
         if (form.value.email && String(form.value.email).trim() !== '') {
@@ -355,23 +362,41 @@ export function useUserForm(props) {
             }
             if (j && j.status === 'success') {
                 try {
-                    try {
-                        const name = form.value.firstName || form.value.username || ''
-                        const toast = { message: `Create ${name} successfully`, type: 'success' }
-                        localStorage.setItem('pending_toast', JSON.stringify(toast))
-                    } catch (e) { }
-                    try {
-                        const pendingUser = {
-                            username: form.value.username || '',
-                            first_name: form.value.firstName || '',
-                            last_name: form.value.lastName || '',
-                            email: form.value.email || '',
-                            id: initialUserId || null,
-                            mode: mode && mode.value ? mode.value : 'add'
-                        }
-                        localStorage.setItem('pending_user', JSON.stringify(pendingUser))
-                    } catch (e) { }
-                    try { router.push('/user-management') } catch (e) { router.back() }
+                    const name = form.value.firstName || form.value.username || ''
+                    if (mode && mode.value === 'edit') {
+                        try {
+                            const pendingUser = {
+                                username: form.value.username || '',
+                                first_name: form.value.firstName || '',
+                                last_name: form.value.lastName || '',
+                                email: form.value.email || '',
+                                id: initialUserId || null,
+                                mode: 'edit'
+                            }
+                            localStorage.setItem('pending_user', JSON.stringify(pendingUser))
+                        } catch (e) { }
+                        try {
+                            showToast(`Edit ${name} successfully`, 'success')
+                        } catch (e) { console.error('showToast error', e) }
+                        try { router.push('/user-management') } catch (e) { try { router.back() } catch (er) { /* ignore */ } }
+                    } else {
+                        try {
+                            const toast = { message: `Create ${name} successfully`, type: 'success' }
+                            localStorage.setItem('pending_toast', JSON.stringify(toast))
+                        } catch (e) { }
+                        try {
+                            const pendingUser = {
+                                username: form.value.username || '',
+                                first_name: form.value.firstName || '',
+                                last_name: form.value.lastName || '',
+                                email: form.value.email || '',
+                                id: initialUserId || null,
+                                mode: mode && mode.value ? mode.value : 'add'
+                            }
+                            localStorage.setItem('pending_user', JSON.stringify(pendingUser))
+                        } catch (e) { }
+                        try { router.push('/user-management') } catch (e) { router.back() }
+                    }
                 } catch (e) { console.error('redirect error', e) }
                 return
             } else {
@@ -614,7 +639,7 @@ export function useUserForm(props) {
                 const map = {}
                 for (const t of orderedTypes) map[t] = []
                 for (const p of perms) {
-                    const t = (p.type || '').toString().trim().toLowerCase()
+                    const t = (p.type || '').toString().trim()
                     if (!map[t]) map[t] = []
                     map[t].push(p)
                 }
@@ -650,36 +675,39 @@ export function useUserForm(props) {
         if (val) populateFromInitial(val)
     })
 
-    watch(() => form.value.firstName, (val) => {
-        if (!val || String(val).trim() === '') {
-            errors.firstName = false
-            return
-        }
-        const v = String(val).trim()
-        if (!/^[\p{L}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
-        else errors.firstName = false
-    })
+    // watch(() => form.value.firstName, (val) => {
+    //     if (!val || String(val).trim() === '') {
+    //         errors.firstName = false
+    //         return
+    //     }
+    //     const v = String(val).trim()
+    //     if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.firstName = 'Special characters are not allowed in first name'
+    //     else errors.firstName = false
+    // })
 
-    watch(() => form.value.lastName, (val) => {
-        if (!val || String(val).trim() === '') {
-            errors.lastName = false
-            return
-        }
-        const v = String(val).trim()
-        if (!/^[\p{L}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
-        else errors.lastName = false
-    })
+    // watch(() => form.value.lastName, (val) => {
+    //     if (!val || String(val).trim() === '') {
+    //         errors.lastName = false
+    //         return
+    //     }
+    //     const v = String(val).trim()
+    //     if (!/^[\p{L}\p{M}\s]+$/u.test(v)) errors.lastName = 'Special characters are not allowed in last name'
+    //     else errors.lastName = false
+    // })
 
     watch(() => form.value.password, (val) => {
-        if (!val || String(val).trim() === '') {
+        const v = val == null ? '' : String(val)
+        if (!v || v.trim() === '') {
             errors.password = false
-        } else if (String(val).length < 8) {
+        } else if (v.length < 8) {
             errors.password = 'Password must be at least 8 characters long'
+        } else if (!/^[\x21-\x7E]+$/.test(v)) {
+            errors.password = 'Password must contain only English letters and special characters'
         } else {
             errors.password = false
         }
         if (form.value.confirmPassword && String(form.value.confirmPassword).trim() !== '') {
-            if (val !== form.value.confirmPassword) errors.confirmPassword = 'Passwords do not match'
+            if (v !== form.value.confirmPassword) errors.confirmPassword = 'Passwords do not match'
             else errors.confirmPassword = false
         }
     })
