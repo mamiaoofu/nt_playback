@@ -121,6 +121,11 @@ export const useAuthStore = defineStore('auth', () => {
 		return user.value.role || null
 	}
 
+	const isTicket = () => {
+		if (!user.value || !user.value.username) return false
+		return user.value.username.includes('TKT')
+	}
+
 	async function login(username, password) {
 		try {
 			// Corrected URL to match the new backend endpoint at /login/
@@ -278,5 +283,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, lastLoginAt, passwordResetRequired, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired }
+	return { user, token, permissions, lastLoginAt, passwordResetRequired, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
 })

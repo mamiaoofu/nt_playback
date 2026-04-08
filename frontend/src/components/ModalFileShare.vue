@@ -348,9 +348,16 @@ async function onCreate() {
         return
     }
 
-    if (selectionType.value === 'ticket' && !targetValue) {
-        showToast('Please specify an email for the ticket.', 'warning')
-        return
+    if (selectionType.value === 'ticket') {
+        if (!targetValue) {
+            showToast('Please specify an email for the ticket.', 'warning')
+            return
+        }
+        // check for multiple emails (comma, semicolon, space, newline)
+        if (/[,;\s\n\r]/.test(targetValue.trim())) {
+            showToast('Only one email is allowed.', 'warning')
+            return
+        }
     }
 
     if (!start.value || !expire.value) {
@@ -462,12 +469,12 @@ async function sendResultByEmail() {
     try {
         // prefer explicit email input if user still has it
         const source = emailTicket.value || resultData.value.recipient || ''
-        // split by comma, semicolon or newlines and trim
-        const recipients = source.split(/[,;\n\r]+/).map(s => s.trim()).filter(Boolean)
-        if (!recipients.length) {
+        const recipient = source.trim()
+        if (!recipient) {
             await notify('Failed to send email', 'No recipient specified', 'error')
             return closeResult()
         }
+        const recipients = [recipient]
 
         const payload = {
             recipient: recipients,

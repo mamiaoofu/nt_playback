@@ -37,7 +37,7 @@
     <div class="sidebar-team-menu" id="sidebarTeamMenu" ref="sidebarMenu" :style="{ display: menuOpen ? 'block' : 'none' }">
       <!-- Header -->
         <div class="menu-header">
-        <div class="user-info-group" @click="goToProfile">
+        <div class="user-info-group" :class="{ 'disabled-profile': store.isTicket && store.isTicket() }" @click="goToProfile">
           <div class="menu-avatar">
             {{ initials }}
           </div>
@@ -243,6 +243,7 @@ const handleLogout = () => {
 };
 
 function goToProfile() {
+  if (store.isTicket && store.isTicket()) return;
   menuOpen.value = false;
   try { router.push('/profile') } catch (e) { console.error('Navigate to profile failed', e) }
 }
@@ -252,5 +253,8 @@ function goToProfile() {
 <style scoped>
 .user-info-group {
   cursor: pointer;
+}
+.user-info-group.disabled-profile {
+  cursor: default;
 }
 </style>

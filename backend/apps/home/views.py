@@ -118,14 +118,16 @@ def ApiSendShareEmail(request):
         if not recipient:
             return JsonResponse({'ok': False, 'error': 'recipient required'}, status=400)
 
-        # Normalize recipient(s) to a list of email strings
+        # Normalize recipient to a single email
         recipients = []
         if isinstance(recipient, (list, tuple)):
-            recipients = [r for r in recipient if r]
+            if recipient:
+                recipients = [recipient[0]]
         elif isinstance(recipient, str):
-            # allow comma/semicolon/newline separated lists
-            parts = [p.strip() for p in re.split('[,;\n\r]+', recipient) if p.strip()]
-            recipients = parts
+            # Only take the first email if multiple are provided via delimiters
+            primary = re.split('[,;\n\r]+', recipient)[0].strip()
+            if primary:
+                recipients = [primary]
         else:
             return JsonResponse({'ok': False, 'error': 'invalid recipient format'}, status=400)
 
@@ -587,141 +589,88 @@ def ApiGetAudioList(request):
     else:
         audio_list = audio_list.order_by('-start_datetime')
 
-
     data = []
-    if file_share_mode and 'share_entries' in locals():
-        # build lookup of audiofile id -> AudioInfo object
+    # count after applying filters
+    records_total = audio_list.count()
+
+    # Pagination (slice)
+    audio_page = audio_list[start:start + length]
+
+    for idx, audio in enumerate(audio_page, start=start+1):
+        main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
+        if getattr(audio, 'start_datetime', None):
+            sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
+            start_dt = sd.strftime("%Y-%m-%d %H:%M")
+        else:
+            start_dt = "-"
+        if getattr(audio, 'end_datetime', None):
+            ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
+            end_dt = ed.strftime("%Y-%m-%d %H:%M")
+        else:
+            end_dt = "-"
+        file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
+        duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+        agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
+        full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
+
+        # try to attach share metadata for this audio (if any)
+        share_info = {}
         try:
-            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=[int(x) for x in unique_ids])
+            # ใช้ local variable share_map ที่ถูกเตรียมไว้ตอนต้น (ถ้ามี)
+            afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
+            # check if share_map exists in the scope (it's defined if is_ticket or file_share)
+            s_map = locals().get('share_map', {})
+            if afid is not None and s_map:
+                lst = s_map.get(str(afid), []) or []
+                if isinstance(lst, list) and len(lst) > 0:
+                    try:
+                        # เลือก share ที่ยังไม่หมดอายุ หรืออันล่าสุด
+                        best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
+                    except Exception:
+                        best = lst[0]
+                    share_info = {
+                        'type': best.get('type'),
+                        'code': best.get('code'),
+                        'created_by': best.get('created_by'),
+                        'start_at': best.get('start_at'),
+                        'start_at_dt': best.get('start_at_dt'),
+                        'expire_at': best.get('expire_at'),
+                        'expire_at_dt': best.get('expire_at_dt'),
+                        'download': best.get('download', False),
+                        'limit_access_time': best.get('limit_access_time'),
+                        'description': best.get('description'),
+                        'view': best.get('view', False)
+                    }
         except Exception:
-            audio_objs = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(audiofile__id__in=unique_ids)
-        audio_map = { str(a.audiofile.id): a for a in audio_objs if getattr(a, 'audiofile', None) }
-
-        records_total = len(share_entries)
-        page_entries = share_entries[start:start + length]
-        for idx_offset, ent in enumerate(page_entries):
-            idx = start + idx_offset + 1
-            afid = ent.get('audiofile_id')
-            audio = audio_map.get(str(afid))
-
-            main_db_display = str(audio.main_db) if audio and hasattr(audio, 'main_db') else ''
-            if audio and getattr(audio, 'start_datetime', None):
-                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
-                start_dt = sd.strftime("%Y-%m-%d %H:%M")
-            else:
-                start_dt = "-"
-            if audio and getattr(audio, 'end_datetime', None):
-                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
-                end_dt = ed.strftime("%Y-%m-%d %H:%M")
-            else:
-                end_dt = "-"
-            file_name = audio.audiofile.file_name if audio and getattr(audio, 'audiofile', None) else "-"
-            duration_val = str(audio.audiofile.duration) if (audio and getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
-            agent_display = str(audio.agent) if audio and getattr(audio, 'agent', None) else "-"
-            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if audio and getattr(audio, 'agent', None) else "-"
-
-            share_info = ent.get('share') or {}
-
-            data.append({
-                "no": idx,
-                "main_db": main_db_display,
-                "start_datetime": start_dt,
-                "end_datetime": end_dt,
-                "file_name": file_name,
-                "duration": duration_val,
-                "call_direction": audio.call_direction if audio else None,
-                "customer_number": audio.customer_number if audio else None,
-                "extension": audio.extension if audio else None,
-                "agent": agent_display,
-                "full_name": full_name,
-                "file_path": audio.audiofile.file_path if audio and getattr(audio, 'audiofile', None) else None,
-                "file_id": audio.audiofile.id if audio and getattr(audio, 'audiofile', None) else afid,
-                "set_audio": set_audio.audio_path if set_audio else None,
-                "custom_field_1": custom_field,
-                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
-                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
-                    "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
-                    "description": share_info.get('description') if isinstance(share_info, dict) else None,
-                "start_date": share_info.get('start_at') if isinstance(share_info, dict) else None,
-                "ticket_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'ticket' else None),
-                "delegate_id": (share_info.get('code') if isinstance(share_info, dict) and share_info.get('type') == 'delegate' else None),
-                "download": share_info.get('download') if isinstance(share_info, dict) else False
-            })
-    else:
-        # count after applying filters
-        records_total = audio_list.count()
-
-        # Pagination (slice)
-        audio_page = audio_list[start:start + length]
-
-        for idx, audio in enumerate(audio_page, start=start+1):
-            main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
-            if getattr(audio, 'start_datetime', None):
-                sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
-                start_dt = sd.strftime("%Y-%m-%d %H:%M")
-            else:
-                start_dt = "-"
-            if getattr(audio, 'end_datetime', None):
-                ed = timezone.localtime(audio.end_datetime) if settings.USE_TZ else audio.end_datetime
-                end_dt = ed.strftime("%Y-%m-%d %H:%M")
-            else:
-                end_dt = "-"
-            file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
-            duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
-            agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
-            full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
-
-            # try to attach share metadata for this audio (if any)
             share_info = {}
-            try:
-                afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
-                if afid is not None and 'share_map' in locals():
-                    lst = share_map.get(str(afid), []) or []
-                    if isinstance(lst, list) and len(lst) > 0:
-                        try:
-                            best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
-                        except Exception:
-                            best = lst[0]
-                        share_info = {
-                            'type': best.get('type'),
-                            'code': best.get('code'),
-                            'created_by': best.get('created_by'),
-                            'start_at': best.get('start_at'),
-                            'start_at_dt': best.get('start_at_dt'),
-                            'expire_at': best.get('expire_at'),
-                            'expire_at_dt': best.get('expire_at_dt'),
-                            'download': best.get('download', False),
-                            'limit_access_time': best.get('limit_access_time'),
-                            'description': best.get('description')
-                        }
-                    else:
-                        share_info = {}
-            except Exception:
-                share_info = {}
 
-            data.append({
-                "no": idx,
-                "main_db": main_db_display,
-                "start_datetime": start_dt,
-                "end_datetime": end_dt,
-                "file_name": file_name,
-                "duration": duration_val,
-                "call_direction": audio.call_direction,
-                "customer_number": audio.customer_number,
-                "extension": audio.extension,
-                "agent": agent_display,
-                "full_name": full_name,
-                "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
-                "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
-                "set_audio": set_audio.audio_path if set_audio else None,
-                "custom_field_1": custom_field,
-                # share metadata (present when viewing delegate / file_share mode)
-                "created_by": share_info.get('created_by') if isinstance(share_info, dict) else None,
-                "expire_at": share_info.get('expire_at') if isinstance(share_info, dict) else None,
-                "limit_access_time": share_info.get('limit_access_time') if isinstance(share_info, dict) else None,
-                "description": share_info.get('description') if isinstance(share_info, dict) else None,
-                "download": share_info.get('download') if isinstance(share_info, dict) else False
-            })
+        data.append({
+            "no": idx,
+            "main_db": main_db_display,
+            "start_datetime": start_dt,
+            "end_datetime": end_dt,
+            "file_name": file_name,
+            "duration": duration_val,
+            "call_direction": audio.call_direction,
+            "customer_number": audio.customer_number,
+            "extension": audio.extension,
+            "agent": agent_display,
+            "full_name": full_name,
+            "file_path": audio.audiofile.file_path if getattr(audio, 'audiofile', None) else None,
+            "file_id": audio.audiofile.id if getattr(audio, 'audiofile', None) else None,
+            "set_audio": set_audio.audio_path if set_audio else None,
+            "custom_field_1": audio.custom_field_1,
+            # share metadata (present when viewing delegate / file_share mode)
+            "created_by": share_info.get('created_by'),
+            "expire_at": share_info.get('expire_at'),
+            "limit_access_time": share_info.get('limit_access_time'),
+            "description": share_info.get('description'),
+            "download": share_info.get('download', False),
+            "start_date": share_info.get('start_at'),
+            "ticket_id": (share_info.get('code') if share_info.get('type') == 'ticket' else None),
+            "delegate_id": (share_info.get('code') if share_info.get('type') == 'delegate' else None),
+        })
+
         
 
 
@@ -1234,15 +1183,14 @@ def ApiCreateFileShare(request):
                 return JsonResponse({'ok': False, 'message': 'Ticket information is incomplete. (ticketCode/password)'}, status=400)
 
             with transaction.atomic():
-                # normalize target which may contain multiple emails
-                recipients = []
+                # normalize target to a single primary email
+                primary_email = ''
                 if isinstance(target, str) and target.strip():
-                    recipients = [p.strip() for p in re.split('[,;\n\r]+', target) if p.strip()]
+                    primary_email = re.split('[,;\n\r]+', target)[0].strip()
 
-                # build Postgres-style set string: {"a","b"}
-                if recipients:
-                    email_set = "{" + ",".join([f'"{r}"' for r in recipients]) + "}"
-                    primary_email = recipients[0]
+                # build Postgres-style set string with only one email
+                if primary_email:
+                    email_set = "{" + f'"{primary_email}"' + "}"
                 else:
                     email_set = target or ''
                     primary_email = target or ''

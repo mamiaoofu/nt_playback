@@ -31,9 +31,12 @@ User = get_user_model()
 
 @login_required(login_url='/login')
 @require_action('User Management','Audit Log','System Log','Audio Records')
-def ApiGetUserAll(request):
+def ApiGetUserAll(request, type):
     try:
-        users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
+        if type == 'user':
+            users = User.objects.exclude(username__startswith='TKT',id=1).values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
+        else :
+            users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
         user_list = list(users)
         return JsonResponse({'status': 'success', 'data': user_list})
     except Exception as e:

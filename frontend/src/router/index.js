@@ -18,7 +18,6 @@ const routes = [
 	{ path: '/logs/system', name: 'SystemLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'System Log' } },
 	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Log' } },
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
-	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
 	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
 	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Ticket Management' } },
 	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Delegate Management' } },
@@ -52,6 +51,10 @@ router.beforeEach(async (to, from, next) => {
 		if (!authStore.passwordResetRequired) {
 			return next({ name: 'Home' })
 		}
+	}
+
+	if (to.name === 'Profile' && authStore.isTicket && authStore.isTicket()) {
+		return next({ name: 'Home' })
 	}
 
 	// If authenticated, ensure the store has at least the user ID and permissions 

@@ -2,7 +2,7 @@ import { ref, computed, reactive, onMounted, onBeforeUnmount, nextTick, watch } 
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_GET_USER, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
+import { API_GET_USER, API_GET_USER_ALL, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
 import { getCsrfToken } from '../api/csrf'
 import { exportTableToFormat } from '../assets/js/function-all'
@@ -136,23 +136,13 @@ export function useUserManagement() {
             if (!res.ok) throw new Error('Failed to fetch')
             const json = await res.json()
             records.value = json.data || json.user_management || []
-            // Build userOptions / createdByOptions / actionOptions from returned records
+            // Build createdByOptions / actionOptions from returned records
             try {
-                const uSet = new Set()
-                const uOpts = [{ label: 'All Users', value: 'all' }]
                 const cSet = new Set()
                 const cOpts = [{ label: 'All Create By', value: 'all' }]
                 const aSet = new Set()
                 if (Array.isArray(records.value)) {
                     for (const r of records.value) {
-                        const uname = r && r.user && (r.user.username || r.user.name) || ''
-                        const uid = r && r.user && r.user.id
-                        const uVal = uid ?? uname
-                        if (uVal && !uSet.has(uVal)) {
-                            uSet.add(uVal)
-                            uOpts.push({ label: String(uname || uVal), value: uVal })
-                        }
-
                         const creatorRaw = r && (r.create_by || '')
                         let creatorVal = ''
                         if (creatorRaw && typeof creatorRaw === 'object') {
@@ -166,10 +156,50 @@ export function useUserManagement() {
                         if (perm) aSet.add(String(perm))
                     }
                 }
-                if (!userOptions.value || userOptions.value.length <= 1) userOptions.value = uOpts
                 if (!createdByOptions.value || createdByOptions.value.length <= 1) createdByOptions.value = cOpts
                 actionOptions.value = Array.from(aSet).map(v => ({ label: v, value: v }))
             } catch (e) { console.error('build filter options error', e) }
+
+            // Populate userOptions from API_GET_USER_ALL (preferred) with a fallback
+            try {
+                try {
+                    const uRes = await fetch(`${API_GET_USER_ALL('user')}?q=`, { credentials: 'include' })
+                    if (uRes && uRes.ok) {
+                        const uj = await uRes.json()
+                        // expect uj to be an array or { data: [...] }
+                        const uList = Array.isArray(uj) ? uj : (uj.data || uj.users || [])
+                        const uOpts = [{ label: 'All Users', value: 'all' }]
+                        const seen = new Set()
+                        for (const u of (uList || [])) {
+                            // support both direct username/id objects and simple strings
+                            const label = (u && (u.username || u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim())) || String(u || '')
+                            const value = (u && (u.id ?? u.username ?? u.value)) ?? String(u || '')
+                            if (value && !seen.has(value)) { seen.add(value); uOpts.push({ label: String(label || value), value }) }
+                        }
+                        if (uOpts.length > 1) userOptions.value = uOpts
+                    }
+                } catch (e) {
+                    console.warn('fetch userOptions from API_GET_USER_ALL failed', e)
+                }
+
+                // Fallback: build userOptions from current records if still empty
+                if (!userOptions.value || userOptions.value.length <= 1) {
+                    const uSet = new Set()
+                    const uOpts = [{ label: 'All Users', value: 'all' }]
+                    if (Array.isArray(records.value)) {
+                        for (const r of records.value) {
+                            const uname = r && r.user && (r.user.username || r.user.name) || ''
+                            const uid = r && r.user && r.user.id
+                            const uVal = uid ?? uname
+                            if (uVal && !uSet.has(uVal)) {
+                                uSet.add(uVal)
+                                uOpts.push({ label: String(uname || uVal), value: uVal })
+                            }
+                        }
+                    }
+                    if (uOpts.length > 1) userOptions.value = uOpts
+                }
+            } catch (e) { console.error('populate userOptions error', e) }
             totalItems.value = json.recordsFiltered ?? json.recordsTotal ?? (Array.isArray(records.value) ? records.value.length : 0)
             
             // If there's a pending user transferred from create/edit, promote or insert it
