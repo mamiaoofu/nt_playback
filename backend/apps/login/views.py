@@ -46,6 +46,20 @@ def index(request):
                     # Only consider objects of type 'ticket'
                     ticket = UserFileShare.objects.filter(user=user, type='ticket').first()
                     if ticket:
+                        # If start_at is defined and current time is before it, deny login
+                        try:
+                            if ticket.start_at is not None and timezone.now() < ticket.start_at:
+                                create_user_log(
+                                    user=user,
+                                    action="Login",
+                                    detail=f"Login blocked: Ticket not yet active for user {user.username}",
+                                    status="error",
+                                    request=request
+                                )
+                                return JsonResponse({'warning': 'Currently unavailable.'}, status=401)
+                        except Exception:
+                            # If start_at can't be compared for some reason, continue without blocking
+                            pass
                         # expired ticket
                         if ticket.expire_at and timezone.now() > ticket.expire_at:
                             ticket.status = False
@@ -202,7 +216,7 @@ def index(request):
             )
             
             # ส่ง Error กลับเป็น JSON
-            return JsonResponse({'error': 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'}, status=401)
+            return JsonResponse({'error': 'The username or password is incorrect.'}, status=401)
 
     # Allow GET to serve the frontend SPA (redirect to root), so visiting
     # /login/ in the browser loads the Vue app which then renders the login view.

@@ -35,7 +35,15 @@ export function useLogin() {
         router.push('/')
       }
     } else {
-      try { showToast('Login failed. Please check your username and password.', 'error') } catch (e) { }
+      try {
+        const warn = authStore.loginWarning
+        const message = warn && (typeof warn === 'string' ? warn : warn.value) || null
+        if (message) {
+          showToast(message, 'warning')
+        } else {
+          showToast('Login failed. Please check your username and password.', 'error')
+        }
+      } catch (e) { }
     }
   }
 

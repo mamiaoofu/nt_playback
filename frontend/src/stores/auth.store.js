@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
 	const passwordResetRequired = ref(false)
 	const permissions = ref([])
 	const lastLoginAt = ref(0)
+	const loginWarning = ref(null)
 
 	// Promise that resolves once the initial restore-from-refresh attempt finishes.
 	// Router guard awaits this so it never redirects before we know if an
@@ -140,12 +141,21 @@ export const useAuthStore = defineStore('auth', () => {
 				return false
 			}
 
-			if (!response.ok) {
-				throw new Error(`Login failed with status: ${response.status}`)
+		if (!response.ok) {
+			// try to surface backend-provided warning/error messages
+			try {
+				const err = await response.json()
+				if (err && (err.warning || err.error || err.detail || err.message)) {
+					loginWarning.value = err.warning || err.error || err.detail || err.message
+				}
+			} catch (e) { }
+			throw new Error(`Login failed with status: ${response.status}`)
 			}
 
 			const data = await response.json()
 			setToken(data.access)
+		// clear any previous login warning on success
+		loginWarning.value = null
 			// record recent login time to avoid immediate force-logout races
 			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
@@ -283,5 +293,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, lastLoginAt, passwordResetRequired, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
+	return { user, token, permissions, lastLoginAt, passwordResetRequired, loginWarning, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
 })
