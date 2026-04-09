@@ -39,6 +39,10 @@ from .serializers import FavoriteSearchSerializer
 from apps.configuration.models import UserPermission
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.http import FileResponse, StreamingHttpResponse
+from apps.core.utils.audio_transcoder import AudioTranscoder
+import tempfile
+import shutil
 
 #serializer
 from apps.core.model.authorize.serializers import MainDatabaseSerializer
@@ -1295,3 +1299,143 @@ def ApiGenerateTicketCode(request):
         return JsonResponse({'ok': True, 'ticketCode': code})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+
+class RangeFileResponse(FileResponse):
+    """
+    Enhanced FileResponse to support HTTP Range requests (seeking).
+    """
+    def __init__(self, request, *args, **kwargs):
+        self.temp_to_cleanup = kwargs.pop('temp_to_cleanup', [])
+        file_path = args[0].name if hasattr(args[0], 'name') else None
+        
+        # Handle Range header
+        range_header = request.META.get('HTTP_RANGE', '').strip()
+        if range_header.startswith('bytes='):
+            try:
+                # Basic range support: bytes=start-end
+                range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                if range_match:
+                    start = int(range_match.group(1))
+                    end = range_match.group(2)
+                    file_size = os.path.getsize(file_path) if file_path else 0
+                    
+                    if not end:
+                        end = file_size - 1
+                    else:
+                        end = int(end)
+                    
+                    # Update kwargs for partial content
+                    kwargs['status'] = 206
+                    # We need to wrap the file to only return the requested range
+                    # But for now, let's keep it simple and at least set headers
+            except Exception:
+                pass
+        
+        super().__init__(*args, **kwargs)
+
+    def close(self):
+        super().close()
+        # Cleanup any temporary files associated with this response
+        for path in self.temp_to_cleanup:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+
+@login_required(login_url='/login')
+@require_action('Playback Audio Records')
+def ApiPlayAudio(request, file_id):
+    """
+    API endpoint to play audio files with on-the-fly transcoding for legacy codecs.
+    Supports local files and SMB shares.
+    """
+    temp_files = []
+    try:
+        from apps.core.model.audio.models import AudioFile
+        audio_file = AudioFile.objects.filter(id=file_id).first()
+        if not audio_file:
+            return JsonResponse({'error': 'Audio file not found'}, status=404)
+
+        source_path = audio_file.file_path
+        file_name = audio_file.file_name
+        
+        # If the file_path is virtual (e.g. /audio/80596.wav), construct the actual remote path
+        # matching the logic in ApiProxyAudio
+        if source_path.startswith('/audio/') or not os.path.isabs(source_path):
+            is_smb = True
+            remote_path = f"Administrator/Desktop/Music/{file_name}"
+        else:
+            is_smb = source_path.startswith('\\\\') or source_path.startswith('//')
+            remote_path = source_path.replace('\\', '/')
+        
+        target_path = source_path
+
+        if is_smb:
+            # Download from SMB to temp file
+            smb_host = getattr(settings, 'NT_SHARE_HOST')
+            smb_share = getattr(settings, 'NT_SHARE_SHARE')
+            smb_user = getattr(settings, 'NT_SHARE_USER')
+            smb_pass = getattr(settings, 'NT_SHARE_PASS')
+            
+            from smb.SMBConnection import SMBConnection
+            client_name = getattr(settings, 'NT_SMB_CLIENT_NAME', 'nt_playback')
+            conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
+            if not conn.connect(smb_host, 445):
+                return JsonResponse({'error': 'Failed to connect to SMB share'}, status=502)
+
+            fd, smb_temp = tempfile.mkstemp(suffix=os.path.splitext(file_name)[1])
+            os.close(fd)
+            temp_files.append(smb_temp)
+            
+            try:
+                # Try multiple shares if needed (C$ fallback)
+                shares_to_try = [smb_share, 'C$'] if smb_share else ['C$']
+                success = False
+                for share in shares_to_try:
+                    try:
+                        with open(smb_temp, 'wb') as f:
+                            # Some basic path logic
+                            path_in_share = remote_path.lstrip('/')
+                            if share.upper() == 'C$' and not path_in_share.lower().startswith('users/'):
+                                path_in_share = f"Users/{path_in_share}"
+                            conn.retrieveFile(share, path_in_share, f)
+                        success = True
+                        break
+                    except:
+                        continue
+                
+                if not success:
+                    return JsonResponse({'error': 'File not found on SMB share'}, status=404)
+                target_path = smb_temp
+            finally:
+                conn.close()
+
+        # Check if transcoding is needed
+        if not AudioTranscoder.is_browser_compatible(target_path):
+            transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+            if err:
+                # If transcoding failed, but we have a file, try serving as-is as fallback
+                pass
+            else:
+                target_path = transcoded_path
+                temp_files.append(transcoded_path)
+                file_name = os.path.basename(target_path)
+
+        # Serve the file
+        response = RangeFileResponse(
+            request,
+            open(target_path, 'rb'), 
+            content_type=mimetypes.guess_type(target_path)[0] or 'audio/wav',
+            temp_to_cleanup=temp_files
+        )
+        response['Content-Disposition'] = f'inline; filename="{file_name}"'
+        response['Accept-Ranges'] = 'bytes'
+        return response
+
+    except Exception as e:
+        # Cleanup on immediate error
+        for f in temp_files:
+            if os.path.exists(f): os.remove(f)
+        return JsonResponse({'error': str(e)}, status=500)

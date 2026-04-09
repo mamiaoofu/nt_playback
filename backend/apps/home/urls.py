@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
 	path('api/audio/list/', views.ApiGetAudioList, name='ApiGetAudioList'),
+	path('api/audio/play/<int:file_id>/', views.ApiPlayAudio, name='ApiPlayAudio'),
 	path('api/home/index/', views.ApiIndexHome, name='ApiIndexHome'),
 	path('api/home/add/my-favorite-search/', views.ApiSaveMyFavoriteSearch, name='ApiAddMyFavoriteSearch'),
 	path('api/home/check/my-favorite-search/', views.ApiCheckMyFavoriteName, name='ApiCheckMyFavoriteName'),

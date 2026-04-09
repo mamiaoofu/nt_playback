@@ -1,7 +1,7 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase,API_PROXY_AUDIO,API_CHECK_FILE_SHARE } from '../api/paths'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase,API_PROXY_AUDIO,API_CHECK_FILE_SHARE, API_PLAY_AUDIO } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
@@ -1154,7 +1154,8 @@ export function useHome() {
                 for (const f of selected) {
                 const fname = f.file_name || f.fileName || ''
                 if (!fname) continue
-                const url = API_PROXY_AUDIO(fname)
+                const fid = f.file_id || f.id || f.fileId
+                const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
                 try {
                   const resp = await fetch(url, { credentials: 'include' })
                   if (!resp.ok) {
@@ -1254,7 +1255,8 @@ export function useHome() {
         for (const f of selected) {
           const fname = f.file_name || f.fileName || ''
           if (!fname) continue
-          const url = API_PROXY_AUDIO(fname)
+          const fid = f.file_id || f.id || f.fileId
+          const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
           try {
             const resp = await fetch(url, { credentials: 'include' })
             if (!resp.ok) {
@@ -1459,10 +1461,19 @@ export function useHome() {
     if (!fileName) return
 
     const ext = (fileName.split('.').pop() || '').toLowerCase()
-    if (['wav','mp3','ogg','flac'].includes(ext)) {
+
+    // The new API_PLAY_AUDIO endpoint handles transcoding for telephony codecs (G.711, etc.)
+    // We now attempt in-browser playback for all standard audio extensions, 
+    // and if the backend detects an incompatible codec, it will transcode to WAV on-the-fly.
+    if (['wav','mp3','ogg','flac','m4a','aac'].includes(ext)) {
       try {
-        const base = getApiBase().replace(/\/$/, '')
-        audioSrc.value = API_PROXY_AUDIO(fileName)
+        const fileId = row.file_id || row.id || row.fileId
+        if (!fileId) {
+          console.warn('No fileId found for row, falling back to proxy by name', row)
+          audioSrc.value = API_PROXY_AUDIO(fileName)
+        } else {
+          audioSrc.value = API_PLAY_AUDIO(fileId)
+        }
         audioMetadata.fileName = fileName
         audioMetadata.duration = row.duration || ''
         audioMetadata.customerNumber = row.customer_number || row.customerNumber || ''

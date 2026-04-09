@@ -10,6 +10,7 @@ export const API_GET_CSRF = () => `${getApiBase()}/api/get/csrf/`
 // หน้า Home
 export const API_HOME_INDEX = () => `${getApiBase()}/api/home/index/`
 export const API_AUDIO_LIST = () => `${getApiBase()}/api/audio/list/`
+export const API_PLAY_AUDIO = (fileId) => `${getApiBase()}/api/audio/play/${fileId}/`
 export const API_PROXY_AUDIO = (fileName) => `${getApiBase()}/api/audio/proxy/?file=${encodeURIComponent(fileName || '')}`
 export const API_CHECK_MY_FAVORITE_NAME = () => `${getApiBase()}/api/home/check/my-favorite-search/`
 export const API_ADD_MY_FAVORITE_SEARCH = () => `${getApiBase()}/api/home/add/my-favorite-search/`
