@@ -280,13 +280,47 @@ def ApiGetTicketHistory(request,type):
                     q_parts.append(q_tok)
                     continue
 
-                # default: search username/name/code/email fields
+                # support tokens containing slash (e.g., "9/10" or "10/10")
+                if '/' in tok:
+                    try:
+                        # normalize spaces around slash (allow '96 / 99')
+                        tok_clean = re.sub(r"\s*/\s*", "/", tok)
+                        nums = re.findall(r"\d+", tok_clean)
+                        # if two numbers like '96/99', match both fields together
+                        q_slash = Q()
+                        if len(nums) >= 2:
+                            try:
+                                a = int(nums[0])
+                                b = int(nums[1])
+                                if a == b:
+                                    q_slash = Q(limit_access_time=a) | Q(access_time=a)
+                                else:
+                                    q_slash = Q(limit_access_time=a, access_time=b) | Q(limit_access_time=b, access_time=a)
+                            except Exception:
+                                q_slash = Q()
+                        else:
+                            # fallback: match any numeric part against either field
+                            for nstr in nums:
+                                try:
+                                    n = int(nstr)
+                                    q_slash |= (Q(limit_access_time=n) | Q(access_time=n))
+                                except Exception:
+                                    pass
+                        # include description match in the same OR group to avoid ANDing
+                        q_slash |= Q(description__icontains=tok_clean)
+                        q_parts.append(q_slash)
+                        continue
+                    except Exception:
+                        pass
+
+                # default: search username/name/code/email/description fields
                 q_tok = (
                     Q(create_by__username__icontains=tok) |
                     Q(create_by__first_name__icontains=tok) |
                     Q(create_by__last_name__icontains=tok) |
                     Q(code__icontains=tok) |
-                    Q(email__icontains=tok)
+                    Q(email__icontains=tok) |
+                    Q(description__icontains=tok)
                 )
                 q_parts.append(q_tok)
 
