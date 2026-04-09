@@ -1,6 +1,6 @@
 <template>
     <!-- Modal Share -->
-    <div v-if="modelValue" class="modal-backdrop" @click.self="close" id="fileShareModal">
+    <div v-if="modelValue" class="modal-backdrop" id="fileShareModal">
         <div v-if="files && files.length" class="modal-box" style="max-width: 640px;">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 8px">
@@ -121,8 +121,7 @@
     </div>
 
     <!-- Modal Share complete -->
-
-    <div v-if="showResult" class="modal-backdrop" @click.self="closeResult" id="fileShareResult">
+    <div v-if="showResult" class="modal-backdrop" id="fileShareResult">
         <div class="modal-box" style="max-width: 400px;">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 8px">
@@ -265,7 +264,7 @@ watch(() => selectionType.value, (v) => {
     if (v === 'user') {
         limitAccessTimes.value = null
     } else {
-        if (limitAccessTimes.value === null) limitAccessTimes.value = 0
+        if (limitAccessTimes.value === null) limitAccessTimes.value = null
     }
 })
 

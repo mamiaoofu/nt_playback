@@ -106,7 +106,12 @@
               </template>
 
               <template #cell-limit_access_time="{ row }" v-if="typeUrl === 'ticket'">
+                <div v-if="row.limit_access_time || row.limit_access_time === 0">
                   {{ row.access_time }} / {{ row.limit_access_time }}
+                </div>
+                <div v-else>
+                  -
+                </div>
               </template>
 
                 <template #cell-download="{ row }">

@@ -45,50 +45,62 @@ def index(request):
                 if 'UserFileShare' in globals() and UserFileShare:
                     # Only consider objects of type 'ticket'
                     ticket = UserFileShare.objects.filter(user=user, type='ticket').first()
-                    if ticket:
-                        # If start_at is defined and current time is before it, deny login
-                        try:
-                            if ticket.start_at is not None and timezone.now() < ticket.start_at:
-                                create_user_log(
-                                    user=user,
-                                    action="Login",
-                                    detail=f"Login blocked: Ticket not yet active for user {user.username}",
-                                    status="error",
-                                    request=request
-                                )
-                                return JsonResponse({'warning': 'Currently unavailable.'}, status=401)
-                        except Exception:
-                            # If start_at can't be compared for some reason, continue without blocking
-                            pass
-                        # expired ticket
-                        if ticket.expire_at and timezone.now() > ticket.expire_at:
-                            ticket.status = False
-                            ticket.save()
-                            user.is_active = False
-                            user.save()
-                            create_user_log(
-                                user=user,
-                                action="Login",
-                                detail=f"Login failed: Ticket expired for user {user.username}",
-                                status="error",
-                                request=request
-                            )
-                            return JsonResponse({'error': 'Your ticket has expired.'}, status=401)
+                        if ticket:
+                            # Enforce start_at: ticket must be active from start_at onward
+                            try:
+                                if ticket.start_at is not None and timezone.now() < ticket.start_at:
+                                    create_user_log(
+                                        user=user,
+                                        action="Login",
+                                        detail=f"Login blocked: Ticket not yet active for user {user.username}",
+                                        status="error",
+                                        request=request
+                                    )
+                                    return JsonResponse({'warning': 'Currently unavailable.'}, status=401)
+                            except Exception:
+                                # If start_at can't be compared for some reason, continue without blocking
+                                pass
 
-                        # If access_time is defined and already exhausted, deny login
-                        try:
-                            if ticket.access_time is not None and int(ticket.access_time) <= 0:
+                            # expired ticket
+                            if ticket.expire_at and timezone.now() > ticket.expire_at:
+                                ticket.status = False
+                                ticket.save()
+                                user.is_active = False
+                                user.save()
                                 create_user_log(
                                     user=user,
                                     action="Login",
-                                    detail=f"Login failed: Ticket access_time exhausted for user {user.username}",
+                                    detail=f"Login failed: Ticket expired for user {user.username}",
                                     status="error",
                                     request=request
                                 )
-                                return JsonResponse({'error': 'Your ticket has no remaining accesses.'}, status=401)
-                        except Exception:
-                            # if access_time is not an int or other issue, continue without blocking
-                            pass
+                                return JsonResponse({'error': 'Your ticket has expired.'}, status=401)
+
+                            # Determine effective access_time:
+                            # - If both limit_access_time and access_time are None => unlimited access (do not block)
+                            # - If limit_access_time is set but access_time is None, initialize access_time from limit_access_time
+                            try:
+                                if ticket.limit_access_time is not None and ticket.access_time is None:
+                                    try:
+                                        ticket.access_time = int(ticket.limit_access_time)
+                                        ticket.save()
+                                    except Exception:
+                                        # if conversion fails, leave access_time as None (treat as unlimited)
+                                        pass
+
+                                # If access_time is defined and exhausted, deny login
+                                if ticket.access_time is not None and int(ticket.access_time) <= 0:
+                                    create_user_log(
+                                        user=user,
+                                        action="Login",
+                                        detail=f"Login failed: Ticket access_time exhausted for user {user.username}",
+                                        status="error",
+                                        request=request
+                                    )
+                                    return JsonResponse({'error': 'Your ticket has no remaining accesses.'}, status=401)
+                            except Exception:
+                                # if access_time is not an int or other issue, continue without blocking
+                                pass
             except Exception as e:
                 print(f"Error checking ticket expiration: {e}")
             
