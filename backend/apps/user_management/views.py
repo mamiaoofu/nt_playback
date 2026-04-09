@@ -34,7 +34,7 @@ User = get_user_model()
 def ApiGetUserAll(request, type):
     try:
         if type == 'user':
-            users = User.objects.exclude(username__startswith='TKT',id=1).values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
+            users = User.objects.exclude(Q(username__icontains='TKT') | Q(id=1)).values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
         else :
             users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
         user_list = list(users)
