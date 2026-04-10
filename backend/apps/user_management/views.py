@@ -135,11 +135,21 @@ def ApiGetUser(request):
         tokens = [t.strip() for t in search_term.split(',') if t.strip()]
         # primary search term (use first token if present to avoid trailing-comma issues)
         search_primary = tokens[0] if tokens else search_term
+        # prepare name search query for base_q
+        primary_parts = [p for p in re.split(r'\s+', search_primary) if p]
+        if len(primary_parts) >= 2:
+            fn_primary = primary_parts[0]
+            ln_primary = ' '.join(primary_parts[1:])
+            # match split names OR match either part anywhere in first/last
+            name_q = Q(user__first_name__icontains=fn_primary, user__last_name__icontains=ln_primary) | Q(user__first_name__icontains=search_primary) | Q(user__last_name__icontains=search_primary)
+            cb_name_q = Q(create_by__first_name__icontains=fn_primary, create_by__last_name__icontains=ln_primary) | Q(create_by__first_name__icontains=search_primary) | Q(create_by__last_name__icontains=search_primary)
+        else:
+            name_q = Q(user__first_name__icontains=search_primary) | Q(user__last_name__icontains=search_primary)
+            cb_name_q = Q(create_by__first_name__icontains=search_primary) | Q(create_by__last_name__icontains=search_primary)
+
         base_q = (
             Q(user__username__icontains=search_primary)
-            | Q(user__first_name__icontains=search_primary)
-            | Q(user__last_name__icontains=search_primary)
-            | Q(user__first_name__icontains=search_primary, user__last_name__icontains=search_primary)
+            | name_q
             | Q(user__email__icontains=search_primary)
             | Q(phone__icontains=search_primary)
             | Q(team__name__icontains=search_primary)
@@ -148,9 +158,7 @@ def ApiGetUser(request):
             | Q(user__userauth__maindatabase__database_name__icontains=search_primary)
             | Q(user__userauth__user_permission__name__icontains=search_primary)
             | Q(create_by__username__icontains=search_primary)
-            | Q(create_by__first_name__icontains=search_primary)
-            | Q(create_by__last_name__icontains=search_primary)
-            | Q(create_by__first_name__icontains=search_primary, create_by__last_name__icontains=search_primary)
+            | cb_name_q
         )
 
         # detect date-like tokens and allow matching against create_at date
@@ -228,38 +236,36 @@ def ApiGetUser(request):
         # detect if the search term or its tokens match any MainDatabase name
         # Use normalized comparison (remove non-alphanumerics) to avoid mismatches like 'v.6.10' vs 'v6.10'
         matching_db_ids = []
+        db_tokens = [] # keep track of which tokens matched a database
         try:
-            # quick DB-side contains check first
-            if search_term:
-                matching_db_ids = list(MainDatabase.objects.filter(database_name__icontains=search_term).values_list('id', flat=True))
-        except Exception:
-            matching_db_ids = []
+            dbs = list(MainDatabase.objects.all())
+            def _norm(s):
+                return re.sub(r'[^0-9A-Za-z]+', '', (s or '')).lower()
 
-        if not matching_db_ids:
-            try:
-                # normalize function: remove non-alphanumeric and lowercase
-                def _norm(s):
-                    return re.sub(r'[^0-9A-Za-z]+', '', (s or '')).lower()
-
+            # identify if any individual tokens match a database name
+            if tokens:
+                norm_tokens = [ (t, _norm(t)) for t in tokens if t and _norm(t) ]
+                for t_raw, nt in norm_tokens:
+                    token_found_db = False
+                    for d in dbs:
+                        nd = _norm(getattr(d, 'database_name', '') or '')
+                        if nt in nd:
+                            matching_db_ids.append(d.id)
+                            token_found_db = True
+                    if token_found_db:
+                        db_tokens.append(t_raw)
+            
+            # fallback: if no token-matches found, try the full search_term (legacy behavior)
+            if not matching_db_ids and search_term:
                 norm_search = _norm(search_term)
-                dbs = list(MainDatabase.objects.all())
-                # try matching normalized full search term inside normalized db name
                 if norm_search:
                     for d in dbs:
                         nd = _norm(getattr(d, 'database_name', '') or '')
-                        if norm_search and nd and norm_search in nd:
+                        if norm_search in nd:
                             matching_db_ids.append(d.id)
 
-                # fallback: require all normalized tokens present in normalized db name
-                if not matching_db_ids and tokens:
-                    norm_tokens = [ _norm(t) for t in tokens if t and _norm(t) ]
-                    if norm_tokens:
-                        for d in dbs:
-                            nd = _norm(getattr(d, 'database_name', '') or '')
-                            if nd and all(nt in nd for nt in norm_tokens):
-                                matching_db_ids.append(d.id)
-            except Exception:
-                matching_db_ids = []
+        except Exception:
+            matching_db_ids = []
 
         db_strict_q = None
         if matching_db_ids:
@@ -300,11 +306,20 @@ def ApiGetUser(request):
                 # skip tokens that were used solely as status filters
                 if t in status_tokens:
                     continue
+                # handle full name split for current token
+                sub_tokens = [p for p in re.split(r'\s+', t) if p]
+                if len(sub_tokens) >= 2:
+                    fn_t = sub_tokens[0]
+                    ln_t = ' '.join(sub_tokens[1:])
+                    t_name_q = Q(user__first_name__icontains=fn_t, user__last_name__icontains=ln_t) | Q(user__first_name__icontains=t) | Q(user__last_name__icontains=t)
+                    t_cb_name_q = Q(create_by__first_name__icontains=fn_t, create_by__last_name__icontains=ln_t) | Q(create_by__first_name__icontains=t) | Q(create_by__last_name__icontains=t)
+                else:
+                    t_name_q = Q(user__first_name__icontains=t) | Q(user__last_name__icontains=t)
+                    t_cb_name_q = Q(create_by__first_name__icontains=t) | Q(create_by__last_name__icontains=t)
+
                 tq = (
                     Q(user__username__icontains=t)
-                    | Q(user__first_name__icontains=t)
-                    | Q(user__last_name__icontains=t)
-                    | Q(user__first_name__icontains=t, user__last_name__icontains=t)
+                    | t_name_q
                     | Q(user__email__icontains=t)
                     | Q(phone__icontains=t)
                     | Q(team__name__icontains=t)
@@ -313,11 +328,7 @@ def ApiGetUser(request):
                     | Q(user__userauth__maindatabase__database_name__icontains=t)
                     | Q(user__userauth__user_permission__name__icontains=t)
                     | Q(create_by__username__icontains=t)
-                    | Q(create_by__first_name__icontains=t)
-                    | Q(create_by__last_name__icontains=t)
-                    #Full name
-                    | Q(create_by__first_name__icontains=t, create_by__last_name__icontains=t)
-
+                    | t_cb_name_q
                 )
                 per_token_qs.append(tq)
 
@@ -489,19 +500,28 @@ def ApiGetUser(request):
     # as a final safeguard only include serialized rows that actually list
     # that database in their `database_servers` array.
     try:
-        if search_term and 'matching_db_ids' in locals() and matching_db_ids:
+        if search_term and (('matching_db_ids' in locals() and matching_db_ids) or ('db_tokens' in locals() and db_tokens)):
             def _norm(s):
                 return re.sub(r'[^0-9A-Za-z]+', '', (s or '')).lower()
 
-            norm_search = _norm(search_term)
-            if norm_search:
+            # If we identified specific tokens matching DBs, use them for strict filtering
+            active_tokens = db_tokens if ('db_tokens' in locals() and db_tokens) else [search_term]
+            norm_active = [_norm(t) for t in active_tokens if _norm(t)]
+
+            if norm_active:
                 filtered = []
                 for row in data:
                     dbs = row.get('database_servers') or []
+                    # check if the row's databases match AT LEAST ONE of the active database-matching tokens
+                    row_matches = False
                     for dbn in dbs:
-                        if norm_search in _norm(dbn):
-                            filtered.append(row)
+                        nd = _norm(dbn)
+                        if any(nt in nd for nt in norm_active):
+                            row_matches = True
                             break
+                    
+                    if row_matches:
+                        filtered.append(row)
                 data = filtered
     except Exception:
         pass
