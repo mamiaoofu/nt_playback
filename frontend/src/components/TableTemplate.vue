@@ -41,12 +41,14 @@
                 <template v-else-if="col.isAction">
                   <div class="group-card-actions">
                     <button
+                      v-if="store.hasPermission('Edit User')"
                       :id="`click-to-edit-${getActionId(r) ?? r.id ?? idx}`"
                       class="group-edit-btn"
                       @click.stop="$emit('edit', r, getActionId(r))">
                       Click to edit
                     </button>
                     <button
+                      v-if="store.hasPermission('Delete User')"
                       :id="`group-delete-btn-${getActionId(r) ?? r.id ?? idx}`"
                       type="button"
                       class="group-delete-btn"

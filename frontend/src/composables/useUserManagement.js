@@ -51,14 +51,15 @@ export function useUserManagement() {
         { key: 'phone', label: 'Phone' },
         { key: 'create_by', label: 'Created By' },
         { key: 'create_at', label: 'Create Date'},
-        { key: 'status', label: 'Status' },
-        { key: 'actions', label: 'Actions', isAction: true }
+        ...(authStore.hasPermission('Change User Status') ? [{ key: 'status', label: 'Status' }] : []),
+        ...(authStore.hasPermission('Edit User') || authStore.hasPermission('Delete User') || authStore.hasPermission('Reset User Password') ? [{ key: 'actions', label: 'Actions', isAction: true }] : [])
     ]
 
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))
     const startIndex = computed(() => (currentPage.value - 1) * perPage.value)
     const paginatedRecords = computed(() => records.value)
 
+    
     // Filter form state and options
     const filters = reactive({ 
         user: null, 

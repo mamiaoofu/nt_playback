@@ -84,8 +84,12 @@ export function useFileShareManagement() {
                 }
             }
         }
-        if (typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' }, { key: 'action', label: 'Action' })
-        if (typeUrl.value === 'delegate') cols.push({ key: 'status', label: 'Status' })
+        if (authStore.hasPermission('Change Ticket Status') && typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' } )
+
+        if (authStore.hasPermission('Ticket Resent') && typeUrl.value === 'ticket' ) cols.push({ key: 'action', label: 'Action' })
+
+        if (authStore.hasPermission('Change Delegate File Status') && typeUrl.value === 'delegate') cols.push({ key: 'status', label: 'Status' })
+
         return cols
     })
 
@@ -429,7 +433,10 @@ export function useFileShareManagement() {
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
 
     const canExport = computed(() => {
-    return typeUrl.value === 'delegate' && authStore.hasPermission('Save As Delegate File Index')
+        if (typeUrl.value === 'ticket') return 'Save As Ticket Index'
+        if (typeUrl.value === 'delegate') return 'Save As Delegate File Index'
+
+        return 'Save As'
 })
 
     const resetExportSelections = () => {
@@ -496,7 +503,7 @@ export function useFileShareManagement() {
                 exprie_date: r.exprie_date || '-',
                 files_audio: rawFiles || '-',
                 limit_access_time: (typeUrl.value === 'ticket') ? `${r.access_time || 0} / ${r.limit_access_time || 0}` : '-',
-                status: r.status ? 'Active' : 'Inactive'
+                ...(authStore.hasPermission('Change Delegate File Status') || authStore.hasPermission('Change Ticket Status') ? { status: r.status ? 'Active' : 'Inactive' } : {}),
             }
         })
         const exportColumns = (columns.value || []).filter(c => c && c.key !== 'action' && c.key !== 'checked')

@@ -33,11 +33,11 @@
 
                 <div class="mt-3">
                     <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
-                        <div class="form-check">
+                        <div class="form-check" v-if="Store.hasPermission('Create Delegate File')">
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeUser">Deleagate</label>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check" v-if="Store.hasPermission('Create Ticket') ">
                             <input class="form-check-input" type="radio" id="shareTypeTicket" value="ticket" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeTicket">Ticket</label>
                         </div>
@@ -80,9 +80,9 @@
                     </div>
                 </div>
 
-                <label class="form-label" style="font-weight: 500;">Download</label>
+                <label class="form-label" style="font-weight: 500;" v-if="Store.hasPermission('Download Delegate File') || Store.hasPermission('Download Ticket File')">Download</label>
 
-                <div class="d-flex align-items-center" style="gap:12px;">
+                <div class="d-flex align-items-center" style="gap:12px;" v-if="Store.hasPermission('Download Delegate File') || Store.hasPermission('Download Ticket File')">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
                         <label class="form-check-label" for="permissionsYesDownload">Yes</label>
@@ -207,11 +207,17 @@ import { API_GET_USER_ALL, API_CREATE_FILE_SHARE } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/css/modal-favorite.css'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
+import { useAuthStore } from '../stores/auth.store'
+
+const Store = useAuthStore()
 
 const props = defineProps({ modelValue: { type: Boolean, default: false }, files: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:modelValue', 'share'])
 
-const selectionType = ref('user')
+const selectionType = ref(
+    Store.hasPermission('Create Delegate File') ? 'user' : Store.hasPermission('Create Ticket') ? 'ticket' : ''
+)
+
 const shareUser = ref('')
 const userOptions = ref([])
 const permissions = ref('false')
@@ -222,7 +228,7 @@ const fetchUsers = async () => {
         params.set('draw', 1)
         params.set('start', 0)
         params.set('length', 1000)
-        const res = await fetch(`${API_GET_USER_ALL()}?${params.toString()}`, { credentials: 'include' })
+        const res = await fetch(`${API_GET_USER_ALL('user')}?${params.toString()}`, { credentials: 'include' })
         if (!res.ok) throw new Error('Failed to fetch users')
         const json = await res.json()
         const list = json.data || []
