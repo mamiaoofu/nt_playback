@@ -346,6 +346,8 @@ def ApiGetTicketHistory(request,type):
             "email": "email",
             "code": "code",
             "create_by": "create_by__username",
+            "username": "user__username",
+            "files_audio": "audiofile_id",
             "create_at": "create_at",
             "start_date": "start_at",
             "expire_date": "expire_at",
