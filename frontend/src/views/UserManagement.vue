@@ -155,7 +155,7 @@
                                 {{ row.phone || '-' }}
                             </template>
 
-                            <template #cell-status="{ row }">
+                            <template #cell-status="{ row }" v-if="authStore.hasPermission('Change User Status')">
                                 <label class="switch_status">
                                     <input type="checkbox" :checked="row.is_active"
                                         @change="() => toggleUserStatus(row.user?.id, row)" />

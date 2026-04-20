@@ -292,8 +292,11 @@ def ApiGetTicketHistory(request,type):
                             try:
                                 a = int(nums[0])
                                 b = int(nums[1])
+                                # If both numbers are identical (e.g., "10/10"),
+                                # require both fields to match to avoid matching rows
+                                # like "9/10" where only one side equals 10.
                                 if a == b:
-                                    q_slash = Q(limit_access_time=a) | Q(access_time=a)
+                                    q_slash = Q(limit_access_time=a, access_time=a)
                                 else:
                                     q_slash = Q(limit_access_time=a, access_time=b) | Q(limit_access_time=b, access_time=a)
                             except Exception:

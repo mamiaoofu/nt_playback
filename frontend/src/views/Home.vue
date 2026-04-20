@@ -151,7 +151,7 @@
                   </h5>
                 </div>
                 <div class="d-flex align-items-center">
-                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && authStore.hasPermission('Create Delegate File','Create Ticket')" class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
+                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && (authStore.hasPermission('Create Delegate File') || authStore.hasPermission('Create Ticket')) " class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                         <span v-if="selectedCount > 0" class="badge badge-danger" id="shareCount">{{ selectedCount }}</span>
                       </button>

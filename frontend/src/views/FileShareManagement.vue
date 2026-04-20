@@ -97,7 +97,7 @@
               @per-change="setPerPage"
               @delete="onRowDelete">
 
-              <template #cell-status="{ row }">
+              <template #cell-status="{ row }" v-if="authStore.hasPermission('Change Delegate File Status') || authStore.hasPermission('Change Ticket Status')">
                   <label class="switch_status">
                       <input type="checkbox" :checked="row.status"
                           @change="() => toggleUserStatus(row.user_id, row.id)" />

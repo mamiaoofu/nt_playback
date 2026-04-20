@@ -656,7 +656,9 @@ const dependencyMap = {
     'Delete Team' : ['Group & Team'],
 
     //Logs
-    'Save As Audit Log' : ['Audit Log'],
+    // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
+    // when it is unchecked. We'll handle its addition explicitly below so unchecking
+    // does not remove the access permission.
     'Save As System Log' : ['System Log'],
     'Save As Ticket History' : ['Ticket History'],
 
@@ -703,14 +705,28 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
         added.forEach(actionValue => {
             const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
             if (!perm || !perm.name) return
-            const deps = dependencyMap[String(perm.name).trim()]
-            if (!deps || deps.length === 0) return
+            const deps = dependencyMap[String(perm.name).trim()] || []
             deps.forEach(accessName => {
                 const accessAction = nameToAction.value[String(accessName).trim()]
                 if (accessAction && !rolePermissions.value.includes(accessAction)) {
                     rolePermissions.value = rolePermissions.value.concat([accessAction])
                 }
             })
+
+            try {
+                const specialMap = {
+                    'Save As Audit Log': 'Audit Log',
+                    'Save As System Log': 'System Log',
+                    'Save As Ticket History': 'Ticket History'
+                }
+                const s = String(perm.name).trim()
+                if (specialMap[s]) {
+                    const accessAction = nameToAction.value[specialMap[s]]
+                    if (accessAction && !rolePermissions.value.includes(accessAction)) {
+                        rolePermissions.value = rolePermissions.value.concat([accessAction])
+                    }
+                }
+            } catch (e) { /* silent */ }
         })
 
         // Handle removals:
@@ -721,8 +737,15 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
             if (!perm || !perm.name) return
 
             // (A) Remove access permissions that are no longer required by any remaining selected permission
-            const deps = dependencyMap[String(perm.name).trim()]
-            if (deps && deps.length) {
+            // BUT: do not auto-remove accesses when the removed permission is one
+            // of the special "Save As ..." log permissions — those should not
+            // trigger removal of their underlying access.
+            const removedName = String(perm.name).trim()
+            if (removedName === 'Save As Audit Log' || removedName === 'Save As System Log' || removedName === 'Save As Ticket History') {
+                // skip dependency-based removal for these special cases
+            } else {
+                const deps = dependencyMap[String(perm.name).trim()]
+                if (deps && deps.length) {
                 deps.forEach(accessName => {
                     const accessAction = nameToAction.value[String(accessName).trim()]
                     if (!accessAction) return
@@ -737,6 +760,7 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
                         rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
                     }
                 })
+                }
             }
 
             // (B) If this removed permission is an access-type, remove any dependent permissions that require it
