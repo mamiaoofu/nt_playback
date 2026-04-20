@@ -525,8 +525,8 @@ def ApiGenFormTicket(request):
             'email': user_file_share.email,
             'code': user_file_share.code,
             'password': temp_pw,
-            'start_at': user_file_share.start_at.strftime("%Y-%m-%d") if getattr(user_file_share, 'start_at', None) else '',
-            'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d") if getattr(user_file_share, 'expire_at', None) else ''
+            'start_at': user_file_share.start_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'start_at', None) else '',
+            'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'expire_at', None) else ''
         }
         create_user_log(user=request.user, action="Gen Ticket", detail=f"Generated ticket {user_file_share.code} for user {user.username}", status="success", request=request)
         return JsonResponse(result)
