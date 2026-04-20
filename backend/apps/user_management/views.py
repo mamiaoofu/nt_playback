@@ -614,16 +614,22 @@ def ApiGetUSerProfile(request, user_id):
         selected_db_ids = [str(auth.maindatabase.id) for auth in user_auths if getattr(auth, 'allow', False)]
         
         main_db_qs = MainDatabase.objects.all()
-        main_db = [
-            {
+        main_db = []
+
+        for d in main_db_qs:
+            main_db.append({
                 'id': d.id,
                 'database_name': getattr(d, 'database_name', None),
                 'status': getattr(d, 'status', None)
-            }
-            for d in main_db_qs
-        ]
+            })
 
         all_db_selected = len(selected_db_ids) == len(main_db) and len(main_db) > 0
+
+        selected_db_allow = [
+            auth.maindatabase.database_name
+            for auth in user_auths
+            if getattr(auth, 'allow', False) and auth.maindatabase
+        ]
 
         user_permission = None
         if user_auths.exists() and user_auths.first().user_permission:
@@ -633,19 +639,32 @@ def ApiGetUSerProfile(request, user_id):
         selected_role_type = None
         if user_permission:
             if user_permission.type in ['administrator', 'auditor', 'operator']:
+                selected_role_id = str(user_permission.id)
                 selected_role_type = user_permission.type
             else:
                 selected_role_id = str(user_permission.id)
+                selected_role_type = user_permission.type
 
         profile_data = UserProfileSerializer(user_profile).data if user_profile else None
+
+        selected_role_name = None
+
+        if user_permission:
+            if user_permission.type in ['administrator', 'auditor', 'operator']:
+                selected_role_name = user_permission.type  # หรือจะ map เป็นชื่อสวย ๆ ก็ได้
+            else:
+                selected_role_name = getattr(user_permission, 'name', None)
+
 
         return JsonResponse({
             'status': 'success',
             'user_profile': profile_data,
             'selected_db_id': selected_db_ids,
+            'selected_db_allow': selected_db_allow,
             'all_db_selected': all_db_selected,
             'selected_role_id': selected_role_id,
             'selected_role_type': selected_role_type,
+            'selected_role_name': selected_role_name,
             'selected_db_name': profile_data['team']['maindatabase']['database_name'] if profile_data and profile_data.get('team') and profile_data['team'].get('database') else None
         })
     except User.DoesNotExist:

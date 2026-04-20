@@ -71,8 +71,9 @@ export function useProfile() {
                 const u = up.user || {}
                 const team = up.team || {}
                 const group = team.user_group || {}
-                const role = json.selected_role_type || 'User'
-                const db_name = (up.team.maindatabase_name || []).join(', ');
+                const role = json.selected_role_name || 'User'
+                // const db_name = (up.team.maindatabase_name || []).join(', ');
+                const db_name = (json.selected_db_allow || []).join(', ')
 
                 userProfile.value = {
                     username: u.username || '',
