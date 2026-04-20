@@ -84,7 +84,7 @@
         </div>
 
         <div class="footer-styled">
-          <button v-if="showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
+          <button v-if="canDownload || showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
           <button class="btn-gray-block" @click="close">Close</button>
         </div>
       </div>
