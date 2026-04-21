@@ -482,7 +482,8 @@ export function useTicketHistory() {
         paginatedRecords,
         type,
         sortColumn,
-        sortDirection
+        sortDirection,
+        canExport
     }
 
     const actions = {
