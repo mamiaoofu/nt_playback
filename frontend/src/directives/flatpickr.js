@@ -201,7 +201,7 @@ export default {
             // Clone time container for "To"
             const toTimeContainer = timeContainer.cloneNode(true)
             
-            // Setup interaction for cloned inputs
+            // Setup interaction for time inputs (both original and cloned)
             const setupClonedInput = (container) => {
               const inputs = container.querySelectorAll('input.numInput')
               inputs.forEach(input => {
@@ -252,7 +252,10 @@ export default {
                 })
               })
             }
+            // Attach handlers to original time container as well as cloned "To"
+            try { setupClonedInput(timeContainer) } catch (e) {}
             rowTo.appendChild(toTimeContainer)
+            try { setupClonedInput(toTimeContainer) } catch (e) {}
 
             wrapper.appendChild(rowFrom)
             wrapper.appendChild(rowTo)
