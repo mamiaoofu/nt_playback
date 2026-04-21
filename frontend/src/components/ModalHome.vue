@@ -494,14 +494,14 @@ async function deleteFavorite(id) {
         if (itemToRemove) itemToRemove.remove()
 
         const listContainer = document.getElementById('customRolesList')
-        if (listContainer && !listContainer.querySelector('.custom-role-item')) {
-          listContainer.insertAdjacentHTML('afterbegin', `
-              <div class="empty-state" onclick="document.getElementById('tab-btn-add') && document.getElementById('tab-btn-add').click()" style="cursor: pointer; padding: 40px 0; text-align: center; color: #94a3b8;">
-                  <i class="fa-solid fa-plus-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
-                  <p>No favorites yet. Click to create.</p>
-              </div>
-              `)
-        }
+        // if (listContainer && !listContainer.querySelector('.custom-role-item')) {
+        //   listContainer.insertAdjacentHTML('afterbegin', `
+        //       <div class="empty-state" onclick="document.getElementById('tab-btn-add') && document.getElementById('tab-btn-add').click()" style="cursor: pointer; padding: 40px 0; text-align: center; color: #94a3b8;">
+        //           <i class="fa-solid fa-plus-circle" style="font-size: 24px; margin-bottom: 10px;"></i>
+        //           <p>No favorites yet. Click to create.</p>
+        //       </div>
+        //       `)
+        // }
       } catch (e) {
         console.warn('DOM remove fallback failed', e)
       }

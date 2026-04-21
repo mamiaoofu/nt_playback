@@ -14,16 +14,19 @@ const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
   placeholder: { type: String, default: 'Search...' },
   showIcon: { type: Boolean, default: true },
-  style: { type: Object, default: () => ({}) }
+  style: { type: Object, default: () => ({}) },
+  debounce: { type: Number, default: 800 }
 })
 const emit = defineEmits(['update:modelValue', 'typing', 'enter', 'clear'])
 
 const inputRef = ref(null)
+let debounceTimer = null
 
 function onInput(e) {
   const v = e.target.value
   emit('update:modelValue', v)
-  emit('typing', v)
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => { emit('typing', v) }, props.debounce)
 }
 
 function onEnter() { emit('enter') }
