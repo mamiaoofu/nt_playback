@@ -19,7 +19,7 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="canView" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="canExport" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>

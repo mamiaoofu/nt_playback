@@ -102,9 +102,17 @@ export function useUserLog() {
         return 'User Logs'
     })
 
+    const requiredExportPermission = computed(() => {
+        const p = route.path || ''
+        if (p === '/logs/system') return 'Save As System Log'
+        if (p === '/logs/audit') return 'Save As Audit Log'
+        if (p === '/logs/ticket-history') return 'Save As Ticket History'
+        return 'Save As User Logs'
+    })
+
     const canView = computed(() => authStore.hasPermission(requiredPermission.value))
 
-    const canExport = computed(() => authStore.hasPermission('Export Recordings'))
+    const canExport = computed(() => authStore.hasPermission(requiredExportPermission.value))
 
     const toggleExport = () => {
         if (!canExport.value) return
