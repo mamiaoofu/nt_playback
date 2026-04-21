@@ -252,8 +252,8 @@ export default {
                 })
               })
             }
-            // Attach handlers to original time container as well as cloned "To"
-            try { setupClonedInput(timeContainer) } catch (e) {}
+            // Attach handlers only to cloned "To" inputs; the original From inputs
+            // are managed by flatpickr's own event system (arrow keys work natively).
             rowTo.appendChild(toTimeContainer)
             try { setupClonedInput(toTimeContainer) } catch (e) {}
 
@@ -339,10 +339,16 @@ export default {
               toPresent = !(h === '00' && m === '00' && (s === '00' || s === undefined))
             }
 
-            if (fromPresent && toPresent) finalStr = `${fromStr} - ${toStr}`
-            else if (fromPresent) finalStr = fromStr
-            else if (toPresent) finalStr = toStr
-            else finalStr = ''
+            if (toPresent) {
+              // Always store as "from - to" so onOpen can reliably restore To inputs.
+              // When From was not explicitly set, default it to 00:00:00 (no lower bound).
+              const effectiveFromStr = fromPresent ? fromStr : '00:00:00'
+              finalStr = `${effectiveFromStr} - ${toStr}`
+            } else if (fromPresent) {
+              finalStr = fromStr
+            } else {
+              finalStr = ''
+            }
           } else {
             // Non-duration picker: format selected date (dateFormat already respects noTime)
             try {
@@ -436,8 +442,9 @@ export default {
           }
 
           // If user selects the same date that's already applied, treat as toggle -> clear
+          // Guard with instance.isOpen so background re-parse events don't accidentally clear.
           try {
-            if (!isDurationRange && selectedDates && selectedDates.length) {
+            if (!isDurationRange && selectedDates && selectedDates.length && instance && instance.isOpen) {
               try {
                 const newStr = instance.formatDate(selectedDates[0], instance.config.dateFormat)
                 const normLast = noTime ? String(lastAppliedValue || '').split(' ')[0] : String(lastAppliedValue || '')
@@ -448,29 +455,8 @@ export default {
               } catch (e) {}
             }
           } catch (e) {}
-
-          // For duration ranges: if both From and To match last applied value, clear everything
-          try {
-            if (isDurationRange && selectedDates && selectedDates.length) {
-              try {
-                const fromStr = instance.formatDate(instance.latestSelectedDateObj, instance.config.dateFormat)
-                let toStr = ''
-                if (el._flatpickrToContainer) {
-                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
-                  const h = (inputs[0] && inputs[0].value) ? String(inputs[0].value).padStart(2, '0') : '00'
-                  const m = (inputs[1] && inputs[1].value) ? String(inputs[1].value).padStart(2, '0') : '00'
-                  const s = (inputs[2] && inputs[2].value) ? String(inputs[2].value).padStart(2, '0') : '00'
-                  toStr = `${h}:${m}:${s}`
-                }
-                const combined = (toStr && toStr !== '00:00:00') ? `${fromStr} - ${toStr}` : fromStr
-                const normLast = noTime ? String(lastAppliedValue || '').split(' ')[0] : String(lastAppliedValue || '')
-                if (normLast && String(combined) === String(normLast)) {
-                  try { doClear() } catch (e) {}
-                  return
-                }
-              } catch (e) {}
-            }
-          } catch (e) {}
+          // NOTE: duration_range has no toggle-clear in onChange. Clearing is done
+          // explicitly via the Reset button or by clearing To inputs manually.
 
           if (isDurationRange) {
             const fromPresent = Array.isArray(selectedDates) && selectedDates.length > 0
