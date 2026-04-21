@@ -442,6 +442,19 @@ export function useTicketHistory() {
         document.removeEventListener('click', onDocClick)
     })
 
+    const route = useRoute()
+
+    const requiredExportPermission = computed(() => {
+        const rp = route.path || ''
+        if (rp === '/logs/system') return 'Save As System Log'
+        if (rp === '/logs/audit') return 'Save As Audit Log'
+        if (rp === '/logs/ticket-history') return 'Save As Ticket History'
+        return 'Save As User Logs'
+    })
+
+
+    const canExport = computed(() => authStore.hasPermission(requiredExportPermission.value))
+
     const state = {
         authStore,
         searchQuery,
