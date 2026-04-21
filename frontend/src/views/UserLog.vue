@@ -159,6 +159,7 @@ const {
   downloadRemaining,
   sortColumn,
   sortDirection,
+  canExport,
   onTyping,
   setPerPage,
   changePage,

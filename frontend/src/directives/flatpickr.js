@@ -224,6 +224,13 @@ export default {
                 if (up) up.addEventListener('click', (e) => { e.stopPropagation(); updateVal(step) })
                 if (down) down.addEventListener('click', (e) => { e.stopPropagation(); updateVal(-step) })
                 input.addEventListener('wheel', (e) => { e.preventDefault(); updateVal(e.deltaY < 0 ? step : -step) })
+                // support arrow keys for keyboard increment/decrement
+                input.addEventListener('keydown', (e) => {
+                  try {
+                    if (e.key === 'ArrowUp') { e.preventDefault(); updateVal(step) }
+                    else if (e.key === 'ArrowDown') { e.preventDefault(); updateVal(-step) }
+                  } catch (err) {}
+                })
                 input.addEventListener('change', () => {
                   let v = parseFloat(input.value) || 0
                   if (v > max) v = max
