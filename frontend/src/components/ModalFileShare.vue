@@ -80,9 +80,11 @@
                     </div>
                 </div>
 
-                <label class="form-label" style="font-weight: 500;" v-if="Store.hasPermission('Download Delegate File') || Store.hasPermission('Download Ticket File')">Download</label>
+                <!-- Show Download label only when current selection type allows download based on permission -->
+                <label class="form-label" style="font-weight: 500;" v-if="(selectionType === 'user' && Store.hasPermission('Download Delegate File')) || (selectionType === 'ticket' && Store.hasPermission('Download Ticket File'))">Download</label>
 
-                <div class="d-flex align-items-center" style="gap:12px;" v-if="Store.hasPermission('Download Delegate File') || Store.hasPermission('Download Ticket File')">
+
+                <div class="d-flex align-items-center" style="gap:12px;" v-if="(selectionType === 'user' && Store.hasPermission('Download Delegate File')) || (selectionType === 'ticket' && Store.hasPermission('Download Ticket File'))">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
                         <label class="form-check-label" for="permissionsYesDownload">Yes</label>
