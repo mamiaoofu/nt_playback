@@ -74,3 +74,6 @@ export const API_GET_USER_TICKET = (type) => `${getApiBase()}/api/get/ticket-his
 export const API_FILE_SHARE_MANAGEMENT_CHANGE_STATUS = (id, type) => `${getApiBase()}/api/file-share-management/change-status/${id}/${type}/`
 export const API_SEND_EMAIL = () => `${getApiBase()}/api/send-share-email/`
 export const API_GEN_FORM_TICKET = () => `${getApiBase()}/api/gen-form-ticket/`
+
+// License
+export const API_LICENSE_INFO = () => `${getApiBase()}/api/license-info/`

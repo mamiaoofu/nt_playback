@@ -1,6 +1,25 @@
 <template>
   <div class="login-root" style="background-color: #F9FAFB;">
 
+    <!-- Modal for License Error -->
+    <div v-if="authStore.licenseError" class="modal-backdrop" style="z-index: 9999;">
+        <div class="modal-box" style="max-width: 420px; padding: 24px; border-radius: 12px; background: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+            <div class="modal-header" style="border-bottom: none; padding-bottom: 0;">
+                <div style="display: flex; align-items: center; gap: 8px">
+                    <div class="blue-icon" style="background: #fee2e2; color: #dc2626;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <h3 class="modal-title ad" style="font-size: 18px; font-weight: bold;">License Error</h3>
+                </div>
+            </div>
+            <div class="modal-body" style="padding-top: 12px;">
+                <p style="font-size: 13px; margin-bottom: 20px; color: #64748b;">{{ authStore.licenseError }}</p>
+                <button class="btn-submit" @click="authStore.licenseError = null" style="width: 100%; border-radius: 25px;">
+                    <i class="fa-solid fa-xmark" style="margin-right: 6px;"></i>
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal for Force Password Change -->
     <div v-if="authStore.passwordResetRequired" class="modal-backdrop" style="z-index: 9999;">
         <div class="modal-box" style="max-width: 400px; padding: 24px; border-radius: 12px; background: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">

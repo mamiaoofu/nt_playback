@@ -113,6 +113,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'apps.core.utils.license_middleware.LicenseEnforcementMiddleware',
 ]
 
 # REST framework + SimpleJWT
@@ -278,3 +279,11 @@ CSRF_TRUSTED_ORIGINS = [
     "https://ecmnichetelcomm.ddns.net",
     "https://ecmnichetelcomm.ddns.net:6001",
 ]
+
+# License settings — files in ./backend/license/ (mounted read-only in Docker)
+LICENSE_DIR = BASE_DIR / 'license'
+LICENSE_FILE_PATH = LICENSE_DIR / 'license.json'
+LICENSE_PUBLIC_KEY_PATH = LICENSE_DIR / 'public_key.pem'
+# HOST_FINGERPRINT is injected at runtime via HOST_FINGERPRINT env var — not a file
+# URL of the attestation agent running on the Windows host
+LICENSE_AGENT_URL = os.environ.get('LICENSE_AGENT_URL', 'http://host.docker.internal:7890')
