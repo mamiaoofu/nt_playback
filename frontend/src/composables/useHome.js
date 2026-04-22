@@ -712,16 +712,9 @@ export function useHome() {
           const el = refEl.value
           if (typeof el._flatpickrDoClear === 'function') {
             try {
+              // doClear handles To-input reset, el.value, target[key], and has-value
+              // internally — no need to repeat those operations here.
               el._flatpickrDoClear()
-              // Also clear any cloned "To" inputs created by the directive
-              if (el._flatpickrToContainer) {
-                const inputs = el._flatpickrToContainer.querySelectorAll('input')
-                inputs.forEach(i => {
-                  try { i.value = '' } catch (e) {}
-                  try { i.dispatchEvent(new Event('change')) } catch (e) {}
-                })
-              }
-              if ('value' in el) el.value = ''
               try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
             } catch (e) {}
             return

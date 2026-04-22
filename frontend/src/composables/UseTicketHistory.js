@@ -257,7 +257,7 @@ export function useTicketHistory() {
     }
 
     const onExportFormat = async (formatOrFormats) => {
-        if (!authStore.hasPermission('Export Recordings')) return
+        if (!canExport.value) return
         let formats = []
         if (typeof formatOrFormats === 'string') formats = [formatOrFormats]
         else if (Array.isArray(formatOrFormats)) formats = formatOrFormats

@@ -375,30 +375,37 @@ export default {
         }
 
         const doClear = () => {
-          // Mark cleared first so any onClose/onChange triggered by clear
-          // won't restore the previous value using lastAppliedValue.
+          // Allow writes through the custom setter immediately so every clear
+          // operation below is not silently blocked.
+          try { suppressWrites = false } catch (e) {}
+
+          // For duration ranges, reset the cloned "To" inputs to '00' BEFORE
+          // calling instance.clear() so that the onChange fired by clear() sees
+          // already-empty To values.  Do NOT dispatch change events here to
+          // avoid cascading onChange calls via setupClonedInput's handler.
+          try {
+            if (isDurationRange && el._flatpickrToContainer) {
+              const inputs = el._flatpickrToContainer.querySelectorAll('input')
+              inputs.forEach(i => {
+                try { i.value = '00' } catch (e) {}
+              })
+            }
+          } catch (e) {}
+
+          // Mark cleared before instance.clear() so onChange/onClose won't
+          // restore the previous value using lastAppliedValue.
           try { applied = false } catch (e) {}
           try { lastAppliedValue = '' } catch (e) {}
 
           try { instance.clear() } catch (e) {}
 
-          // For duration ranges, fully clear any cloned "To" inputs so no
-          // residual time remains visible. Use empty string and dispatch a
-          // change event so listeners update preview/state immediately.
-          try {
-            if (isDurationRange && el._flatpickrToContainer) {
-              const inputs = el._flatpickrToContainer.querySelectorAll('input')
-              inputs.forEach(i => {
-                try { i.value = '' } catch (e) {}
-                try { i.dispatchEvent(new Event('change')) } catch (e) {}
-              })
-            }
-          } catch (e) {}
-
           try { if (target && key) target[key] = '' } catch (e) {}
           try { originalValueSetter.call(el, '') } catch (e) { try { el.value = '' } catch (e) {} }
           try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
 
+          // Mark as applied so onClose skips the value-restoration branch and
+          // so the next onOpen starts with suppressWrites = false.
+          try { applied = true } catch (e) {}
           try { actionBtn.textContent = 'OK'; actionBtn.dataset.state = 'ok' } catch (e) {}
           try { allowClose = true } catch (e) {}
           try { instance.close() } catch (e) {}
