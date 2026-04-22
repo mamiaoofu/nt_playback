@@ -1458,7 +1458,7 @@ export function useHome() {
     // The new API_PLAY_AUDIO endpoint handles transcoding for telephony codecs (G.711, etc.)
     // We now attempt in-browser playback for all standard audio extensions, 
     // and if the backend detects an incompatible codec, it will transcode to WAV on-the-fly.
-    if (['wav','mp3','ogg','flac','m4a','aac'].includes(ext)) {
+    if (['wav','mp3','ogg','flac','m4a','aac','gsm'].includes(ext)) {
       try {
         const fileId = row.file_id || row.id || row.fileId
         if (!fileId) {
