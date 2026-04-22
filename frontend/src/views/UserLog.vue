@@ -140,7 +140,7 @@ const {
   endInput,
   searchInputRef,
   perWrap,
-  perDropdownOpen,
+  perDropdownOpen, 
   records,
   totalItems,
   loading,
