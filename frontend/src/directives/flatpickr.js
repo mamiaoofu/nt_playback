@@ -412,6 +412,10 @@ export default {
           try { setTimeout(() => { allowClose = false }, 250) } catch (e) {}
         }
 
+        // Expose doClear here, where it is in scope (const doClear is block-scoped
+        // to this if-block, so the assignment at the bottom of mounted() is dead code)
+        try { el._flatpickrDoClear = doClear } catch (e) {}
+
         const onActionClick = (ev) => {
           ev && ev.stopPropagation()
           // Always treat the button as confirmation: commit current selection
@@ -783,8 +787,9 @@ export default {
     // Expose instance and helper on element for external callers (eg. onReset)
     el._flatpickrInstance = instance
     el._flatpickr = instance
-    // expose a safe clear that mirrors the internal doClear behaviour
-    try { if (typeof doClear === 'function') el._flatpickrDoClear = doClear } catch (e) {}
+    // Note: el._flatpickrDoClear is assigned inside the onChange if-block above,
+    // where doClear is in scope. The assignment here would always be a no-op
+    // because doClear is block-scoped and not accessible at this point.
     // expose helper to temporarily allow external closes (used by other pickers)
     try {
       el._flatpickrAllowClose = function () {

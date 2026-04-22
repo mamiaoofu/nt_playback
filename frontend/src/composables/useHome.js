@@ -675,7 +675,7 @@ export function useHome() {
       filters.databaseServer = []
       filters.from = ''
       filters.to = ''
-      filters.duration = ''
+      filters.duration = []
       filters.fileName = ''
       filters.callDirection = []
       filters.customerNumber = ''
