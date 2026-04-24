@@ -873,16 +873,17 @@ def ApiGetStorageConfig(request):
 @require_http_methods(["GET"])
 def ApiInstallerConfig(request):
     """
-    Return full SMB config (including hashed credentials) for the NicePlayer
-    installer.  Protected by a pre-shared secret key sent in the
-    X-Installer-Key request header (configured via INSTALLER_SECRET_KEY in
-    Django settings / environment).
+    Return full SMB config (including credentials) for the NicePlayer installer.
+    Protected by a pre-shared secret key sent in the X-Installer-Key header
+    (configured via INSTALLER_SECRET_KEY in Django settings / environment).
 
-    The password field contains the SHA-256 hex digest of the actual SMB
-    password.  The installer stores this value verbatim in Windows Credential
-    Manager.
+    The smb_password in the DB is stored AES-256-GCM encrypted.  This view
+    decrypts it server-side and returns the plaintext over HTTPS so the
+    installer can store it in Windows Credential Manager for net use auth.
+    End users never see this value.
     """
     from django.conf import settings as dj_settings
+    from apps.core.utils.smb_crypto import decrypt_smb_password, is_encrypted
     token = request.headers.get('X-Installer-Key', '')
     expected = getattr(dj_settings, 'INSTALLER_SECRET_KEY', '')
     if not expected or token != expected:
@@ -892,12 +893,23 @@ def ApiInstallerConfig(request):
         config = FileStorageConfig.objects.filter(is_active=1).first()
         if not config:
             return JsonResponse({'error': 'No active storage configuration found.'}, status=404)
+
+        raw_password = config.smb_password or ''
+        if is_encrypted(raw_password):
+            try:
+                plaintext_password = decrypt_smb_password(raw_password)
+            except Exception as dec_err:
+                return JsonResponse({'error': f'Failed to decrypt SMB password: {dec_err}'}, status=500)
+        else:
+            # fallback: not yet encrypted (e.g. migration not run yet)
+            plaintext_password = raw_password
+
         return JsonResponse({
             'host':         config.host,
             'share':        config.share_name,
             'base_path':    config.base_path or '',
             'smb_username': config.smb_username or '',
-            'smb_password': config.smb_password or '',   # SHA-256 hash
+            'smb_password': plaintext_password,
         })
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

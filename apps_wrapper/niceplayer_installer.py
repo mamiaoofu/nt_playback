@@ -50,6 +50,10 @@ CONFIG_DIR  = r"C:\ProgramData\niceplayer"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 EXE_NAME    = "niceplayer_wrapper.exe"
 
+# Pre-shared secret embedded at build time — must match INSTALLER_SECRET_KEY in
+# the backend .env.  End users never see or need to enter this value.
+_INSTALLER_KEY = "2c2f9cb6772e21844f9973b95c2f5ada0603cf2d55dfc57cc205952e42ee1324"
+
 HKCR_NICEPLAYER = r"HKEY_CLASSES_ROOT\niceplayer"
 
 # ---------------------------------------------------------------------------
@@ -421,25 +425,19 @@ class InstallerApp(tk.Tk):
         self._backend_url_var = tk.StringVar(value="http://192.168.1.90:6000")
         self._row(frm_backend, "Backend URL:",
                   lambda p: ttk.Entry(p, textvariable=self._backend_url_var, width=40))
-        self._installer_key_var = tk.StringVar()
-        self._row(frm_backend, "Installer Key:",
-                  lambda p: ttk.Entry(p, textvariable=self._installer_key_var, show="*", width=40))
-        # tk.Label(frm_backend,
-        #          text="(X-Installer-Key  — ตั้งค่าใน Django INSTALLER_SECRET_KEY)",
-        #          bg=_PANEL, fg=_FG_DIM, font=("Segoe UI", 8)).pack(anchor="w")
 
         # ── Installation ──────────────────────────────────────────────────────
         frm_src = self._card("Installation")
-        bundled = _get_bundled_wrapper()
-        bundled_ok = os.path.isfile(bundled)
-        bundled_label = "✓  niceplayer_wrapper.exe (bundled)" if bundled_ok else "✗  niceplayer_wrapper.exe NOT FOUND in bundle"
-        lbl_color = _GREEN if bundled_ok else _RED
-        wrap_row = tk.Frame(frm_src, bg=_PANEL)
-        wrap_row.pack(fill="x", pady=3)
-        tk.Label(wrap_row, text="Wrapper:", bg=_PANEL, fg=_FG,
-                 font=("Segoe UI", 9), width=22, anchor="w").pack(side="left")
-        tk.Label(wrap_row, text=bundled_label, bg=_PANEL, fg=lbl_color,
-                 font=("Segoe UI", 9)).pack(side="left")
+        # bundled = _get_bundled_wrapper()
+        # bundled_ok = os.path.isfile(bundled)
+        # bundled_label = "✓  niceplayer_wrapper.exe (bundled)" if bundled_ok else "✗  niceplayer_wrapper.exe NOT FOUND in bundle"
+        # lbl_color = _GREEN if bundled_ok else _RED
+        # wrap_row = tk.Frame(frm_src, bg=_PANEL)
+        # wrap_row.pack(fill="x", pady=3)
+        # tk.Label(wrap_row, text="Wrapper:", bg=_PANEL, fg=_FG,
+        #          font=("Segoe UI", 9), width=22, anchor="w").pack(side="left")
+        # tk.Label(wrap_row, text=bundled_label, bg=_PANEL, fg=lbl_color,
+        #          font=("Segoe UI", 9)).pack(side="left")
 
         self._install_dir_var = tk.StringVar(value=INSTALL_DIR)
         dir_row = tk.Frame(frm_src, bg=_PANEL)
@@ -455,7 +453,7 @@ class InstallerApp(tk.Tk):
         self._row(frm_origin, "Allowed Origin:",
                   lambda p: ttk.Entry(p, textvariable=self._origin_var, width=44))
         tk.Label(frm_origin,
-                 text="(Chrome/Edge/Firefox  คั่นด้วย ,  เช่น https://192.168.1.90,https://localhost)",
+                 text="(Chrome/Edge/Firefox  คั่นด้วย ,  เช่น https://192.168.1.90,http://192.168.1.90:6000)",
                  bg=_PANEL, fg=_FG_DIM, font=("Segoe UI", 8)).pack(anchor="w")
 
         # ── Buttons ───────────────────────────────────────────────────────────
@@ -504,14 +502,14 @@ class InstallerApp(tk.Tk):
     def _collect_fields(self):
         return {
             "backend_url":   self._backend_url_var.get().strip().rstrip("/"),
-            "installer_key": self._installer_key_var.get(),
+            "installer_key": _INSTALLER_KEY,
             "install_dir":   self._install_dir_var.get().strip(),
             "origin":        self._origin_var.get().strip(),
         }
 
     def _validate_fields(self, fields):
         missing = []
-        for key in ("backend_url", "installer_key", "install_dir"):
+        for key in ("backend_url", "install_dir"):
             if not fields.get(key):
                 missing.append(key)
         if missing:
@@ -565,7 +563,7 @@ class InstallerApp(tk.Tk):
             smb_password = data.get("smb_password", "")  # SHA-256 hash
 
             self.after(0, lambda: self._append_log(
-                f"✓ ดึงค่าสำเร็จ: Server={smb_server}, Share={smb_share}, User={smb_username}"
+                f"✓ ดึงค่าสำเร็จ"
             ))
 
             errors = []

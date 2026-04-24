@@ -62,7 +62,7 @@ class FileStorageConfig(models.Model):
     is_active = models.IntegerField(verbose_name='is_active',null=True,blank=True)
     smb_username = models.CharField(max_length=255, verbose_name='smb_username', null=True, blank=True)
     # Password stored as SHA-256 hex digest (64 chars). Never stored as plaintext.
-    smb_password = models.CharField(max_length=64, verbose_name='smb_password_sha256', null=True, blank=True)
+    smb_password = models.CharField(max_length=255, verbose_name='smb_password', null=True, blank=True)
 
     class Meta:
         db_table = 'file_storage_config'

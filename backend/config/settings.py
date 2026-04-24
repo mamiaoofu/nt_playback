@@ -265,6 +265,12 @@ NT_SECRET_KEY = os.environ.get('NT_SECRET_KEY')
 # Set this in your .env / docker-compose environment.
 INSTALLER_SECRET_KEY = os.environ.get('INSTALLER_SECRET_KEY', 'changeme-installer-key')
 
+# AES-256 key used to encrypt SMB passwords stored in the database.
+# Must be exactly 32 bytes (URL-safe base64-encoded 32-byte key).
+# Generate with: python -c "import secrets,base64;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+# Set this in your .env / docker-compose environment.
+SMB_ENCRYPTION_KEY = os.environ.get('SMB_ENCRYPTION_KEY', '')
+
 # ถ้าต้องการส่ง Cookie/Token ข้าม Domain
 CORS_ALLOW_CREDENTIALS = True
 
