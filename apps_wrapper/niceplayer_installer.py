@@ -184,7 +184,8 @@ def _run_cmdkey(args, timeout=10):
 def store_credential(server, username, password):
     """
     Store the SMB credential in Windows Credential Manager via CredWriteW API.
-    Falls back to CRED_TYPE_GENERIC if CRED_TYPE_DOMAIN_PASSWORD fails.
+    Tries CRED_TYPE_DOMAIN_PASSWORD first (required for net use auto-auth),
+    then falls back to CRED_TYPE_GENERIC.
     Password is never written to disk or shown in process args.
     """
     import ctypes
@@ -193,6 +194,7 @@ def store_credential(server, username, password):
     target = f"\\\\{server}" if not server.startswith("\\\\") else server
 
     try:
+        CRED_TYPE_DOMAIN_PASSWORD  = 2
         CRED_TYPE_GENERIC          = 1
         CRED_PERSIST_ENTERPRISE    = 3   # LOCAL_MACHINE (2) fails on many configs; ENTERPRISE (3) works
 
@@ -232,6 +234,14 @@ def store_credential(server, username, password):
 
         advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
 
+        # DOMAIN_PASSWORD is required for net use to auto-pick up credentials
+        cred.Type = CRED_TYPE_DOMAIN_PASSWORD
+        if advapi32.CredWriteW(ctypes.byref(cred), 0):
+            password = None  # noqa: F841
+            ctypes.memset(blob_buf, 0, len(blob))
+            return True, "Credential stored (Domain)."
+
+        # Fallback to Generic (e.g. workgroup machines that reject Domain type)
         cred.Type = CRED_TYPE_GENERIC
         if advapi32.CredWriteW(ctypes.byref(cred), 0):
             password = None  # noqa: F841
@@ -282,12 +292,14 @@ def test_smb_connection(server, share, username, password, timeout=15):
 # Config file (NO password)
 # ---------------------------------------------------------------------------
 
-def write_config(server, share, base_path=""):
+def write_config(server, share, base_path="", niceplayer_exe=""):
     """Write config.json. Password is intentionally excluded."""
     os.makedirs(CONFIG_DIR, exist_ok=True)
     data = {"server": server, "share": share}
     if base_path:
         data["base_path"] = base_path
+    if niceplayer_exe:
+        data["niceplayer_exe"] = niceplayer_exe
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -447,6 +459,15 @@ class InstallerApp(tk.Tk):
         ttk.Entry(dir_row, textvariable=self._install_dir_var, width=44).pack(side="left", fill="x", expand=True)
         ttk.Button(dir_row, text="Browse…", command=self._browse_install_dir).pack(side="left", padx=(6, 0))
 
+        _default_exe = r"C:\Program Files (x86)\NICE Systems\NICE Player Release 6\NiceApplications.Playback.GUI.exe"
+        self._niceplayer_exe_var = tk.StringVar(value=_default_exe)
+        exe_row = tk.Frame(frm_src, bg=_PANEL)
+        exe_row.pack(fill="x", pady=3)
+        tk.Label(exe_row, text="NicePlayer EXE:", bg=_PANEL, fg=_FG,
+                 font=("Segoe UI", 9), width=22, anchor="w").pack(side="left")
+        ttk.Entry(exe_row, textvariable=self._niceplayer_exe_var, width=44).pack(side="left", fill="x", expand=True)
+        ttk.Button(exe_row, text="Browse…", command=self._browse_niceplayer_exe).pack(side="left", padx=(6, 0))
+
         # ── Browser origin ────────────────────────────────────────────────────
         frm_origin = self._card("Browser AutoLaunch Policy")
         self._origin_var = tk.StringVar()
@@ -480,6 +501,15 @@ class InstallerApp(tk.Tk):
         if path:
             self._install_dir_var.set(path)
 
+    def _browse_niceplayer_exe(self):
+        path = filedialog.askopenfilename(
+            title="Select NicePlayer EXE",
+            filetypes=[("Executable", "*.exe"), ("All files", "*.*")],
+            initialdir=r"C:\Program Files (x86)\NICE Systems",
+        )
+        if path:
+            self._niceplayer_exe_var.set(path)
+
     def _fetch_installer_config(self, base_url, installer_key):
         """
         Fetch SMB config + credentials from /api/installer-config/.
@@ -501,10 +531,11 @@ class InstallerApp(tk.Tk):
 
     def _collect_fields(self):
         return {
-            "backend_url":   self._backend_url_var.get().strip().rstrip("/"),
-            "installer_key": _INSTALLER_KEY,
-            "install_dir":   self._install_dir_var.get().strip(),
-            "origin":        self._origin_var.get().strip(),
+            "backend_url":    self._backend_url_var.get().strip().rstrip("/"),
+            "installer_key":  _INSTALLER_KEY,
+            "install_dir":    self._install_dir_var.get().strip(),
+            "origin":         self._origin_var.get().strip(),
+            "niceplayer_exe": self._niceplayer_exe_var.get().strip(),
         }
 
     def _validate_fields(self, fields):
@@ -560,7 +591,7 @@ class InstallerApp(tk.Tk):
             smb_share    = data.get("share", "")
             smb_base     = data.get("base_path", "")
             smb_username = data.get("smb_username", "")
-            smb_password = data.get("smb_password", "")  # SHA-256 hash
+            smb_password = data.get("smb_password", "")  # decrypted plaintext
 
             self.after(0, lambda: self._append_log(
                 f"✓ ดึงค่าสำเร็จ"
@@ -599,7 +630,7 @@ class InstallerApp(tk.Tk):
 
             # ─ 5. Write config.json (no password) ───────────────────────
             try:
-                write_config(smb_server, smb_share, smb_base)
+                write_config(smb_server, smb_share, smb_base, fields["niceplayer_exe"])
                 self.after(0, lambda: self._append_log(f"✓ Config written to {CONFIG_FILE}"))
             except Exception as e:
                 errors.append(f"Write config: {e}")

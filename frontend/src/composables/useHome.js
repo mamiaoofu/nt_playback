@@ -1496,9 +1496,7 @@ export function useHome() {
       return
     }
 
-    const uncPath = `\\\\WIN-O72N8TLKRVU\\C$\\Users\\Administrator\\Desktop\\Music\\${fileName}`
     const url_check_local_server = 'http://127.0.0.1:54321/check'
-    const url_get_storage_config = API_GET_STORAGE_CONFIG()
     const url_log_playback = API_LOG_PLAY_AUDIO()
 
     const sendLog = async (status, detail) => {
@@ -1527,20 +1525,8 @@ export function useHome() {
         return
       }
 
-      // Fetch storage config from backend to build UNC path dynamically
-      const configResponse = await fetch(url_get_storage_config, { credentials: 'include' })
-      if (!configResponse.ok) throw new Error(`Failed to get storage config. Status: ${configResponse.status}`)
-      const storageConfig = await configResponse.json()
-      if (storageConfig.error) throw new Error(`Server returned an error: ${storageConfig.error}`)
-
-      const { host, share, base_path } = storageConfig
-      const pathParts = [host, share]
-      if (base_path) pathParts.push(base_path)
-      pathParts.push(fileName)
-      const resolvedUncPath = '\\\\' + pathParts.join('\\')
-
-      const encodedPath = encodeURIComponent(resolvedUncPath)
-      const protocolLink = `niceplayer://?path=${encodedPath}`
+      // Pass only the filename — wrapper builds the full UNC path from its local config.json
+      const protocolLink = `niceplayer://?file=${encodeURIComponent(fileName)}`
 
       try {
         window.location.href = protocolLink
@@ -1557,7 +1543,7 @@ export function useHome() {
               loading.value = false
               if (data.running) sendLog('success', `Play audio file: ${fileName}`)
               else {
-              sendLog('warning', `Playback initiated but process not detected: ${resolvedUncPath}`)
+                sendLog('warning', `Playback initiated but process not detected: ${fileName}`)
                 try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (e) {}
               }
             }
@@ -1571,8 +1557,8 @@ export function useHome() {
       } catch (e) {
         console.error('Error launching protocol:', e)
         try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (er) {}
-        sendLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${resolvedUncPath}. Error: ${e.message}`)
-              loading.value = false
+        sendLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${fileName}. Error: ${e.message}`)
+        loading.value = false
       }
 
     } catch (error) {
