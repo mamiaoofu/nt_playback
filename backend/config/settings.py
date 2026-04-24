@@ -261,6 +261,10 @@ NT_KEY_USERNAME = os.environ.get('NT_KEY_USERNAME')
 NT_KEY_PASSWORD = os.environ.get('NT_KEY_PASSWORD')
 NT_SECRET_KEY = os.environ.get('NT_SECRET_KEY')
 
+# Pre-shared key for the NicePlayer installer (sent in X-Installer-Key header).
+# Set this in your .env / docker-compose environment.
+INSTALLER_SECRET_KEY = os.environ.get('INSTALLER_SECRET_KEY', 'changeme-installer-key')
+
 # ถ้าต้องการส่ง Cookie/Token ข้าม Domain
 CORS_ALLOW_CREDENTIALS = True
 

@@ -20,5 +20,7 @@ urlpatterns = [
 	path('api/file-share/create/', views.ApiCreateFileShare, name='ApiCreateFileShare'),
 	path('api/file-share/generate-ticket/', views.ApiGenerateTicketCode, name='ApiGenerateTicketCode'),
 	path('api/file-share/check/', views.ApiCheckFileShare, name='ApiCheckFileShare'),
+	path('api/storage-config/', views.ApiGetStorageConfig, name='ApiGetStorageConfig'),
+    path('api/installer-config/', views.ApiInstallerConfig, name='ApiInstallerConfig'),
 ]
 

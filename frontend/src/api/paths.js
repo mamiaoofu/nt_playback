@@ -17,6 +17,7 @@ export const API_ADD_MY_FAVORITE_SEARCH = () => `${getApiBase()}/api/home/add/my
 export const API_EDIT_MY_FAVORITE_SEARCH = (myfavoriteId) => `${getApiBase()}/api/home/edit/my-favorite-search/${myfavoriteId}/`
 export const API_LOG_PLAY_AUDIO = () => `${getApiBase()}/api/log/play-audio/`
 export const API_GET_CREDENTIALS = () => `${getApiBase()}/api/get/credentials/`
+export const API_GET_STORAGE_CONFIG = () => `${getApiBase()}/api/storage-config/`
 export const API_LOG_SAVE_FILE = () => `${getApiBase()}/api/log/save-file/`
 export const API_CREATE_FILE_SHARE = () => `${getApiBase()}/api/file-share/create/`
 export const API_CHECK_FILE_SHARE = () => `${getApiBase()}/api/file-share/check/`

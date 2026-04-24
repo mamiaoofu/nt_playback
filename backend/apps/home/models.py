@@ -53,15 +53,20 @@ class SetColumnAudioRecord(models.Model):
         db_table = 'tb_set_column_audio_record'
         verbose_name = 'Set Column Audio Record'
 
-class ConfigKey(models.Model):
-    type = models.CharField( max_length=255,verbose_name='type',null=False,blank=False)
-    key_username = models.CharField( max_length=255,verbose_name='key_username',null=False,blank=False)
-    key_password = models.CharField( max_length=255,verbose_name='key_password',null=False,blank=False)
-    secret_key = models.CharField( max_length=255,verbose_name='secret_key',null=True,blank=True) 
-    
+class FileStorageConfig(models.Model):
+    name = models.CharField( max_length=255,verbose_name='type',null=False,blank=False)
+    protocol = models.CharField( max_length=255,verbose_name='key_username',null=False,blank=False)
+    host = models.CharField( max_length=255,verbose_name='key_password',null=False,blank=False)
+    share_name = models.CharField( max_length=255,verbose_name='secret_key',null=True,blank=True) 
+    base_path = models.CharField( max_length=255,verbose_name='base_path',null=True,blank=True)
+    is_active = models.IntegerField(verbose_name='is_active',null=True,blank=True)
+    smb_username = models.CharField(max_length=255, verbose_name='smb_username', null=True, blank=True)
+    # Password stored as SHA-256 hex digest (64 chars). Never stored as plaintext.
+    smb_password = models.CharField(max_length=64, verbose_name='smb_password_sha256', null=True, blank=True)
+
     class Meta:
-        db_table = 'config_key'
-        verbose_name = 'config_key'
+        db_table = 'file_storage_config'
+        verbose_name = 'File Storage Config'
 
 # class PlaybackLog(models.Model):
 #     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='User')

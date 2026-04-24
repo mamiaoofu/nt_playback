@@ -21,6 +21,7 @@ from apps.core.utils.function import create_user_log, get_client_ip
 import secrets
 
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 import io
 import os
@@ -34,7 +35,7 @@ from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,User
 from apps.core.model.audio.models import AudioInfo
 from django.contrib.auth.models import User
 from django.db import transaction, IntegrityError
-from .models import FavoriteSearch, SetColumnAudioRecord, ConfigKey
+from .models import FavoriteSearch, SetColumnAudioRecord, SetColumnAudioRecord, FileStorageConfig
 from .serializers import FavoriteSearchSerializer
 from apps.configuration.models import UserPermission
 from asgiref.sync import async_to_sync
@@ -830,22 +831,76 @@ def encrypt_credential(text):
 def ApiGetCredentials(request):
     """
     API endpoint ที่ส่งข้อมูล username/password สำหรับเชื่อมต่อ network share
-    โดยดึงข้อมูลจากโมเดล ConfigKey
+    โดยดึงข้อมูลจากโมเดล SetColumnAudioRecord
     """
     try:
         # ดึงข้อมูลโดยใช้ 'type' เพื่อระบุว่าเป็น username หรือ password
-        config_key = ConfigKey.objects.get(type='player_connect')
+        config_key = SetColumnAudioRecord.objects.get(type='player_connect')
         credentials = {
             "username": encrypt_credential(config_key.key_username),
             "password": encrypt_credential(config_key.key_password)
         }
         return JsonResponse(credentials)
-    except ConfigKey.DoesNotExist:
-        create_user_log(user=request.user, action="Credentials", detail={"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in ConfigKey."}, status="error", request=request)
-        return JsonResponse({"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in ConfigKey."}, status=500)
+    except SetColumnAudioRecord.DoesNotExist:
+        create_user_log(user=request.user, action="Credentials", detail={"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in SetColumnAudioRecord."}, status="error", request=request)
+        return JsonResponse({"error": "Credentials not configured. Please create 'niceplayer_username' and 'niceplayer_password' types in SetColumnAudioRecord."}, status=500)
     except Exception as e:
         create_user_log(user=request.user, action="Credentials",  detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required(login_url='/login')
+def ApiGetStorageConfig(request):
+    """
+    Return the active file storage config (host, share, base_path) so the
+    frontend can build a UNC path without hard-coding server details.
+    Credentials are intentionally excluded from this response.
+    """
+    try:
+        config = FileStorageConfig.objects.filter(is_active=1).first()
+        if not config:
+            return JsonResponse({'error': 'No active storage configuration found.'}, status=404)
+        return JsonResponse({
+            'host': config.host,
+            'share': config.share_name,
+            'base_path': config.base_path or '',
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def ApiInstallerConfig(request):
+    """
+    Return full SMB config (including hashed credentials) for the NicePlayer
+    installer.  Protected by a pre-shared secret key sent in the
+    X-Installer-Key request header (configured via INSTALLER_SECRET_KEY in
+    Django settings / environment).
+
+    The password field contains the SHA-256 hex digest of the actual SMB
+    password.  The installer stores this value verbatim in Windows Credential
+    Manager.
+    """
+    from django.conf import settings as dj_settings
+    token = request.headers.get('X-Installer-Key', '')
+    expected = getattr(dj_settings, 'INSTALLER_SECRET_KEY', '')
+    if not expected or token != expected:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        config = FileStorageConfig.objects.filter(is_active=1).first()
+        if not config:
+            return JsonResponse({'error': 'No active storage configuration found.'}, status=404)
+        return JsonResponse({
+            'host':         config.host,
+            'share':        config.share_name,
+            'base_path':    config.base_path or '',
+            'smb_username': config.smb_username or '',
+            'smb_password': config.smb_password or '',   # SHA-256 hash
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 @login_required(login_url='/login')

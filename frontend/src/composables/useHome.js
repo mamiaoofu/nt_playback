@@ -1,7 +1,7 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_GET_CREDENTIALS, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase,API_PROXY_AUDIO,API_CHECK_FILE_SHARE, API_PLAY_AUDIO } from '../api/paths'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_PROXY_AUDIO, API_CHECK_FILE_SHARE, API_PLAY_AUDIO, API_GET_STORAGE_CONFIG } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
@@ -1496,9 +1496,9 @@ export function useHome() {
       return
     }
 
-    const uncPath = `\\\\nichetel-niceplayer\\Users\\Administrator\\Desktop\\Music\\${fileName}`
+    const uncPath = `\\\\WIN-O72N8TLKRVU\\C$\\Users\\Administrator\\Desktop\\Music\\${fileName}`
     const url_check_local_server = 'http://127.0.0.1:54321/check'
-    const url_get_credentials = API_GET_CREDENTIALS()
+    const url_get_storage_config = API_GET_STORAGE_CONFIG()
     const url_log_playback = API_LOG_PLAY_AUDIO()
 
     const sendLog = async (status, detail) => {
@@ -1522,20 +1522,25 @@ export function useHome() {
         try {
           showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
         } catch (e) {}
-        sendLog('error', `FAIL_NOT_INSTALLED | NICE Player executable not found. File: ${uncPath}`)
+        sendLog('error', `FAIL_NOT_INSTALLED | NICE Player executable not found. File: ${fileName}`)
         loading.value = false
         return
       }
 
-      const credsResponse = await fetch(url_get_credentials, { credentials: 'include' })
-      if (!credsResponse.ok) throw new Error(`Failed to get credentials from server. Status: ${credsResponse.status}`)
-      const credentials = await credsResponse.json()
-      if (credentials.error) throw new Error(`Server returned an error: ${credentials.error}`)
+      // Fetch storage config from backend to build UNC path dynamically
+      const configResponse = await fetch(url_get_storage_config, { credentials: 'include' })
+      if (!configResponse.ok) throw new Error(`Failed to get storage config. Status: ${configResponse.status}`)
+      const storageConfig = await configResponse.json()
+      if (storageConfig.error) throw new Error(`Server returned an error: ${storageConfig.error}`)
 
-      const encodedPath = encodeURIComponent(uncPath)
-      const encodedUser = encodeURIComponent(credentials.username || '')
-      const encodedPass = encodeURIComponent(credentials.password || '')
-      const protocolLink = `niceplayer://?path=${encodedPath}&user=${encodedUser}&pass=${encodedPass}`
+      const { host, share, base_path } = storageConfig
+      const pathParts = [host, share]
+      if (base_path) pathParts.push(base_path)
+      pathParts.push(fileName)
+      const resolvedUncPath = '\\\\' + pathParts.join('\\')
+
+      const encodedPath = encodeURIComponent(resolvedUncPath)
+      const protocolLink = `niceplayer://?path=${encodedPath}`
 
       try {
         window.location.href = protocolLink
@@ -1552,7 +1557,7 @@ export function useHome() {
               loading.value = false
               if (data.running) sendLog('success', `Play audio file: ${fileName}`)
               else {
-                sendLog('warning', `Playback initiated but process not detected: ${uncPath}`)
+              sendLog('warning', `Playback initiated but process not detected: ${resolvedUncPath}`)
                 try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (e) {}
               }
             }
@@ -1566,7 +1571,7 @@ export function useHome() {
       } catch (e) {
         console.error('Error launching protocol:', e)
         try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (er) {}
-        sendLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${uncPath}. Error: ${e.message}`)
+        sendLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${resolvedUncPath}. Error: ${e.message}`)
               loading.value = false
       }
 
@@ -1575,7 +1580,7 @@ export function useHome() {
       try {
         showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
       } catch (e) {}
-      sendLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${uncPath}`)
+      sendLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${fileName}`)
       loading.value = false
     }
   }
