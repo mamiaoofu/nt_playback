@@ -153,7 +153,7 @@
                             <div class="detail-file-share"><strong class="strong-title">Limit Access Times:</strong> {{ resultData.limitAccessTimes }}</div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.90/login</a></div>
+                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.96/login</a></div>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>

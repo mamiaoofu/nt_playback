@@ -54,7 +54,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://192.168.1.90:6001",
     "https://localhost",
     "https://192.168.1.90",
-    
+    "https://192.168.1.96",
+    "http://192.168.1.96:6001",
     "https://192.168.1.202:6001",
     "https://192.168.1.202",
     "https://ecmnichetelcomm.ddns.net",
