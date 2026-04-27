@@ -557,10 +557,13 @@ onMounted(() => {
 // initialize period when modal opens (component may be mounted while modal closed)
 watch(() => props.modelValue, async (open) => {
     if (!open) return
-    const pad = (n) => String(n).padStart(2, '0')
-    // Do not prefill the input display — leave empty until user selects a date.
-    const d = new Date()
-    const today = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+    // Reset all form fields so nothing is carried over from a previous session
+    shareUser.value = ''
+    emailTicket.value = ''
+    descTicket.value = ''
+    limitAccessTimes.value = null
+    permissions.value = 'false'
+    selectionType.value = Store.hasPermission('Create Delegate File') ? 'user' : Store.hasPermission('Create Ticket') ? 'ticket' : ''
     start.value = ''
     expire.value = ''
     errors.start = false
@@ -568,17 +571,17 @@ watch(() => props.modelValue, async (open) => {
     picker.from = ''
     picker.to = ''
 
-    // wait for DOM/ directive to mount the flatpickr instance (mirrors Home.vue pattern)
+    // clear flatpickr instances on the date inputs
     try {
         await nextTick()
-            if (fromInput && fromInput.value) {
-            // ensure input displays the text
-            try { fromInput.value.value = '' } catch (e) {}
-            // try known instance names used in project
-            const inst = fromInput.value._flatpickrRangeInstance || fromInput.value._flatpickrInstance || fromInput.value._flatpickr
-            // Do not programmatically set a date on open — keep input empty until user selects.
-            if (inst && typeof inst.setDate === 'function') {
-                try { /* intentionally left blank to avoid auto-populating the input */ } catch (e) {}
+        for (const inputRef of [fromInputAdd, toInputAdd]) {
+            if (inputRef && inputRef.value) {
+                try { inputRef.value.value = '' } catch (e) {}
+                const inst = inputRef.value._flatpickrRangeInstance || inputRef.value._flatpickrInstance || inputRef.value._flatpickr
+                try {
+                    if (inst && typeof inst.clear === 'function') inst.clear()
+                    else if (inst && typeof inst.setDate === 'function') inst.setDate([], true)
+                } catch (e) {}
             }
         }
     } catch (e) {}

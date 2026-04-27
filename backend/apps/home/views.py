@@ -228,13 +228,18 @@ def ApiGetAudioList(request):
     set_audio = SetAudio.objects.filter(user=request.user).first()
     main_db_id = UserAuth.objects.filter(user=request.user, allow=True).values_list("maindatabase_id", flat=True)
 
+    # Read file_share param early — needed to decide whether to bypass main_db restriction
+    file_share = request.POST.get("file_share") or request.GET.get("file_share")
+
     # Check for file_share parameter or ticket user
     is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
     file_share_mode = False
-    
-    if is_ticket :
-        audio_list = AudioInfo.objects.filter()
-    else :
+
+    if is_ticket or file_share == "true":
+        # Delegate / ticket mode: start with unrestricted queryset so shared files from any
+        # database are visible. The queryset will be narrowed to the specific shared file IDs below.
+        audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter()
+    else:
         audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(main_db__in=main_db_id)
 
     # ฟิลเตอร์จาก request.form หรือ request.GET
@@ -253,7 +258,7 @@ def ApiGetAudioList(request):
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
-    file_share = request.POST.get("file_share") or request.GET.get("file_share")
+    # file_share already read above
 
     if is_ticket or file_share == "true":
         try:
@@ -1173,10 +1178,14 @@ def ApiCreateFileShare(request):
                 # don't fail request if notification cannot be sent
                 create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
 
+            if created_count == 0:
+                create_user_log(user=request.user, action="Create File Share", detail=f"Failed to create delegate: all targets missing {missing}", status="error", request=request)
+                return JsonResponse({'ok': False, 'message': f'User not found: {", ".join(missing)}'}, status=400)
+
             create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
 
             if missing:
-                return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'} )
+                return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'})
 
             return JsonResponse({'ok': True, 'message': 'The file has been successfully shared with the users.'})
 
