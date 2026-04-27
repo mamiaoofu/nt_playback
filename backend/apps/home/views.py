@@ -1116,17 +1116,16 @@ def ApiCreateFileShare(request):
                         dt = datetime.fromisoformat(s)
                     except Exception:
                         return None
-            # If the parsed datetime is already timezone-aware (e.g. fromisoformat with offset),
-            # normalise it to UTC so we store the exact moment the user intended.
-            # If it is naive (plain string from flatpickr like "2026-04-27 10:00"), treat it
-            # directly as UTC — no server-timezone offset is applied.  This preserves the
-            # calendar date/time the user typed regardless of the server's TIME_ZONE setting.
-            from django.utils.timezone import utc as _utc
+            # flatpickr sends naive strings (e.g. "2026-04-28 10:00") representing
+            # the local Bangkok time the user typed.  Attach the project timezone so
+            # the stored UTC value matches that Bangkok moment exactly.
+            # For already-aware datetimes (fromisoformat with offset), just normalise to UTC.
+            import datetime as _dt
+            _utc = _dt.timezone.utc
             try:
                 if timezone.is_naive(dt):
-                    dt = timezone.make_aware(dt, timezone=_utc)
+                    dt = timezone.make_aware(dt, timezone=timezone.get_current_timezone())
                 else:
-                    # convert aware datetime to UTC
                     dt = dt.astimezone(_utc)
             except Exception:
                 pass
