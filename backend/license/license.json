@@ -1,0 +1,16 @@
+{
+  "license_data": {
+    "fingerprint": "0e5da023dff6c3677829ed6ceea32e0f3247d043b307633e7aa2457a60050082",
+    "license_id": "LIC-2026-001",
+    "customer_name": "nichetel",
+    "issued_at": "2026-04-27T03:26:27Z",
+    "expiry": "2026-04-28T23:59:59Z",
+    "features": {
+      "max_main_db": 5,
+      "max_concurrent_users": 2,
+      "allowed_menus": [],
+      "config_flags": {}
+    }
+  },
+  "signature": "XHdkthrNASSogzcJAoC14vnMHH6MTHSgZVVC35PTMihgTEKkZg7HChoQDFzFZB28fPCzlIW8Fr5iNJ4oFlUFc6yHCz+iboD2LijXuq+/1oLydbEA37DLDJPwijGfOlqMT1aI9kEirijA2goq3F2qcWr+HQFhROEGZlJuJPImCw7zAbRyP09EI8CItrB9jX08lFznykE8m/i9PzGAZwDHp4/2egQq+d5zPX/9LozSXOmIe/K5/fHbdBgLfgEXtW/qrTbPF2yA7Kt7dJdRpAC/umuQodfYZtEQwpM6bN7JtrMtMe/FPp+lyE//sB9bk+dRkLJ7EvP6O+yTrvukuXSqUA=="
+}
