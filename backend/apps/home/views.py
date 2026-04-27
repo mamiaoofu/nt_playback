@@ -1131,7 +1131,9 @@ def ApiCreateFileShare(request):
             return dt
 
         start_dt = parse_dt(start_raw)
+        print(f"Parsed start_dt: {start_dt} from raw: {start_raw}")
         expire_dt = parse_dt(expire_raw)
+        print(f"Parsed expire_dt: {expire_dt} from raw: {expire_raw}")  
 
         if target_type == 'user':
             # Accept single username or list of usernames (or delimited string)
