@@ -3,14 +3,16 @@ FROM python:3.11-slim
 # ตั้งค่า Environment Variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV TZ=Asia/Bangkok
 
 WORKDIR /app
 
-# ติดตั้ง dependencies ของระบบที่จำเป็น (เช่น สำหรับ PostgreSQL)
+# ติดตั้ง dependencies ของระบบที่จำเป็น (เช่น สำหรับ PostgreSQL) และ timezone data
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     ffmpeg \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements และ install
