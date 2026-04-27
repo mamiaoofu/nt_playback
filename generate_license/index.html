@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeekTack License Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>SeekTack License Generator</h1>
+            <p class="subtitle">Admin tool for generating signed license files</p>
+        </header>
+
+        <!-- Section 1: Key Management -->
+        <section class="card">
+            <h2>Key Management</h2>
+            <div class="key-status">
+                <div class="status-item">
+                    <span class="status-label">Private Key</span>
+                    <span id="private-key-status" class="status-badge status-missing">Not Found</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Public Key</span>
+                    <span id="public-key-status" class="status-badge status-missing">Not Found</span>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button id="btn-generate-keys" class="btn btn-primary">Generate New</button>
+                <button id="btn-download-public" class="btn btn-secondary" disabled>Download Public Key</button>
+                <button id="btn-download-private" class="btn btn-secondary" disabled>Download Private Key</button>
+                <button id="btn-import-private" class="btn btn-secondary">Import Private Key</button>
+            </div>
+            <input type="file" id="import-key-input" accept=".pem" style="display:none">
+            <div id="key-message" class="message hidden"></div>
+        </section>
+
+        <!-- Section 2: License Configuration -->
+        <section class="card">
+            <h2>License Configuration</h2>
+            <form id="license-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="fingerprint">Fingerprint (SHA-256)</label>
+                        <input type="text" id="fingerprint" placeholder="Paste fingerprint hash from customer" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="license-id">License ID</label>
+                        <input type="text" id="license-id" placeholder="e.g. LIC-2026-001" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer-name">Customer Name</label>
+                        <input type="text" id="customer-name" placeholder="Company name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="expiry">Expiry Date</label>
+                        <input type="date" id="expiry" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-main-db">Max MainDatabase Rows</label>
+                        <input type="number" id="max-main-db" min="1" placeholder="e.g. 3" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="max-concurrent">Max Concurrent Users</label>
+                        <input type="number" id="max-concurrent" min="1" placeholder="e.g. 10" required>
+                    </div>
+                </div>
+
+                <details class="advanced-section">
+                    <summary>Advanced: Menu & Config Flags (Future)</summary>
+                    <div class="form-group">
+                        <label for="allowed-menus">Allowed Menus (comma-separated)</label>
+                        <input type="text" id="allowed-menus" placeholder="Leave empty for all menus">
+                    </div>
+                    <div class="form-group">
+                        <label for="config-flags">Config Flags (JSON)</label>
+                        <textarea id="config-flags" rows="3" placeholder='e.g. {"enable_export": true}'>{}</textarea>
+                    </div>
+                </details>
+
+                <button type="submit" id="btn-generate-license" class="btn btn-primary btn-full">Generate License</button>
+            </form>
+            <div id="license-message" class="message hidden"></div>
+        </section>
+
+        <!-- Section 3: Generated License -->
+        <section class="card" id="output-section" style="display:none;">
+            <h2>Generated License</h2>
+            <div class="output-actions">
+                <button id="btn-download-license" class="btn btn-primary">Download license.json</button>
+                <button id="btn-copy-license" class="btn btn-secondary">Copy to Clipboard</button>
+            </div>
+            <pre id="license-preview" class="code-block"></pre>
+        </section>
+
+        <!-- Section: Download Installer -->
+        <section class="card">
+            <h2>Download Installer</h2>
+            <p class="section-desc">Download <code>seektrack_fngerprint_Installer.exe</code> to send to customers.</p>
+            <div class="installer-status" id="installer-status"></div>
+            <button id="btn-download-existing" class="btn btn-primary" disabled>Download</button>
+            <div id="installer-message" class="message hidden"></div>
+        </section>
+
+        <!-- Section 4: Verify License -->
+        <section class="card">
+            <h2>Verify License</h2>
+            <div class="form-group">
+                <label for="verify-input">Paste license.json content</label>
+                <textarea id="verify-input" rows="5" placeholder="Paste full license.json content here..."></textarea>
+            </div>
+            <button id="btn-verify" class="btn btn-secondary">Verify Signature</button>
+            <div id="verify-message" class="message hidden"></div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

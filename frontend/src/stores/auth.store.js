@@ -12,6 +12,7 @@ export const useAuthStore = defineStore('auth', () => {
 	const permissions = ref([])
 	const lastLoginAt = ref(0)
 	const loginWarning = ref(null)
+	const licenseError = ref(null)
 
 	// Promise that resolves once the initial restore-from-refresh attempt finishes.
 	// Router guard awaits this so it never redirects before we know if an
@@ -145,7 +146,9 @@ export const useAuthStore = defineStore('auth', () => {
 			// try to surface backend-provided warning/error messages
 			try {
 				const err = await response.json()
-				if (err && (err.warning || err.error || err.detail || err.message)) {
+				if (err && err.license_status) {
+					licenseError.value = err.error || 'License validation failed.'
+				} else if (err && (err.warning || err.error || err.detail || err.message)) {
 					loginWarning.value = err.warning || err.error || err.detail || err.message
 				}
 			} catch (e) { }
@@ -156,6 +159,7 @@ export const useAuthStore = defineStore('auth', () => {
 			setToken(data.access)
 		// clear any previous login warning on success
 		loginWarning.value = null
+		licenseError.value = null
 			// record recent login time to avoid immediate force-logout races
 			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
@@ -183,6 +187,15 @@ export const useAuthStore = defineStore('auth', () => {
 				const profileResp = await fetch(API_HOME_INDEX(), { credentials: 'include' })
 					if (handleRedirectOrLoginNext(profileResp)) return false
 				if (profileResp && profileResp.status === 403) {
+					// Check if this is a license error
+					try {
+						const errBody = await profileResp.json()
+						if (errBody && errBody.license_status) {
+							licenseError.value = errBody.error || 'License validation failed.'
+							clear()
+							return false
+						}
+					} catch (e) {}
 					try { router.push({ name: 'Denied' }) } catch (e) { try { window.location.href = '/denied' } catch (ee) {} }
 					return true
 				}
@@ -293,5 +306,5 @@ export const useAuthStore = defineStore('auth', () => {
 		return permissions.value.includes(name)
 	}
 
-	return { user, token, permissions, lastLoginAt, passwordResetRequired, loginWarning, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
+	return { user, token, permissions, lastLoginAt, passwordResetRequired, loginWarning, licenseError, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
 })

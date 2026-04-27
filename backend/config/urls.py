@@ -25,6 +25,7 @@ from rest_framework_simplejwt.views import (
 )
 from apps.login.views import api_logout
 from apps.login.views import api_refresh_from_cookie
+from apps.core.utils.license_views import api_license_info
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,6 +33,7 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/token/refresh_from_cookie/', api_refresh_from_cookie, name='token_refresh_from_cookie'),
     path('api/logout/', api_logout, name='api_logout'),
+    path('api/license-info/', api_license_info, name='api_license_info'),
     path('login/', include('apps.login.urls')),
     path('', include('apps.home.urls')),
     path('', include('apps.configuration.urls')),
