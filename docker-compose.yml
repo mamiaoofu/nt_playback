@@ -9,6 +9,7 @@ services:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - TZ=Asia/Bangkok
     ports:
       - "6000:6000"
     restart: always
