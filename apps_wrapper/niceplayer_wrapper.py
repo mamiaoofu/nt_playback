@@ -12,7 +12,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ----- Static configuration -----
 NICEPLAYER_EXE = r"C:\Program Files (x86)\NICE Systems\NICE Player Release 6\NiceApplications.Playback.GUI.exe"
-LOGFILE = r"C:\niceplayer_wrapper\niceplayer_wrapper.log"
+LOGFILE = os.path.join(os.environ.get('LOCALAPPDATA', r'C:\ProgramData'), 'niceplayer', 'niceplayer_wrapper.log')
 CONFIG_FILE = r"C:\ProgramData\niceplayer\config.json"
 
 # True  = kill existing NicePlayer before opening a new file
