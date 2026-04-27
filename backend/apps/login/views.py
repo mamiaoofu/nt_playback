@@ -103,7 +103,23 @@ def index(request):
                             pass
             except Exception as e:
                 print(f"Error checking ticket expiration: {e}")
-            
+
+            # License concurrency check — block login if max concurrent users reached
+            try:
+                from apps.core.utils.license_service import LicenseService
+                license_svc = LicenseService()
+                if not license_svc.check_concurrency(exclude_user_id=user.id):
+                    create_user_log(
+                        user=user,
+                        action="Login",
+                        detail=f"Login blocked: Maximum concurrent users reached for user {user.username}",
+                        status="error",
+                        request=request
+                    )
+                    return JsonResponse({'error': 'Maximum concurrent users reached. Please try again later.'}, status=403)
+            except Exception as e:
+                print(f"Error checking license concurrency: {e}")
+
             # Login เข้า Session (เผื่อกรณี Hybrid หรือ Admin)
             login(request, user)
 
@@ -180,6 +196,13 @@ def index(request):
             # สร้าง JWT Token ส่งกลับไปให้ Frontend
             refresh = RefreshToken.for_user(user)
 
+            # Register session in Redis for license concurrency tracking
+            try:
+                from apps.core.utils.license_service import LicenseService
+                LicenseService().register_session(user.id)
+            except Exception as e:
+                print(f"Error registering license session: {e}")
+
             # Also generate and send CSRF token and set CSRF cookie on the response
             csrf_token = get_token(request)
             user_auth = UserAuth.objects.filter(user=user).select_related('user_permission').first()
@@ -253,6 +276,14 @@ def api_logout(request):
         refresh_cookie_name = getattr(settings, 'REFRESH_COOKIE_NAME')
         session_cookie_name = getattr(settings, 'SESSION_COOKIE_NAME')
         token = data.get('refresh') or request.COOKIES.get(refresh_cookie_name)
+
+        # Remove session from license concurrency tracking
+        try:
+            if hasattr(request, 'user') and request.user and request.user.is_authenticated:
+                from apps.core.utils.license_service import LicenseService
+                LicenseService().remove_session(request.user.id)
+        except Exception:
+            pass
 
         # prepare reporting fields
         token_blacklisted = False
