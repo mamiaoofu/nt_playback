@@ -228,18 +228,14 @@ def ApiGetAudioList(request):
     set_audio = SetAudio.objects.filter(user=request.user).first()
     main_db_id = UserAuth.objects.filter(user=request.user, allow=True).values_list("maindatabase_id", flat=True)
 
-    # Read file_share param early — needed to decide whether to bypass main_db restriction
-    file_share = request.POST.get("file_share") or request.GET.get("file_share")
-
     # Check for file_share parameter or ticket user
     is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
     file_share_mode = False
+    share_entries = []
 
-    if is_ticket or file_share == "true":
-        # Delegate / ticket mode: start with unrestricted queryset so shared files from any
-        # database are visible. The queryset will be narrowed to the specific shared file IDs below.
-        audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter()
-    else:
+    if is_ticket :
+        audio_list = AudioInfo.objects.filter()
+    else :
         audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(main_db__in=main_db_id)
 
     # ฟิลเตอร์จาก request.form หรือ request.GET
@@ -258,7 +254,7 @@ def ApiGetAudioList(request):
     agent_name = request.POST.get("agent") or request.GET.get("agent")
     full_name = request.POST.get("full_name") or request.GET.get("full_name")
     custom_field = request.POST.get("custom_field") or request.GET.get("custom_field")
-    # file_share already read above
+    file_share = request.POST.get("file_share") or request.GET.get("file_share")
 
     if is_ticket or file_share == "true":
         try:
@@ -599,13 +595,35 @@ def ApiGetAudioList(request):
         audio_list = audio_list.order_by('-start_datetime')
 
     data = []
-    # count after applying filters
-    records_total = audio_list.count()
 
-    # Pagination (slice)
-    audio_page = audio_list[start:start + length]
+    if file_share_mode:
+        # ใน file_share_mode ต้อง paginate จาก share_entries (1 row ต่อ delegate×audiofile)
+        # ไม่ใช้ queryset โดยตรง เพราะ Django คืน unique AudioInfo record ทำให้ delegate 2 รายการ
+        # ที่ชี้ audiofile เดียวกันได้แค่ 1 row
+        filtered_audio_ids = set(
+            str(aid) for aid in audio_list.values_list('audiofile__id', flat=True)
+        )
+        filtered_share_entries = [e for e in share_entries if e['audiofile_id'] in filtered_audio_ids]
+        records_total = len(filtered_share_entries)
+        entries_page = filtered_share_entries[start:start + length]
+        audio_info_map = {
+            str(a.audiofile.id): a
+            for a in audio_list.select_related('audiofile', 'agent', 'customer')
+            if getattr(a, 'audiofile', None)
+        }
+        iter_pairs = [
+            (audio_info_map[e['audiofile_id']], e['share'])
+            for e in entries_page
+            if e['audiofile_id'] in audio_info_map
+        ]
+    else:
+        # count after applying filters
+        records_total = audio_list.count()
+        # Pagination (slice)
+        audio_page = audio_list[start:start + length]
+        iter_pairs = [(audio, None) for audio in audio_page]
 
-    for idx, audio in enumerate(audio_page, start=start+1):
+    for idx, (audio, _override_share) in enumerate(iter_pairs, start=start+1):
         main_db_display = str(audio.main_db) if hasattr(audio, 'main_db') else ''
         if getattr(audio, 'start_datetime', None):
             sd = timezone.localtime(audio.start_datetime) if settings.USE_TZ else audio.start_datetime
@@ -625,31 +643,46 @@ def ApiGetAudioList(request):
         # try to attach share metadata for this audio (if any)
         share_info = {}
         try:
-            # ใช้ local variable share_map ที่ถูกเตรียมไว้ตอนต้น (ถ้ามี)
-            afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
-            # check if share_map exists in the scope (it's defined if is_ticket or file_share)
-            s_map = locals().get('share_map', {})
-            if afid is not None and s_map:
-                lst = s_map.get(str(afid), []) or []
-                if isinstance(lst, list) and len(lst) > 0:
-                    try:
-                        # เลือก share ที่ยังไม่หมดอายุ หรืออันล่าสุด
-                        best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
-                    except Exception:
-                        best = lst[0]
-                    share_info = {
-                        'type': best.get('type'),
-                        'code': best.get('code'),
-                        'created_by': best.get('created_by'),
-                        'start_at': best.get('start_at'),
-                        'start_at_dt': best.get('start_at_dt'),
-                        'expire_at': best.get('expire_at'),
-                        'expire_at_dt': best.get('expire_at_dt'),
-                        'download': best.get('download', False),
-                        'limit_access_time': best.get('limit_access_time'),
-                        'description': best.get('description'),
-                        'view': best.get('view', False)
-                    }
+            if _override_share is not None:
+                # file_share_mode: ใช้ share entry ที่ผูกตรงกับ row นี้
+                best = _override_share
+                share_info = {
+                    'type': best.get('type'),
+                    'code': best.get('code'),
+                    'created_by': best.get('created_by'),
+                    'start_at': best.get('start_at'),
+                    'start_at_dt': best.get('start_at_dt'),
+                    'expire_at': best.get('expire_at'),
+                    'expire_at_dt': best.get('expire_at_dt'),
+                    'download': best.get('download', False),
+                    'limit_access_time': best.get('limit_access_time'),
+                    'description': best.get('description'),
+                    'view': best.get('view', False)
+                }
+            else:
+                # normal mode: look up share_map if available
+                afid = audio.audiofile.id if getattr(audio, 'audiofile', None) else None
+                s_map = locals().get('share_map', {})
+                if afid is not None and s_map:
+                    lst = s_map.get(str(afid), []) or []
+                    if isinstance(lst, list) and len(lst) > 0:
+                        try:
+                            best = max(lst, key=lambda s: (s.get('update_at_dt') or s.get('expire_at_dt') or datetime.min))
+                        except Exception:
+                            best = lst[0]
+                        share_info = {
+                            'type': best.get('type'),
+                            'code': best.get('code'),
+                            'created_by': best.get('created_by'),
+                            'start_at': best.get('start_at'),
+                            'start_at_dt': best.get('start_at_dt'),
+                            'expire_at': best.get('expire_at'),
+                            'expire_at_dt': best.get('expire_at_dt'),
+                            'download': best.get('download', False),
+                            'limit_access_time': best.get('limit_access_time'),
+                            'description': best.get('description'),
+                            'view': best.get('view', False)
+                        }
         except Exception:
             share_info = {}
 
