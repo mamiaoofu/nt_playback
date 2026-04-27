@@ -1116,17 +1116,16 @@ def ApiCreateFileShare(request):
                         dt = datetime.fromisoformat(s)
                     except Exception:
                         return None
-            # flatpickr sends naive strings (e.g. "2026-04-28 10:00") representing
-            # the local Bangkok time the user typed.  Attach the project timezone so
-            # the stored UTC value matches that Bangkok moment exactly.
-            # For already-aware datetimes (fromisoformat with offset), just normalise to UTC.
-            import datetime as _dt
-            _utc = _dt.timezone.utc
             try:
                 if timezone.is_naive(dt):
-                    dt = timezone.make_aware(dt, timezone=timezone.get_current_timezone())
-                else:
-                    dt = dt.astimezone(_utc)
+                    try:
+                        tz = timezone.get_current_timezone()
+                    except Exception:
+                        tz = None
+                    if tz:
+                        dt = timezone.make_aware(dt, timezone=tz)
+                    else:
+                        dt = timezone.make_aware(dt)
             except Exception:
                 pass
             return dt
