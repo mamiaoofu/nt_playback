@@ -391,6 +391,15 @@ export default {
               })
             }
           } catch (e) {}
+          // Also reset the "From" time inputs (original timeContainer inside calendarContainer)
+          try {
+            if (isDurationRange && instance && instance.calendarContainer) {
+              const fromContainer = instance.calendarContainer.querySelector('.flatpickr-time')
+              if (fromContainer) {
+                fromContainer.querySelectorAll('input.numInput').forEach(i => { try { i.value = '00' } catch (e) {} })
+              }
+            }
+          } catch (e) {}
 
           // Mark cleared before instance.clear() so onChange/onClose won't
           // restore the previous value using lastAppliedValue.
@@ -592,8 +601,16 @@ export default {
                         }, 150)
                       } else {
                         // ensure empty state is enforced when there is no last applied value
-                        try { if (el) el.value = '' } catch (e) {}
+                        try { if (el) originalValueSetter.call(el, '') } catch (e) { try { if (el) el.value = '' } catch (e) {} }
                         try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+                        // enforce against late flatpickr writes (flatpickr writes default time after onClose)
+                        const _enforceEmpty = () => {
+                          try { if (el) { originalValueSetter.call(el, ''); el.parentNode && el.parentNode.classList.remove('has-value') } } catch (e) {}
+                        }
+                        setTimeout(_enforceEmpty, 0)
+                        setTimeout(_enforceEmpty, 50)
+                        setTimeout(_enforceEmpty, 150)
+                        setTimeout(_enforceEmpty, 300)
                       }
                     } catch (e) {}
                   }
@@ -658,38 +675,53 @@ export default {
                   } catch (e) {}
                 })
               } catch (e) {}
-              if (isDurationRange && el && el.value && el.value.includes(' - ') && el._flatpickrToContainer) {
-                const parts = String(el.value).split(' - ')
-                const fromPart = parts[0] || ''
-                const toPart = parts[1] || ''
+              if (isDurationRange && el._flatpickrToContainer) {
+                if (el && el.value && el.value.includes(' - ')) {
+                  const parts = String(el.value).split(' - ')
+                  const fromPart = parts[0] || ''
+                  const toPart = parts[1] || ''
 
-                // populate From (original time container)
-                try {
-                  const [fh, fm, fs] = (fromPart || '').split(':')
-                  const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
-                  const fromInputs = fromContainer ? fromContainer.querySelectorAll('input') : []
-                  if (fromInputs && fromInputs.length) {
-                    if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
-                    if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
-                    if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
-                  }
-                } catch (e) {}
+                  // populate From (original time container)
+                  try {
+                    const [fh, fm, fs] = (fromPart || '').split(':')
+                    const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
+                    const fromInputs = fromContainer ? fromContainer.querySelectorAll('input') : []
+                    if (fromInputs && fromInputs.length) {
+                      if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
+                      if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
+                      if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
+                    }
+                  } catch (e) {}
 
-                // populate To (cloned toTimeContainer)
-                try {
-                  const [h, m, s] = (toPart || '').split(':')
-                  const inputs = el._flatpickrToContainer.querySelectorAll('input')
-                  if (inputs && inputs.length) {
-                    if (inputs[0]) inputs[0].value = (h || '00').padStart(2, '0')
-                    if (inputs[1]) inputs[1].value = (m || '00').padStart(2, '0')
-                    if (inputs[2]) inputs[2].value = (s || '00').padStart(2, '0')
-                  }
-                } catch (e) {}
+                  // populate To (cloned toTimeContainer)
+                  try {
+                    const [h, m, s] = (toPart || '').split(':')
+                    const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                    if (inputs && inputs.length) {
+                      if (inputs[0]) inputs[0].value = (h || '00').padStart(2, '0')
+                      if (inputs[1]) inputs[1].value = (m || '00').padStart(2, '0')
+                      if (inputs[2]) inputs[2].value = (s || '00').padStart(2, '0')
+                    }
+                  } catch (e) {}
 
-                // ensure the preview/input shows normalized separator (and strip time if noTime)
-                try {
-                  el.value = noTime ? String(el.value).split(' ')[0] : String(el.value).replace(/\s*,\s*/g, ' - ')
-                } catch (e) {}
+                  // ensure the preview/input shows normalized separator (and strip time if noTime)
+                  try {
+                    el.value = noTime ? String(el.value).split(' ')[0] : String(el.value).replace(/\s*,\s*/g, ' - ')
+                  } catch (e) {}
+                } else {
+                  // No range value (empty or single) — always reset both From and To to 00
+                  // to prevent stale values from a previous selection showing up when the calendar reopens.
+                  try {
+                    const inputs = el._flatpickrToContainer.querySelectorAll('input')
+                    inputs.forEach(i => { try { i.value = '00' } catch (e) {} })
+                  } catch (e) {}
+                  try {
+                    const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
+                    if (fromContainer) {
+                      fromContainer.querySelectorAll('input.numInput').forEach(i => { try { i.value = '00' } catch (e) {} })
+                    }
+                  } catch (e) {}
+                }
               }
               // When opening the calendar, ensure we suppress preview writes
               // if there is a pending, unapplied selection.
@@ -796,6 +828,33 @@ export default {
         try { allowClose = true } catch (e) {}
         try { if (instance) instance._externalClose = true } catch (e) {}
         try { setTimeout(() => { try { allowClose = false } catch (e) {} if (instance) try { instance._externalClose = false } catch (e) {} }, 250) } catch (e) {}
+      }
+    } catch (e) {}
+  },
+
+  updated(el, binding) {
+    // When the bound value is cleared externally (e.g. reset button sets target[key] = ''),
+    // sync the flatpickr UI so it doesn't retain a stale selected value.
+    try {
+      const raw = binding.value
+      const value = (raw && typeof raw === 'object') ? raw : {}
+      const target = (binding.arg && raw && typeof raw === 'object') ? raw : (value.target || null)
+      const key = binding.arg ? binding.arg : value.key
+      if (!target || !key) return
+      const newVal = target[key]
+      // Only clear when the reactive value is now empty but the input still shows something
+      if ((!newVal || String(newVal).trim() === '') && el.value && String(el.value).trim() !== '') {
+        const doClearFn = el._flatpickrDoClear
+        if (typeof doClearFn === 'function') {
+          try { doClearFn() } catch (e) {}
+        } else {
+          const instance = el._flatpickrInstance
+          if (instance) {
+            try { instance.clear() } catch (e) {}
+            try { el.value = '' } catch (e) {}
+            try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+          }
+        }
       }
     } catch (e) {}
   },

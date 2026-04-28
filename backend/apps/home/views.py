@@ -1,7 +1,8 @@
 from django.shortcuts import  redirect
 from functools import wraps
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, F, CharField
+from django.db.models.functions import Cast
 from django.http import JsonResponse,HttpResponse
 from django.views.decorators.http import require_POST
 import json
@@ -347,6 +348,35 @@ def ApiGetAudioList(request):
                 audio_list = audio_list.filter(qn)
 
     if search_value:
+        # Annotate duration as string for text search (no timezone issue)
+        _has_dur_cast = False
+        try:
+            audio_list = audio_list.annotate(
+                _sv_duration=Cast(F('audiofile__duration'), output_field=CharField()),
+            )
+            _has_dur_cast = True
+        except Exception:
+            _has_dur_cast = False
+
+        def _try_parse_search_dt(s):
+            """Parse s as local datetime; return (aware_dt, precision_delta) or (None, None)."""
+            for fmt, delta in [
+                ("%Y-%m-%d %H:%M:%S", timedelta(seconds=1)),
+                ("%Y-%m-%d %H:%M", timedelta(minutes=1)),
+                ("%Y-%m-%d", timedelta(days=1)),
+            ]:
+                try:
+                    dt = datetime.strptime(s.strip(), fmt)
+                    if settings.USE_TZ:
+                        try:
+                            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                        except Exception:
+                            pass
+                    return dt, delta
+                except Exception:
+                    pass
+            return None, None
+
         parts = search_value.split(",")
         q_global = None
         for part in parts:
@@ -358,8 +388,21 @@ def ApiGetAudioList(request):
                     Q(agent__first_name__icontains=part) |
                     Q(agent__last_name__icontains=part) |
                     Q(customer_number__icontains=part) |
-                    Q(agent__agent_code__icontains=part)
+                    Q(agent__agent_code__icontains=part) |
+                    Q(main_db__database_name__icontains=part) |
+                    Q(audiofile__file_name__icontains=part) |
+                    Q(custom_field_1__icontains=part)
                 )
+                if _has_dur_cast:
+                    q_search |= Q(_sv_duration__icontains=part)
+                # Parse as local datetime → range query for start_datetime and end_datetime
+                _dt, _dt_delta = _try_parse_search_dt(part)
+                if _dt is not None:
+                    _dt_end = _dt + _dt_delta
+                    q_search |= (
+                        Q(start_datetime__gte=_dt, start_datetime__lt=_dt_end) |
+                        Q(end_datetime__gte=_dt, end_datetime__lt=_dt_end)
+                    )
                 name_parts = part.split(" ", 1)
                 if len(name_parts) == 2:
                     first, last = name_parts
@@ -371,7 +414,30 @@ def ApiGetAudioList(request):
                     q_global &= q_search
         
         if q_global:
-            audio_list = audio_list.filter(q_global)
+            if file_share_mode and share_entries:
+                # For share-specific fields (Delegate ID, Start Date, Expire Date, Created by),
+                # find share_entries that match and union their audiofile IDs with ORM results
+                sv_parts_lower = [p.strip().lower() for p in search_value.split(',') if p.strip()]
+                share_matched_ids = set()
+                for _se in share_entries:
+                    _share = _se.get('share', {})
+                    _share_text = ' '.join(filter(None, [
+                        str(_share.get('code') or ''),
+                        str(_share.get('start_at') or ''),
+                        str(_share.get('expire_at') or ''),
+                        str(_share.get('created_by') or ''),
+                    ])).lower()
+                    if all(p in _share_text for p in sv_parts_lower):
+                        try:
+                            share_matched_ids.add(int(_se['audiofile_id']))
+                        except Exception:
+                            pass
+                if share_matched_ids:
+                    audio_list = audio_list.filter(q_global | Q(audiofile__id__in=share_matched_ids))
+                else:
+                    audio_list = audio_list.filter(q_global)
+            else:
+                audio_list = audio_list.filter(q_global)
             
     # Mapping simple filters (duration handled separately below)
     filter_map = {

@@ -1,18 +1,15 @@
 services:
   backend:
     build: ./backend
+    # Use Daphne (ASGI) so WebSocket/Channels work reliably behind a proxy
     command: sh -c "echo 'Starting Daphne ASGI server' && python -m daphne -b 0.0.0.0 -p 6000 config.asgi:application"
     volumes:
       - ./backend:/app
-      - ./backend/license:/app/license:ro
     env_file:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
-      - LICENSE_AGENT_URL=http://host.docker.internal:7890
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "6000:6000"
     restart: always
@@ -21,6 +18,7 @@ services:
 
   frontend:
     build: ./frontend
+    # Run vite via node executable to avoid wrapper/script execution issues on mounted volumes
     command: ["sh", "-c", "node /app/node_modules/vite/bin/vite.js --host"]
     volumes:
       - ./frontend:/app
@@ -34,6 +32,7 @@ services:
   redis:
     image: redis:6-alpine
     restart: unless-stopped
+    # no volumes/networks required for simple dev setup
 
 volumes:
   frontend_node_modules:
