@@ -670,13 +670,75 @@ def ApiGetAudioList(request):
             str(aid) for aid in audio_list.values_list('audiofile__id', flat=True)
         )
         filtered_share_entries = [e for e in share_entries if e['audiofile_id'] in filtered_audio_ids]
-        records_total = len(filtered_share_entries)
-        entries_page = filtered_share_entries[start:start + length]
+
+        # Build audio_info_map first so we can sort filtered_share_entries (Python list) by audio fields
         audio_info_map = {
             str(a.audiofile.id): a
             for a in audio_list.select_related('audiofile', 'agent', 'customer')
             if getattr(a, 'audiofile', None)
         }
+
+        # Sort filtered_share_entries according to sort_field / sort_dir
+        _reverse = (sort_dir == 'desc') if sort_field and sort_dir else True
+
+        def _get_sort_key(entry):
+            afid = entry.get('audiofile_id')
+            audio = audio_info_map.get(str(afid)) if afid is not None else None
+            share = entry.get('share') or {}
+            if not sort_field:
+                # default: sort by start_datetime desc
+                if audio and getattr(audio, 'start_datetime', None):
+                    return audio.start_datetime
+                return None
+            if sort_field == 'main_db':
+                return str(audio.main_db) if audio and getattr(audio, 'main_db', None) else ''
+            if sort_field == 'start_datetime':
+                return getattr(audio, 'start_datetime', None) if audio else None
+            if sort_field == 'end_datetime':
+                return getattr(audio, 'end_datetime', None) if audio else None
+            if sort_field == 'duration':
+                return getattr(audio.audiofile, 'duration', None) if audio and getattr(audio, 'audiofile', None) else None
+            if sort_field == 'file_name':
+                return str(audio.audiofile.file_name) if audio and getattr(audio, 'audiofile', None) else ''
+            if sort_field == 'call_direction':
+                return str(getattr(audio, 'call_direction', '') or '') if audio else ''
+            if sort_field == 'customer_number':
+                return str(getattr(audio, 'customer_number', '') or '') if audio else ''
+            if sort_field == 'extension':
+                return str(getattr(audio, 'extension', '') or '') if audio else ''
+            if sort_field == 'agent':
+                return str(audio.agent.agent_code) if audio and getattr(audio, 'agent', None) else ''
+            if sort_field == 'full_name':
+                if audio and getattr(audio, 'agent', None):
+                    return f"{audio.agent.first_name or ''} {audio.agent.last_name or ''}".strip()
+                return ''
+            if sort_field == 'custom_field_1':
+                return str(getattr(audio, 'custom_field_1', '') or '') if audio else ''
+            # share-specific sort fields
+            if sort_field in ('delegate_id', 'ticket_id', 'code'):
+                return str(share.get('code') or '')
+            if sort_field == 'created_by':
+                return str(share.get('created_by') or '')
+            if sort_field == 'start_at':
+                return share.get('start_at_dt') or None
+            if sort_field == 'expire_at':
+                return share.get('expire_at_dt') or None
+            return None
+
+        try:
+            filtered_share_entries.sort(
+                key=lambda e: (_get_sort_key(e) is None, _get_sort_key(e)),
+                reverse=_reverse
+            )
+        except TypeError:
+            # fallback: convert to comparable strings when types are mixed
+            filtered_share_entries.sort(
+                key=lambda e: (str(_get_sort_key(e)) if _get_sort_key(e) is not None else ''),
+                reverse=_reverse
+            )
+
+        records_total = len(filtered_share_entries)
+        entries_page = filtered_share_entries[start:start + length]
         iter_pairs = [
             (audio_info_map[e['audiofile_id']], e['share'])
             for e in entries_page
