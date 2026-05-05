@@ -452,9 +452,11 @@ async function downloadAudio() {
   downloadSpeed.value = '0.0 MB/s'
   downloadRemaining.value = ''
   const startTime = Date.now()
+  const downloadUrl = `${src.value}${src.value.includes('?') ? '&' : '?'}download=1`
+  const downloadFetchOptions = { credentials: 'include', headers: { 'X-Download-Intent': '1' } }
 
   try {
-    const resp = await fetch(src.value, { credentials: 'include' })
+    const resp = await fetch(downloadUrl, downloadFetchOptions)
     if (!resp.ok) throw new Error('Download failed: ' + resp.status)
 
     const contentLength = resp.headers.get('content-length')
@@ -468,10 +470,6 @@ async function downloadAudio() {
       a.download = metadata.value.fileName || shortName.value || 'audio'
       document.body.appendChild(a)
       a.click()
-      try {
-        const lf = encodeURIComponent(metadata.value.fileName || shortName.value || 'audio')
-        fetch(`/api/log/download/?file=${lf}`, { credentials: 'include' }).catch(() => {})
-      } catch (e) { console.warn('log download error', e) }
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 3000)
       downloadProgress.value = 100
@@ -518,10 +516,6 @@ async function downloadAudio() {
     a.download = metadata.value.fileName || shortName.value || 'audio'
     document.body.appendChild(a)
     a.click()
-    try {
-      const lf = encodeURIComponent(metadata.value.fileName || shortName.value || 'audio')
-      fetch(`/api/log/download/?file=${lf}`, { credentials: 'include' }).catch(() => {})
-    } catch (e) { console.warn('log download error', e) }
     a.remove()
     setTimeout(() => URL.revokeObjectURL(url), 3000)
 

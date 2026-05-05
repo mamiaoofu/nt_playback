@@ -1014,6 +1014,27 @@ def ApiGetCredentials(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+def _is_download_intent(request):
+    """
+    Detect explicit download/export intent to avoid logging normal playback requests.
+    """
+    q = request.GET.get('download') or request.POST.get('download')
+    if str(q).lower() in ('1', 'true', 'yes'):
+        return True
+    h = request.META.get('HTTP_X_DOWNLOAD_INTENT', '')
+    return str(h).lower() in ('1', 'true', 'yes')
+
+
+def _log_voice_download(request, file_name, status='success', error=None):
+    try:
+        if status == 'success':
+            create_user_log(user=request.user, action="Dowload", detail=f"file: {file_name}", status="success", request=request)
+        else:
+            create_user_log(user=request.user, action="Dowload", detail={"file": file_name, "error": str(error or '')}, status="error", request=request)
+    except Exception:
+        pass
+
+
 @login_required(login_url='/login')
 @require_action('Playback Audio Records')
 def ApiProxyAudio(request):
@@ -1104,8 +1125,13 @@ def ApiProxyAudio(request):
         ctype = mimetypes.guess_type(base)[0] or 'application/octet-stream'
         response = HttpResponse(bio.read(), content_type=ctype)
         response['Content-Disposition'] = f'attachment; filename="{base}"'
+        if _is_download_intent(request):
+            _log_voice_download(request, base, status='success')
         return response
     except Exception as e:
+        if _is_download_intent(request):
+            fname = request.GET.get('file') or request.POST.get('file') or ''
+            _log_voice_download(request, os.path.basename(str(fname)) if fname else '', status='error', error=e)
         return JsonResponse({'error': str(e)}, status=500)
     
 @login_required
@@ -1594,7 +1620,7 @@ def ApiPlayAudio(request, file_id):
             else:
                 target_path = transcoded_path
                 temp_files.append(transcoded_path)
-                file_name = os.path.basename(target_path)
+                file_name = file_name
 
         # Serve the file
         response = RangeFileResponse(
@@ -1605,10 +1631,14 @@ def ApiPlayAudio(request, file_id):
         )
         response['Content-Disposition'] = f'inline; filename="{file_name}"'
         response['Accept-Ranges'] = 'bytes'
+        if _is_download_intent(request):
+            _log_voice_download(request, file_name, status='success')
         return response
 
     except Exception as e:
         # Cleanup on immediate error
         for f in temp_files:
             if os.path.exists(f): os.remove(f)
+        if _is_download_intent(request):
+            _log_voice_download(request, f"file_id:{file_id}", status='error', error=e)
         return JsonResponse({'error': str(e)}, status=500)

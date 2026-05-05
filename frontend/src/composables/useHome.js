@@ -1081,6 +1081,8 @@ export function useHome() {
       // handle voice downloads (non-voice exports will be included in ZIP when possible)
       if (wantVoice) {
         const base = getApiBase().replace(/\/$/, '')
+        const toDownloadUrl = (url) => `${url}${url.includes('?') ? '&' : '?'}download=1`
+        const downloadFetchOptions = { credentials: 'include', headers: { 'X-Download-Intent': '1' } }
 
         // helper to load external script (JSZip) when needed
         const loadScript = (src, markerAttr) => new Promise((resolve, reject) => {
@@ -1150,7 +1152,7 @@ export function useHome() {
                 const fid = f.file_id || f.id || f.fileId
                 const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
                 try {
-                  const resp = await fetch(url, { credentials: 'include' })
+                  const resp = await fetch(toDownloadUrl(url), downloadFetchOptions)
                   if (!resp.ok) {
                     anyFailed = true
                     console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
@@ -1251,7 +1253,7 @@ export function useHome() {
           const fid = f.file_id || f.id || f.fileId
           const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
           try {
-            const resp = await fetch(url, { credentials: 'include' })
+            const resp = await fetch(toDownloadUrl(url), downloadFetchOptions)
             if (!resp.ok) {
               console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
               showToast(`Failed to download ${fname} (status ${resp.status})`, 'error')
