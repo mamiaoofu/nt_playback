@@ -17,7 +17,7 @@
 
     <footer class="footer">
       <div class="container-fluid text-center justify-content-center">
-        <span class="text-muted">© 2026 <a href="https://nichetelcomm.com/" target="_blabk">NICHETEL COMMUNICATIONS CO., LTD.</a> All rights reserved.</span>
+        <span class="text-muted">© 2026 NICHETEL SEEKTRACK PLAN ( Centralize Search & Playback )</span>
       </div>
     </footer>
   </div>

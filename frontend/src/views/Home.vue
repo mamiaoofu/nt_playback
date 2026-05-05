@@ -151,7 +151,7 @@
                   </h5>
                 </div>
                 <div class="d-flex align-items-center">
-                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && (authStore.hasPermission('Create Delegate File') || authStore.hasPermission('Create Ticket')) " class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
+                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && ((authStore.hasPermission('Create Delegate File') && authStore.hasPermission('Delegate Management')) || (authStore.hasPermission('Create Ticket') && authStore.hasPermission('Ticket Management'))) " class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                         <span v-if="selectedCount > 0" class="badge badge-danger" id="shareCount">{{ selectedCount }}</span>
                       </button>
@@ -159,7 +159,7 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="authStore.hasPermission('Save As Index') && (filters.is_ticket !=='true' && filters.file_share !== 'true')" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="filters.is_ticket !== 'true' && ((filters.file_share === 'true' && authStore.hasPermission('Download Delegate File') && authStore.hasPermission('Delegate Management')) || (filters.file_share !== 'true' && authStore.hasPermission('Save As Index') && authStore.hasPermission('User Management')))" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>

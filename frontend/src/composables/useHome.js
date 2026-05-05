@@ -1708,7 +1708,7 @@ export function useHome() {
   const openShare = () => { showShareModal.value = true }
 
   const onCreate = (payload) => { 
-    console.log('Share requested', payload) 
+    // console.log('Share requested', payload) 
   }
 
   const state = {

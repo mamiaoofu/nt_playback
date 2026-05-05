@@ -33,11 +33,11 @@
 
                 <div class="mt-3">
                     <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
-                        <div class="form-check" v-if="Store.hasPermission('Create Delegate File')">
+                        <div class="form-check" v-if="(Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management'))">
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeUser">Deleagate</label>
                         </div>
-                        <div class="form-check" v-if="Store.hasPermission('Create Ticket') ">
+                        <div class="form-check" v-if="(Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ">
                             <input class="form-check-input" type="radio" id="shareTypeTicket" value="ticket" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeTicket">Ticket</label>
                         </div>
@@ -217,7 +217,7 @@ const props = defineProps({ modelValue: { type: Boolean, default: false }, files
 const emit = defineEmits(['update:modelValue', 'share'])
 
 const selectionType = ref(
-    Store.hasPermission('Create Delegate File') ? 'user' : Store.hasPermission('Create Ticket') ? 'ticket' : ''
+    (Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management')) ? 'user' : (Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ? 'ticket' : ''
 )
 
 const shareUser = ref('')
@@ -556,6 +556,7 @@ onMounted(() => {
 
 // initialize period when modal opens (component may be mounted while modal closed)
 watch(() => props.modelValue, async (open) => {
+    console.log('ModalFileShare modal open state changed', open)
     if (!open) return
     // Reset all form fields so nothing is carried over from a previous session
     shareUser.value = ''
@@ -563,7 +564,7 @@ watch(() => props.modelValue, async (open) => {
     descTicket.value = ''
     limitAccessTimes.value = null
     permissions.value = 'false'
-    selectionType.value = Store.hasPermission('Create Delegate File') ? 'user' : Store.hasPermission('Create Ticket') ? 'ticket' : ''
+    selectionType.value = (Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management')) ? 'user' : (Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ? 'ticket' : ''
     start.value = ''
     expire.value = ''
     errors.start = false

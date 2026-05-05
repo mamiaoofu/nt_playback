@@ -617,54 +617,54 @@ const dependencyMap = {
     // 'Ticket History' : [],
     // 'Settings' : [],
 
-    // Audio Records
-    'Query Audio Records' : ['Audio Records'],
-    'Playback Audio Records' : ['Audio Records'],
-    'Download Voice File' : ['Audio Records'],
-    'Save As Index' : ['Audio Records'],
-    'Delegate Files' : ['Audio Records'],
+    // // Audio Records
+    // 'Query Audio Records' : ['Audio Records'],
+    // 'Playback Audio Records' : ['Audio Records'],
+    // 'Download Voice File' : ['Audio Records'],
+    // 'Save As Index' : ['Audio Records'],
+    // 'Delegate Files' : ['Audio Records'],
 
-    //Management
-    'Add User' : ['User Management'],
-    'Edit User' : ['User Management'],
-    'Delete User' : ['User Management'],
-    'Change User Status' : ['User Management'],
-    'Reset User Password' : ['User Management'],
-    'Save As User Index' : ['User Management'],
-    'Create Delegate File' : ['Delegate Management'],
-    'Download Delegate File' : ['Delegate Management'],
-    'Change Delegate File Status' : ['Delegate Management'],
-    'Save As Delegate File Index' : ['Delegate Management'],
-    'Create Ticket' : ['Ticket Management'],
-    'Download Ticket File' : ['Ticket Management'],
-    'Change Ticket Status' : ['Ticket Management'],
-    'Save As Ticket Index' : ['Ticket Management'],
-    'Ticket Resent' : ['Ticket Management'],
+    // //Management
+    // 'Add User' : ['User Management'],
+    // 'Edit User' : ['User Management'],
+    // 'Delete User' : ['User Management'],
+    // 'Change User Status' : ['User Management'],
+    // 'Reset User Password' : ['User Management'],
+    // 'Save As User Index' : ['User Management'],
+    // 'Create Delegate File' : ['Delegate Management'],
+    // 'Download Delegate File' : ['Delegate Management'],
+    // 'Change Delegate File Status' : ['Delegate Management'],
+    // 'Save As Delegate File Index' : ['Delegate Management'],
+    // 'Create Ticket' : ['Ticket Management'],
+    // 'Download Ticket File' : ['Ticket Management'],
+    // 'Change Ticket Status' : ['Ticket Management'],
+    // 'Save As Ticket Index' : ['Ticket Management'],
+    // 'Ticket Resent' : ['Ticket Management'],
 
-    //Role & Permissions
-    'Edit Base Roles' : ['Role & Permissions'],
-    'Add New Custom Roles' : ['Role & Permissions'],
-    'Edit Custom Roles' : ['Role & Permissions'],
-    'Delete Custom Roles' : ['Role & Permissions'],
+    // //Role & Permissions
+    // 'Edit Base Roles' : ['Role & Permissions'],
+    // 'Add New Custom Roles' : ['Role & Permissions'],
+    // 'Edit Custom Roles' : ['Role & Permissions'],
+    // 'Delete Custom Roles' : ['Role & Permissions'],
 
-    //Group & Team
-    'Add New Group' : ['Group & Team'],
-    'Edit Group' : ['Group & Team'],
-    'Delete Group' : ['Group & Team'],
-    'Add New Team' : ['Group & Team'],
-    'Edit Team' : ['Group & Team'],
-    'Delete Team' : ['Group & Team'],
+    // //Group & Team
+    // 'Add New Group' : ['Group & Team'],
+    // 'Edit Group' : ['Group & Team'],
+    // 'Delete Group' : ['Group & Team'],
+    // 'Add New Team' : ['Group & Team'],
+    // 'Edit Team' : ['Group & Team'],
+    // 'Delete Team' : ['Group & Team'],
 
-    //Logs
-    // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
-    // when it is unchecked. We'll handle its addition explicitly below so unchecking
-    // does not remove the access permission.
-    'Save As System Log' : ['System Log'],
-    'Save As Ticket History' : ['Ticket History'],
+    // //Logs
+    // // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
+    // // when it is unchecked. We'll handle its addition explicitly below so unchecking
+    // // does not remove the access permission.
+    // 'Save As System Log' : ['System Log'],
+    // 'Save As Ticket History' : ['Ticket History'],
 
-    //Setting
-    'Set Column' : ['Settings'],
-    'Download Player' : ['Settings'],
+    // //Setting
+    // 'Set Column' : ['Settings'],
+    // 'Download Player' : ['Settings'],
 
 }
 

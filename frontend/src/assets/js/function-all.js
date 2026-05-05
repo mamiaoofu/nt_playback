@@ -179,11 +179,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
     const returnBlob = !!(opts && opts.returnBlob)
     const rows = Array.isArray(opts.rows) ? opts.rows : []
     const columns = Array.isArray(opts.columns) ? opts.columns : []
+    // filter out utility/action columns for every export format
+    const usedColumns = columns.filter(c => c && !c.isAction && c.key !== 'actions' && c.key !== 'checked')
     const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : 0
     const rangeStart = (startIndex || 0) + 1
     const rangeEnd = (startIndex || 0) + (rows.length || 0)
 
-    const hdrs = columns.map(c => c.label || c.key)
+    const hdrs = usedColumns.map(c => c.label || c.key)
 
     // convert rows to exportable strings, with special handling for boolean status
     // helper: resolve value from row, supporting nested props and common patterns
@@ -204,9 +206,6 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       // direct property
       if (Object.prototype.hasOwnProperty.call(row, key)) return row[key]
 
-              // filter out action/utility columns from export
-              const usedColumns = (Array.isArray(columns) ? columns : []).filter(c => c && !c.isAction && c.key !== 'actions' && c.key !== 'checked')
-              const hdrs = usedColumns.map(c => c.label || c.key)
       for (const prop in row) {
         if (!Object.prototype.hasOwnProperty.call(row, prop)) continue
         const v = row[prop]
@@ -228,7 +227,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
     }
 
     const exportData = rows.map((row, rIdx) => {
-      return columns.map((col) => {
+      return usedColumns.map((col) => {
         if (col.isIndex) return (startIndex || 0) + rIdx + 1
         const key = col.key
         let val = resolveRowValue(row, key)
@@ -332,6 +331,9 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
             const textEsc = raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
             // show '-' for empty values and center it in the cell
             const text = (textEsc.trim() === '') ? '-' : textEsc
+            // prevent Excel from converting long numeric-like strings to scientific notation
+            const plain = (raw || '').trim()
+            const forceAsText = /^\d{15,}$/.test(plain)
             let cellStyle = ''
             if (text === '-') {
               cellStyle += 'text-align:center;'
@@ -346,6 +348,9 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
             // right-align numeric/customer columns, but don't override centered '-'
             if (text !== '-' && ((custNumIndex >= 0 && cellIndex === custNumIndex) || (extIndex >= 0 && cellIndex === extIndex))) {
               cellStyle += 'text-align:right;mso-number-format:\@;'
+            }
+            if (forceAsText) {
+              cellStyle += 'mso-number-format:"\\@";'
             }
             html += '<td style="' + cellStyle + '">' + text + '</td>'
           })
@@ -378,7 +383,10 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const escapeCsv = (v) => {
         if (v === null || v === undefined) return ''
         const s = String(v)
-        return '"' + s.replace(/"/g, '""') + '"'
+        const trimmed = s.trim()
+        // keep long numeric-like values as text when opened in Excel
+        const safe = /^\d{15,}$/.test(trimmed) ? `="${trimmed}"` : s
+        return '"' + safe.replace(/"/g, '""') + '"'
       }
       const csvLines = []
       csvLines.push(hdrs.map(h => escapeCsv(h)).join(','))
@@ -411,6 +419,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         console.error('jsPDF not available')
         return
       }
+      // always export PDF in landscape mode
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
       const titleText = (type === 'audio') ? 'Audio Records' : type
 
