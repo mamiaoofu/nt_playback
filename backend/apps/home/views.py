@@ -1488,7 +1488,7 @@ def ApiPlayAudio(request, file_id):
             else:
                 target_path = transcoded_path
                 temp_files.append(transcoded_path)
-                file_name = os.path.basename(target_path)
+                file_name = file_name
 
         # Serve the file
         response = RangeFileResponse(
