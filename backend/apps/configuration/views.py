@@ -82,7 +82,7 @@ def ApiGetRoleDetails(request, role_id):
     # if not (user.is_staff or user.has_perm('configuration.view_userpermission')):
     #     return JsonResponse({'status': False, 'message': 'Permission denied'}, status=403)
 
-    details = UserPermissionDetail.objects.filter(user_permission=role).order_by('action', 'id')
+    details = UserPermissionDetail.objects.filter(user_permission=role).order_by('id')
 
     all_permissions = []
     role_permissions = []

@@ -569,12 +569,10 @@ class InstallerApp(tk.Tk):
             with urllib.request.urlopen(req, timeout=10) as resp:
                 return json.loads(resp.read().decode("utf-8")), None
         except urllib.error.URLError as e:
-            # Dev convenience: allow self-signed cert only for localhost URLs.
-            parsed = urllib.parse.urlparse(base_url)
-            host = (parsed.hostname or "").lower()
-            is_localhost = host in {"localhost", "127.0.0.1", "::1"}
+            # Retry with unverified context when the server uses a self-signed
+            # certificate (common for internal/LAN deployments on any host).
             cert_verify_failed = "CERTIFICATE_VERIFY_FAILED" in str(e)
-            if is_localhost and cert_verify_failed:
+            if cert_verify_failed:
                 insecure_ctx = ssl._create_unverified_context()
                 with urllib.request.urlopen(req, timeout=10, context=insecure_ctx) as resp:
                     return json.loads(resp.read().decode("utf-8")), None
@@ -662,6 +660,28 @@ class InstallerApp(tk.Tk):
             dest_exe = os.path.join(dest_dir, EXE_NAME)
             try:
                 os.makedirs(dest_dir, exist_ok=True)
+                # Stop the running task/process before overwriting the exe file.
+                try:
+                    subprocess.run(["schtasks", "/end", "/tn", TASK_NAME],
+                                   check=False, timeout=10,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                except Exception:
+                    pass
+                # Give Windows a moment to release the file lock.
+                import time as _time
+                _time.sleep(1.5)
+                # Kill any lingering process by exe path.
+                try:
+                    import psutil as _psutil
+                    for _p in _psutil.process_iter(["exe"]):
+                        try:
+                            if _p.info["exe"] and os.path.normcase(_p.info["exe"]) == os.path.normcase(dest_exe):
+                                _p.kill()
+                        except Exception:
+                            pass
+                    _time.sleep(0.5)
+                except ImportError:
+                    pass
                 shutil.copy2(bundled_src, dest_exe)
                 self.after(0, lambda: self._append_log(f"✓ ติดตั้ง {EXE_NAME} ไปที่ {dest_dir}"))
             except Exception as e:

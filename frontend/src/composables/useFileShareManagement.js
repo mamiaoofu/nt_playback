@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER_TICKET,API_FILE_SHARE_MANAGEMENT_CHANGE_STATUS, API_GEN_FORM_TICKET } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
-import { showToast } from '../assets/js/function-all'
+import { showToast, logUserAction } from '../assets/js/function-all'
 import { exportTableToFormat } from '../assets/js/function-all'
 
 export function useFileShareManagement() {
@@ -84,11 +84,11 @@ export function useFileShareManagement() {
                 }
             }
         }
-        if (authStore.hasPermission('Change Ticket Status') && typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' } )
+        if (authStore.hasPermission('Change Ticket File Status') && authStore.hasPermission('Ticket Management') && typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' } )
 
         if (authStore.hasPermission('Ticket Resent') && typeUrl.value === 'ticket' ) cols.push({ key: 'action', label: 'Action' })
 
-        if (authStore.hasPermission('Change Delegate File Status') && typeUrl.value === 'delegate') cols.push({ key: 'status', label: 'Status' })
+        if (authStore.hasPermission('Change Delegate File Status') && authStore.hasPermission('Delegate Management') && typeUrl.value === 'delegate') cols.push({ key: 'status', label: 'Status' })
 
         return cols
     })
@@ -347,7 +347,14 @@ export function useFileShareManagement() {
     
 
     async function toggleUserStatus(userId, fileShareId) {
-        if (!authStore.hasPermission('Change User Status')) return showToast('Access Denied', 'error')
+        if (typeUrl.value === 'delegate' && (!authStore.hasPermission('Change Delegate File Status') || !authStore.hasPermission('Delegate Management'))) {
+            logUserAction('Change Delegate File Status', 'Access Denied: missing Change Delegate File Status or Delegate Management permission')
+            return showToast('Access Denied', 'error')
+        }
+        if (typeUrl.value === 'ticket' && (!authStore.hasPermission('Change Ticket File Status') || !authStore.hasPermission('Ticket Management'))) {
+            logUserAction('Change Ticket File Status', 'Access Denied: missing Change Ticket File Status or Ticket Management permission')
+            return showToast('Access Denied', 'error')
+        }
         // Prefer locating the record by fileShareId (row.id) to avoid matching
         // other rows that share the same user_id (common for delegate rows).
         let rec = null
@@ -394,7 +401,10 @@ export function useFileShareManagement() {
     }
 
     async function resendTicket(user_file_id, user_id) {
-        if (!authStore.hasPermission('Ticket History')) return showToast('Access Denied', 'error')
+        if (!authStore.hasPermission('Ticket History')) {
+            logUserAction('Ticket Resent', 'Access Denied: missing Ticket History permission')
+            return showToast('Access Denied', 'error')
+        }
         try {
             const csrfToken = getCsrfToken()
             const body = new URLSearchParams({ user_file_id: String(user_file_id || ''), user_id: String(user_id || '') })
@@ -433,11 +443,10 @@ export function useFileShareManagement() {
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
 
     const canExport = computed(() => {
-        if (typeUrl.value === 'ticket') return 'Save As Ticket Index'
-        if (typeUrl.value === 'delegate') return 'Save As Delegate File Index'
-
-        return 'Save As'
-})
+        if (typeUrl.value === 'ticket') return authStore.hasPermission('Save As Ticket Index') && authStore.hasPermission('Ticket Management')
+        if (typeUrl.value === 'delegate') return authStore.hasPermission('Save As Delegate File Index') && authStore.hasPermission('Delegate Management')
+        return false
+    })
 
     const resetExportSelections = () => {
         exportSelections.pdf = false
@@ -503,7 +512,7 @@ export function useFileShareManagement() {
                 exprie_date: r.exprie_date || '-',
                 files_audio: rawFiles || '-',
                 limit_access_time: (typeUrl.value === 'ticket') ? `${r.access_time || 0} / ${r.limit_access_time || 0}` : '-',
-                ...(authStore.hasPermission('Change Delegate File Status') || authStore.hasPermission('Change Ticket Status') ? { status: r.status ? 'Active' : 'Inactive' } : {}),
+                ...((typeUrl.value === 'delegate' && authStore.hasPermission('Change Delegate File Status') && authStore.hasPermission('Delegate Management')) || (typeUrl.value === 'ticket' && authStore.hasPermission('Change Ticket File Status') && authStore.hasPermission('Ticket Management')) ? { status: r.status ? 'Active' : 'Inactive' } : {}),
             }
         })
         const exportColumns = (columns.value || []).filter(c => c && c.key !== 'action' && c.key !== 'checked')
