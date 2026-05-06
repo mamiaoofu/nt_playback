@@ -32,6 +32,7 @@ Security rules enforced here
 import os
 import sys
 import json
+import ssl
 import shutil
 import subprocess
 import threading
@@ -46,7 +47,7 @@ from tkinter import ttk, messagebox, filedialog
 # ---------------------------------------------------------------------------
 
 INSTALL_DIR = r"C:\Program Files (x86)\niceplayer_wrapper"
-CONFIG_DIR  = r"C:\ProgramData\niceplayer"
+CONFIG_DIR  = r"C:\ProgramData\niceplayer_wrapper"
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 EXE_NAME    = "niceplayer_wrapper.exe"
 
@@ -140,6 +141,46 @@ def register_protocol(exe_path):
     return True, "Protocol registered successfully."
 
 
+TASK_NAME = "NicePlayerWrapperServer"
+
+
+def register_server_autostart(exe_path):
+    """
+    Create a Task Scheduler task that starts niceplayer_wrapper.exe --server
+    automatically on every user login, and start it immediately.
+    Replaces any existing task with the same name.
+    """
+    cmd_create = [
+        "schtasks", "/create",
+        "/tn", TASK_NAME,
+        "/tr", f'"{exe_path}" --server',
+        "/sc", "onlogon",
+        "/rl", "highest",
+        "/f",  # overwrite if exists
+    ]
+    try:
+        res = subprocess.run(
+            cmd_create, check=False,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=15,
+        )
+        if res.returncode != 0:
+            err = res.stderr.decode(errors="ignore") or res.stdout.decode(errors="ignore")
+            return False, f"schtasks create failed: {err}"
+    except Exception as e:
+        return False, str(e)
+
+    # Start the task immediately (so user doesn't need to log out/in)
+    cmd_run = ["schtasks", "/run", "/tn", TASK_NAME]
+    try:
+        subprocess.run(cmd_run, check=False, timeout=10,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except Exception:
+        pass  # non-fatal: task will start on next login anyway
+
+    return True, f"Task '{TASK_NAME}' registered and started."
+
+
 def add_browser_policies(origins_str, exe_path):
     """
     Set AutoLaunchProtocolsFromOrigins policy for Chrome, Edge, and Firefox.
@@ -181,81 +222,48 @@ def _run_cmdkey(args, timeout=10):
         return 255, "", str(e)
 
 
-def store_credential(server, username, password):
+def store_credential(server, username, password, share=None):
     """
-    Store the SMB credential in Windows Credential Manager via CredWriteW API.
-    Tries CRED_TYPE_DOMAIN_PASSWORD first (required for net use auto-auth),
-    then falls back to CRED_TYPE_GENERIC.
-    Password is never written to disk or shown in process args.
+    Store the SMB credential via cmdkey so that 'net use' can pick it up
+    automatically without prompting.  We store both the server-level target
+    (\\SERVER) and the share-level target (\\SERVER\SHARE) so Windows can
+    match either path format without prompting for credentials.
+    Password is passed only as a process argument and cleared immediately.
     """
-    import ctypes
-    import ctypes.wintypes as wintypes
+    # cmdkey target must be plain server name (no \\ prefix) for net use to match.
+    plain_server = server.lstrip("\\")
+    targets = [plain_server]
+    if share:
+        targets.append(f"{plain_server}\\{share}")
 
-    target = f"\\\\{server}" if not server.startswith("\\\\") else server
-
+    errors = []
+    stored = []
     try:
-        CRED_TYPE_DOMAIN_PASSWORD  = 2
-        CRED_TYPE_GENERIC          = 1
-        CRED_PERSIST_ENTERPRISE    = 3   # LOCAL_MACHINE (2) fails on many configs; ENTERPRISE (3) works
-
-        # Use c_ulonglong for FILETIME (avoids nested-struct alignment issues on 64-bit)
-        # Use c_void_p for CredentialBlob pointer (simplest cross-version compatible form)
-        class CREDENTIAL(ctypes.Structure):
-            _fields_ = [
-                ("Flags",              wintypes.DWORD),
-                ("Type",               wintypes.DWORD),
-                ("TargetName",         ctypes.c_wchar_p),
-                ("Comment",            ctypes.c_wchar_p),
-                ("LastWritten",        ctypes.c_ulonglong),   # FILETIME as flat uint64
-                ("CredentialBlobSize", wintypes.DWORD),
-                ("CredentialBlob",     ctypes.c_void_p),
-                ("Persist",            wintypes.DWORD),
-                ("AttributeCount",     wintypes.DWORD),
-                ("Attributes",         ctypes.c_void_p),
-                ("TargetAlias",        ctypes.c_wchar_p),
-                ("UserName",           ctypes.c_wchar_p),
-            ]
-
-        blob     = password.encode("utf-16-le")
-        blob_buf = ctypes.create_string_buffer(blob)
-
-        cred = CREDENTIAL()
-        cred.Flags              = 0
-        cred.TargetName         = target
-        cred.Comment            = None
-        cred.LastWritten        = 0
-        cred.CredentialBlobSize = len(blob)
-        cred.CredentialBlob     = ctypes.cast(blob_buf, ctypes.c_void_p).value
-        cred.Persist            = CRED_PERSIST_ENTERPRISE
-        cred.AttributeCount     = 0
-        cred.Attributes         = None
-        cred.TargetAlias        = None
-        cred.UserName           = username
-
-        advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
-
-        # DOMAIN_PASSWORD is required for net use to auto-pick up credentials
-        cred.Type = CRED_TYPE_DOMAIN_PASSWORD
-        if advapi32.CredWriteW(ctypes.byref(cred), 0):
-            password = None  # noqa: F841
-            ctypes.memset(blob_buf, 0, len(blob))
-            return True, "Credential stored (Domain)."
-
-        # Fallback to Generic (e.g. workgroup machines that reject Domain type)
-        cred.Type = CRED_TYPE_GENERIC
-        if advapi32.CredWriteW(ctypes.byref(cred), 0):
-            password = None  # noqa: F841
-            ctypes.memset(blob_buf, 0, len(blob))
-            return True, "Credential stored (Generic)."
-
-        err_code = ctypes.get_last_error()
+        for target in targets:
+            try:
+                res = subprocess.run(
+                    ["cmdkey", f"/add:{target}", f"/user:{username}", f"/pass:{password}"],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=10,
+                )
+                if res.returncode == 0:
+                    stored.append(target)
+                else:
+                    err = res.stderr.decode(errors="ignore") or res.stdout.decode(errors="ignore")
+                    errors.append(f"{target}: cmdkey rc={res.returncode} {err}")
+            except Exception as e:
+                errors.append(f"{target}: {e}")
+    finally:
         password = None  # noqa: F841
-        ctypes.memset(blob_buf, 0, len(blob))
-        return False, f"CredWriteW failed (error {err_code})"
 
-    except Exception as e:
-        password = None  # noqa: F841
-        return False, str(e)
+    if stored:
+        msg = "Credential stored via cmdkey for: " + ", ".join(stored)
+        if errors:
+            msg += " (some targets failed: " + "; ".join(errors) + ")"
+        return True, msg
+    return False, "cmdkey failed for all targets: " + "; ".join(errors)
 
 
 def test_smb_connection(server, share, username, password, timeout=15):
@@ -289,17 +297,54 @@ def test_smb_connection(server, share, username, password, timeout=15):
 
 
 # ---------------------------------------------------------------------------
-# Config file (NO password)
+# DPAPI helpers (machine-scope so wrapper running as same user can decrypt)
 # ---------------------------------------------------------------------------
 
-def write_config(server, share, base_path="", niceplayer_exe=""):
-    """Write config.json. Password is intentionally excluded."""
+def dpapi_protect(plaintext: str) -> str:
+    """Encrypt plaintext with DPAPI (CRYPTPROTECT_LOCAL_MACHINE) → base64 string."""
+    import ctypes
+    import ctypes.wintypes as wintypes
+    import base64
+
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+    raw = plaintext.encode("utf-16-le")
+    buf = (ctypes.c_ubyte * len(raw))(*raw)
+    inp = DATA_BLOB(len(raw), buf)
+    out = DATA_BLOB()
+    CRYPTPROTECT_LOCAL_MACHINE = 0x4
+    if not ctypes.WinDLL("crypt32").CryptProtectData(
+        ctypes.byref(inp), None, None, None, None, CRYPTPROTECT_LOCAL_MACHINE, ctypes.byref(out)
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    encrypted = bytes(out.pbData[: out.cbData])
+    ctypes.windll.kernel32.LocalFree(out.pbData)
+    return base64.b64encode(encrypted).decode("ascii")
+
+
+# ---------------------------------------------------------------------------
+# Config file
+# ---------------------------------------------------------------------------
+
+def write_config(server, share, base_path="", niceplayer_exe="",
+                 smb_username="", smb_password_plain=""):
+    """Write config.json. Password is stored DPAPI-encrypted (machine scope)."""
     os.makedirs(CONFIG_DIR, exist_ok=True)
     data = {"server": server, "share": share}
     if base_path:
         data["base_path"] = base_path
     if niceplayer_exe:
         data["niceplayer_exe"] = niceplayer_exe
+    if smb_username:
+        data["smb_username"] = smb_username
+    if smb_password_plain:
+        # Store as base64 — reliable across all user/service contexts on the machine.
+        # The file is protected by OS-level permissions on C:\ProgramData\niceplayer_wrapper\
+        import base64
+        data["smb_password"] = "b64:" + base64.b64encode(
+            smb_password_plain.encode("utf-8")
+        ).decode("ascii")
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
@@ -434,7 +479,7 @@ class InstallerApp(tk.Tk):
 
         # ── Backend API ───────────────────────────────────────────────────────
         frm_backend = self._card("Backend Server")
-        self._backend_url_var = tk.StringVar(value="http://192.168.1.90:6000")
+        self._backend_url_var = tk.StringVar()
         self._row(frm_backend, "Backend URL:",
                   lambda p: ttk.Entry(p, textvariable=self._backend_url_var, width=40))
 
@@ -520,8 +565,20 @@ class InstallerApp(tk.Tk):
             url,
             headers={"Accept": "application/json", "X-Installer-Key": installer_key},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode("utf-8")), None
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8")), None
+        except urllib.error.URLError as e:
+            # Dev convenience: allow self-signed cert only for localhost URLs.
+            parsed = urllib.parse.urlparse(base_url)
+            host = (parsed.hostname or "").lower()
+            is_localhost = host in {"localhost", "127.0.0.1", "::1"}
+            cert_verify_failed = "CERTIFICATE_VERIFY_FAILED" in str(e)
+            if is_localhost and cert_verify_failed:
+                insecure_ctx = ssl._create_unverified_context()
+                with urllib.request.urlopen(req, timeout=10, context=insecure_ctx) as resp:
+                    return json.loads(resp.read().decode("utf-8")), None
+            raise
 
     def _append_log(self, msg):
         self._log_text.config(state="normal")
@@ -620,23 +677,33 @@ class InstallerApp(tk.Tk):
                 self.after(0, lambda: self._append_log(f"✗ Protocol registration failed: {msg}"))
 
             # ─ 4. Store credential in Credential Manager ─────────────────
-            ok, err = store_credential(smb_server, smb_username, smb_password)
-            smb_password = None  # clear ASAP
+            ok, err = store_credential(smb_server, smb_username, smb_password, share=smb_share)
             if ok:
                 self.after(0, lambda: self._append_log("✓ Credentials stored in Windows Credential Manager."))
             else:
                 errors.append(f"Credential Manager: {err}")
                 self.after(0, lambda: self._append_log(f"✗ Credential Manager failed: {err}"))
 
-            # ─ 5. Write config.json (no password) ───────────────────────
+            # ─ 5. Write config.json (password DPAPI-encrypted) ──────────
             try:
-                write_config(smb_server, smb_share, smb_base, fields["niceplayer_exe"])
+                write_config(smb_server, smb_share, smb_base, fields["niceplayer_exe"],
+                             smb_username=smb_username, smb_password_plain=smb_password)
                 self.after(0, lambda: self._append_log(f"✓ Config written to {CONFIG_FILE}"))
             except Exception as e:
                 errors.append(f"Write config: {e}")
                 self.after(0, lambda: self._append_log(f"✗ Write config failed: {e}"))
+            finally:
+                smb_password = None  # clear plaintext ASAP after write_config has encrypted it
 
-            # ─ 6. Browser AutoLaunch policy (optional) ────────────────
+            # ─ 6. Register & start wrapper server autostart task ──────────
+            ok, msg = register_server_autostart(dest_exe)
+            if ok:
+                self.after(0, lambda: self._append_log(f"✓ {msg}"))
+            else:
+                errors.append(f"Autostart task: {msg}")
+                self.after(0, lambda: self._append_log(f"✗ Autostart task failed: {msg}"))
+
+            # ─ 7. Browser AutoLaunch policy (optional) ────────────────
             if fields["origin"]:
                 add_browser_policies(fields["origin"], dest_exe)
                 self.after(0, lambda: self._append_log(

@@ -12,8 +12,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # ----- Static configuration -----
 NICEPLAYER_EXE = r"C:\Program Files (x86)\NICE Systems\NICE Player Release 6\NiceApplications.Playback.GUI.exe"
-LOGFILE = os.path.join(os.environ.get('LOCALAPPDATA', r'C:\ProgramData'), 'niceplayer', 'niceplayer_wrapper.log')
-CONFIG_FILE = r"C:\ProgramData\niceplayer\config.json"
+LOGFILE = r"C:\ProgramData\niceplayer_wrapper\niceplayer_wrapper.log"
+CONFIG_FILE = r"C:\ProgramData\niceplayer_wrapper\config.json"
 
 # True  = kill existing NicePlayer before opening a new file
 # False = open new file in the already-running NicePlayer instance
@@ -59,11 +59,14 @@ def log(msg):
         print(f"LOG FAIL: {e} :: {msg}")
 
 
-def run(cmd, timeout=10):
-    """Run a command, masking /pass: arguments in the log."""
-    cmd_for_log = []
-    for c in (cmd if isinstance(cmd, list) else cmd.split()):
-        cmd_for_log.append("/pass:****" if c.lower().startswith("/pass:") else c)
+def run(cmd, timeout=10, mask_indices=None):
+    """Run a command, masking sensitive arguments in the log."""
+    cmd_for_log = list(cmd) if isinstance(cmd, list) else cmd.split()
+    cmd_for_log = [
+        ("****" if (mask_indices and i in mask_indices) or c.lower().startswith("/pass:")
+         else c)
+        for i, c in enumerate(cmd_for_log)
+    ]
     try:
         log(f"RUN: {' '.join(cmd_for_log)}")
         res = subprocess.run(
@@ -83,8 +86,60 @@ def run(cmd, timeout=10):
         return 255, "", str(e)
 
 
-def netuse_connect(unc_share):
-    """Connect to a UNC share using credentials already stored in Credential Manager."""
+def dpapi_unprotect(b64: str) -> str:
+    """Decrypt a DPAPI (CRYPTPROTECT_LOCAL_MACHINE) base64-encoded blob."""
+    import base64 as _b64
+    import ctypes
+    import ctypes.wintypes as wintypes
+
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+
+    raw = _b64.b64decode(b64)
+    buf = (ctypes.c_ubyte * len(raw))(*raw)
+    inp = DATA_BLOB(len(raw), buf)
+    out = DATA_BLOB()
+    CRYPTPROTECT_LOCAL_MACHINE = 0x4
+    if not ctypes.WinDLL("crypt32").CryptUnprotectData(
+        ctypes.byref(inp), None, None, None, None, CRYPTPROTECT_LOCAL_MACHINE, ctypes.byref(out)
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+    decrypted = bytes(out.pbData[: out.cbData]).decode("utf-16-le")
+    ctypes.windll.kernel32.LocalFree(out.pbData)
+    return decrypted
+
+
+def get_smb_credentials():
+    """Return (username, password) from config.json, or ('', '') if not stored."""
+    cfg = load_config()
+    username = cfg.get("smb_username", "")
+    password = ""
+    enc = cfg.get("smb_password", "")
+    if enc:
+        if enc.startswith("b64:"):
+            try:
+                import base64 as _b64
+                password = _b64.b64decode(enc[4:]).decode("utf-8")
+            except Exception as e:
+                log(f"b64 credential decode failed: {e}")
+        else:
+            try:
+                password = dpapi_unprotect(enc)
+            except Exception as e:
+                log(f"DPAPI credential decrypt failed: {e}")
+    return username, password
+
+
+def netuse_connect(unc_share, username="", password=""):
+    """Connect to a UNC share, passing explicit credentials if provided."""
+    if username and password:
+        # net use \\server\share password /user:username /persistent:no
+        # Index 3 (password) is masked in logs.
+        return run(
+            ["net", "use", unc_share, password, f"/user:{username}", "/persistent:no"],
+            timeout=20,
+            mask_indices={3},
+        )
     return run(["net", "use", unc_share, "/persistent:no"], timeout=20)
 
 
@@ -138,6 +193,45 @@ def validate_path(path, config):
         log(f"SECURITY: Rejected path '{path}' â€“ not under '{allowed_root}'")
         return False
     return True
+
+
+def resolve_unc_file_path(server, share, base_path, file_value):
+    """
+    Build and validate a UNC path for file playback.
+    If direct path is missing, perform a best-effort recursive lookup under
+    the configured base directory using filename match.
+    """
+    root = f"\\\\{server}\\{share}"
+    if base_path:
+        root = os.path.join(root, base_path)
+
+    decoded = urllib.parse.unquote(file_value or "")
+    normalized = decoded.replace("/", "\\").lstrip("\\")
+
+    direct_path = os.path.join(root, normalized)
+    if os.path.isfile(direct_path):
+        log(f"Resolved file path directly: {direct_path}")
+        return direct_path
+
+    basename = os.path.basename(normalized)
+    if not basename:
+        log("ERROR: Empty filename after decode/normalize.")
+        return direct_path
+
+    target_lower = basename.lower()
+    log(f"Direct file not found. Searching recursively under: {root} for '{basename}'")
+    try:
+        for dirpath, _, filenames in os.walk(root):
+            for name in filenames:
+                if name.lower() == target_lower:
+                    found = os.path.join(dirpath, name)
+                    log(f"Resolved file path by recursive search: {found}")
+                    return found
+    except Exception as e:
+        log(f"Recursive file search failed: {e}")
+
+    log(f"File not found under configured root. Using direct candidate: {direct_path}")
+    return direct_path
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +330,21 @@ def main():
         if not os.path.isfile(NICEPLAYER_EXE):
             log(f"FATAL: Nice Player not found at {NICEPLAYER_EXE}.")
             sys.exit(1)
+        # Pre-mount the SMB share at startup using explicit credentials from config.
+        _pre_cfg = load_config()
+        _pre_server = _pre_cfg.get('server', '')
+        _pre_share  = _pre_cfg.get('share', '')
+        if _pre_server and _pre_share:
+            _unc = f"\\\\{_pre_server}\\{_pre_share}"
+            _pre_user, _pre_pass = get_smb_credentials()
+            log(f"Pre-mounting share at startup: {_unc} (user={_pre_user or 'none'})")
+            _rc, _out, _err = netuse_connect(_unc, _pre_user, _pre_pass)
+            if _rc == 0:
+                log(f"Share pre-mounted successfully: {_unc}")
+            else:
+                log(f"Share pre-mount failed (rc={_rc}) — will retry on first play. stdout={_out!r} stderr={_err!r}")
+        else:
+            log("No server/share in config; skipping pre-mount.")
         run_server()
         sys.exit(0)
 
@@ -263,18 +372,14 @@ def main():
 
     # Support both ?file=filename (new) and ?path=full_unc_path (legacy)
     if "file" in qs:
-        filename = urllib.parse.unquote(qs["file"][0])
+        filename = qs["file"][0]
         server   = _cfg.get("server", "").strip()
         share_n  = _cfg.get("share", "").strip()
         base     = _cfg.get("base_path", "").strip()
         if not server or not share_n:
             log("ERROR: config.json missing server/share. Re-run installer.")
             sys.exit(1)
-        path_parts = [f"\\\\{server}", share_n]
-        if base:
-            path_parts.append(base)
-        path_parts.append(filename)
-        path = "\\".join(path_parts)
+        path = resolve_unc_file_path(server, share_n, base, filename)
         log(f"Built UNC path from config: {path}")
     elif "path" in qs:
         path = urllib.parse.unquote(qs["path"][0]).replace("/", "\\")
@@ -297,9 +402,10 @@ def main():
     elif len(parts) > 2:
         share = f"\\\\{parts[2]}\\IPC$"
 
-    # â”€â”€ Connect using pre-stored Windows Credential Manager credentials â”€â”€â”€â”€â”€â”€â”€
+    # ── Connect using credentials from config.json ────────────────────────
     if share:
-        rc, out, err = netuse_connect(share)
+        _smb_user, _smb_pass = get_smb_credentials()
+        rc, out, err = netuse_connect(share, _smb_user, _smb_pass)
         log(f"netuse_connect '{share}': rc={rc}")
 
     time.sleep(0.2)
