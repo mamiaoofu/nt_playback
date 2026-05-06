@@ -1220,6 +1220,23 @@ def ApiLogPlayAudio(request):
 
 @login_required
 @require_POST
+def ApiLogUserAction(request):
+    """
+    API endpoint สำหรับรับ Log การกระทำทั่วไปจาก Frontend (เช่น Access Denied)
+    รับ body JSON: { action, detail, status }
+    """
+    try:
+        data = json.loads(request.body)
+        action = data.get('action', 'User Action')
+        detail = data.get('detail', '')
+        status = data.get('status', 'error')
+        create_user_log(user=request.user, action=action, detail=detail, status=status, request=request)
+        return JsonResponse({"message": "Log received"}, status=201)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+@login_required
+@require_POST
 @require_action('Save As Index')
 def ApiLogSaveFile(request):
     try:
@@ -1611,7 +1628,7 @@ class RangeFileResponse(FileResponse):
                     pass
 
 @login_required(login_url='/login')
-@require_action('Playback Audio Records')
+@require_action('Playback Audio Records', 'Download Voice File')
 def ApiPlayAudio(request, file_id):
     """
     API endpoint to play audio files with on-the-fly transcoding for legacy codecs.

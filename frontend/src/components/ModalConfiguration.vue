@@ -617,20 +617,20 @@ const dependencyMap = {
     // 'Ticket History' : [],
     // 'Settings' : [],
 
-    // // Audio Records
-    // 'Query Audio Records' : ['Audio Records'],
-    // 'Playback Audio Records' : ['Audio Records'],
-    // 'Download Voice File' : ['Audio Records'],
-    // 'Save As Index' : ['Audio Records'],
-    // 'Delegate Files' : ['Audio Records'],
+    // Audio Records
+    'Query Audio Records' : ['Audio Records'],
+    'Playback Audio Records' : ['Audio Records'],
+    'Download Voice File' : ['Audio Records'],
+    'Save As Index' : ['Audio Records'],
+    'Delegate Files' : ['Audio Records'],
 
-    // //Management
-    // 'Add User' : ['User Management'],
-    // 'Edit User' : ['User Management'],
-    // 'Delete User' : ['User Management'],
-    // 'Change User Status' : ['User Management'],
-    // 'Reset User Password' : ['User Management'],
-    // 'Save As User Index' : ['User Management'],
+    //Management
+    'Add User' : ['User Management'],
+    'Edit User' : ['User Management'],
+    'Delete User' : ['User Management'],
+    'Change User Status' : ['User Management'],
+    'Reset User Password' : ['User Management'],
+    'Save As User Index' : ['User Management'],
     // 'Create Delegate File' : ['Delegate Management'],
     // 'Download Delegate File' : ['Delegate Management'],
     // 'Change Delegate File Status' : ['Delegate Management'],
@@ -639,32 +639,32 @@ const dependencyMap = {
     // 'Download Ticket File' : ['Ticket Management'],
     // 'Change Ticket Status' : ['Ticket Management'],
     // 'Save As Ticket Index' : ['Ticket Management'],
-    // 'Ticket Resent' : ['Ticket Management'],
+    'Ticket Resent' : ['Ticket Management'],
 
-    // //Role & Permissions
-    // 'Edit Base Roles' : ['Role & Permissions'],
-    // 'Add New Custom Roles' : ['Role & Permissions'],
-    // 'Edit Custom Roles' : ['Role & Permissions'],
-    // 'Delete Custom Roles' : ['Role & Permissions'],
+    //Role & Permissions
+    'Edit Base Roles' : ['Role & Permissions'],
+    'Add New Custom Roles' : ['Role & Permissions'],
+    'Edit Custom Roles' : ['Role & Permissions'],
+    'Delete Custom Roles' : ['Role & Permissions'],
 
-    // //Group & Team
-    // 'Add New Group' : ['Group & Team'],
-    // 'Edit Group' : ['Group & Team'],
-    // 'Delete Group' : ['Group & Team'],
-    // 'Add New Team' : ['Group & Team'],
-    // 'Edit Team' : ['Group & Team'],
-    // 'Delete Team' : ['Group & Team'],
+    //Group & Team
+    'Add New Group' : ['Group & Team'],
+    'Edit Group' : ['Group & Team'],
+    'Delete Group' : ['Group & Team'],
+    'Add New Team' : ['Group & Team'],
+    'Edit Team' : ['Group & Team'],
+    'Delete Team' : ['Group & Team'],
 
-    // //Logs
-    // // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
-    // // when it is unchecked. We'll handle its addition explicitly below so unchecking
-    // // does not remove the access permission.
-    // 'Save As System Log' : ['System Log'],
-    // 'Save As Ticket History' : ['Ticket History'],
+    //Logs
+    // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
+    // when it is unchecked. We'll handle its addition explicitly below so unchecking
+    // does not remove the access permission.
+    'Save As System Log' : ['System Log'],
+    'Save As Ticket History' : ['Ticket History'],
 
-    // //Setting
-    // 'Set Column' : ['Settings'],
-    // 'Download Player' : ['Settings'],
+    //Setting
+    'Set Column' : ['Settings'],
+    'Download Player' : ['Settings'],
 
 }
 
@@ -730,40 +730,15 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
         })
 
         // Handle removals:
-        // 1) If a non-access permission is removed, remove any now-unneeded access permissions
-        // 2) If an access permission (e.g. "Audio Recording") is removed, also remove dependent permissions
+        // Only cascade removal downward: if an access-type permission is manually removed,
+        // also remove dependent sub-permissions that require it.
+        // NOTE: Sub-items being unchecked do NOT automatically uncheck their parent access —
+        // the user must uncheck the access (parent) manually.
         removed.forEach(actionValue => {
             const perm = (allPermissions.value || []).find(p => p && p.action === actionValue)
             if (!perm || !perm.name) return
 
-            // (A) Remove access permissions that are no longer required by any remaining selected permission
-            // BUT: do not auto-remove accesses when the removed permission is one
-            // of the special "Save As ..." log permissions — those should not
-            // trigger removal of their underlying access.
-            const removedName = String(perm.name).trim()
-            if (removedName === 'Save As Audit Log' || removedName === 'Save As System Log' || removedName === 'Save As Ticket History') {
-                // skip dependency-based removal for these special cases
-            } else {
-                const deps = dependencyMap[String(perm.name).trim()]
-                if (deps && deps.length) {
-                deps.forEach(accessName => {
-                    const accessAction = nameToAction.value[String(accessName).trim()]
-                    if (!accessAction) return
-                    const stillRequired = (rolePermissions.value || []).some(selectedAction => {
-                        if (selectedAction === accessAction) return false
-                        const sPerm = (allPermissions.value || []).find(p => p && p.action === selectedAction)
-                        if (!sPerm || !sPerm.name) return false
-                        const sDeps = dependencyMap[String(sPerm.name).trim()] || []
-                        return sDeps.indexOf(accessName) !== -1
-                    })
-                    if (!stillRequired) {
-                        rolePermissions.value = (rolePermissions.value || []).filter(a => a !== accessAction)
-                    }
-                })
-                }
-            }
-
-            // (B) If this removed permission is an access-type, remove any dependent permissions that require it
+            // If this removed permission is an access-type, remove any dependent permissions that require it
             const revDeps = reverseDependencyMap.value[String(perm.name).trim()] || []
             if (revDeps && revDeps.length) {
                 revDeps.forEach(depName => {

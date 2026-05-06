@@ -132,15 +132,14 @@ def get_smb_credentials():
 
 def netuse_connect(unc_share, username="", password=""):
     """Connect to a UNC share, passing explicit credentials if provided."""
+    # Mask both the server name (index 2) and password (index 3) in logs.
     if username and password:
-        # net use \\server\share password /user:username /persistent:no
-        # Index 3 (password) is masked in logs.
         return run(
             ["net", "use", unc_share, password, f"/user:{username}", "/persistent:no"],
             timeout=20,
-            mask_indices={3},
+            mask_indices={2, 3},
         )
-    return run(["net", "use", unc_share, "/persistent:no"], timeout=20)
+    return run(["net", "use", unc_share, "/persistent:no"], timeout=20, mask_indices={2})
 
 
 def netuse_disconnect(unc_share):
@@ -337,12 +336,13 @@ def main():
         if _pre_server and _pre_share:
             _unc = f"\\\\{_pre_server}\\{_pre_share}"
             _pre_user, _pre_pass = get_smb_credentials()
-            log(f"Pre-mounting share at startup: {_unc} (user={_pre_user or 'none'})")
+            _masked_unc = f"\\\\***\\{_pre_share}"
+            log(f"Pre-mounting share at startup: {_masked_unc}")
             _rc, _out, _err = netuse_connect(_unc, _pre_user, _pre_pass)
             if _rc == 0:
-                log(f"Share pre-mounted successfully: {_unc}")
+                log(f"Share pre-mounted successfully: {_masked_unc}")
             else:
-                log(f"Share pre-mount failed (rc={_rc}) — will retry on first play. stdout={_out!r} stderr={_err!r}")
+                log(f"Share pre-mount failed (rc={_rc}) — will retry on first play.")
         else:
             log("No server/share in config; skipping pre-mount.")
         run_server()

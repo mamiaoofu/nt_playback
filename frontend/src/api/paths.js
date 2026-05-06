@@ -19,6 +19,7 @@ export const API_LOG_PLAY_AUDIO = () => `${getApiBase()}/api/log/play-audio/`
 export const API_GET_CREDENTIALS = () => `${getApiBase()}/api/get/credentials/`
 export const API_GET_STORAGE_CONFIG = () => `${getApiBase()}/api/storage-config/`
 export const API_LOG_SAVE_FILE = () => `${getApiBase()}/api/log/save-file/`
+export const API_LOG_USER_ACTION = () => `${getApiBase()}/api/log/user-action/`
 export const API_CREATE_FILE_SHARE = () => `${getApiBase()}/api/file-share/create/`
 export const API_CHECK_FILE_SHARE = () => `${getApiBase()}/api/file-share/check/`
 

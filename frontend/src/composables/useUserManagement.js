@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER, API_GET_USER_ALL, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
-import { showToast, confirmDelete, notify } from '../assets/js/function-all'
+import { showToast, confirmDelete, notify, logUserAction } from '../assets/js/function-all'
 import { getCsrfToken } from '../api/csrf'
 import { exportTableToFormat } from '../assets/js/function-all'
 import { useRoute } from 'vue-router'
@@ -311,7 +311,7 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Delete User')) return showToast('Access Denied', 'error')
+            if (!authStore.hasPermission('Delete User')) { logUserAction('Delete User', 'Access Denied: missing Delete User permission'); return showToast('Access Denied', 'error') }
 
             const confirmed = await confirmDelete('Are you sure?', "You won't be able to revert this!", 'Yes, delete')
             if (!confirmed) return
@@ -345,7 +345,7 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Reset User Password')) return showToast('Access Denied', 'error')
+            if (!authStore.hasPermission('Reset User Password')) { logUserAction('Reset User Password', 'Access Denied: missing Reset User Password permission'); return showToast('Access Denied', 'error') }
 
             // show the target username in the confirmation message when available
             const uname = row && row.user ? (row.user.username || `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim() || row.user.email || '') : (row && (row.username || ''))
@@ -416,7 +416,7 @@ export function useUserManagement() {
     }
 
     async function toggleUserStatus(userId, row) {
-        if (!authStore.hasPermission('Change User Status')) return showToast('Access Denied', 'error')
+        if (!authStore.hasPermission('Change User Status')) { logUserAction('Change User Status', 'Access Denied: missing Change User Status permission'); return showToast('Access Denied', 'error') }
         if (!userId) return
         const rec = records.value.find(r => (r.user && r.user.id) === userId)
         if (!rec) return

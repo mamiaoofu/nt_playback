@@ -1,3 +1,5 @@
+import { getApiBase } from '../../api/paths'
+
 export function getCookie(name) {
     if (!name || typeof document === 'undefined') return null
     const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)')
@@ -174,6 +176,19 @@ export function notification (title, text, icon, showCancelButton){
 
 }
 
+export function logUserAction(action, detail, status = 'error') {
+  try {
+    const csrfToken = getCookie('csrftoken') || ''
+    const url = getApiBase().replace(/\/$/, '') + '/api/log/user-action/'
+    fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+      body: JSON.stringify({ action, detail, status })
+    }).catch(() => {})
+  } catch (e) { console.warn('logUserAction failed', e) }
+}
+
 export async function exportTableToFormat(format, type = 'audio', opts = {}) {
   try {
     const returnBlob = !!(opts && opts.returnBlob)
@@ -334,9 +349,10 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
             // prevent Excel from converting long numeric-like strings to scientific notation
             const plain = (raw || '').trim()
             const forceAsText = /^\d{15,}$/.test(plain)
-            let cellStyle = ''
+            // default: left-aligned, top-aligned for all data cells
+            let cellStyle = 'text-align:left;vertical-align:top;'
             if (text === '-') {
-              cellStyle += 'text-align:center;'
+              cellStyle = 'text-align:center;vertical-align:top;'
             }
             if (callDirIndex >= 0 && cellIndex === callDirIndex) {
               const bg = callDirColorMap[text] || '#ffffff'
@@ -347,10 +363,10 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
             }
             // right-align numeric/customer columns, but don't override centered '-'
             if (text !== '-' && ((custNumIndex >= 0 && cellIndex === custNumIndex) || (extIndex >= 0 && cellIndex === extIndex))) {
-              cellStyle += 'text-align:right;mso-number-format:\@;'
+              cellStyle += "text-align:right;mso-number-format:'@';"
             }
             if (forceAsText) {
-              cellStyle += 'mso-number-format:"\\@";'
+              cellStyle += "mso-number-format:'@';"
             }
             html += '<td style="' + cellStyle + '">' + text + '</td>'
           })
@@ -384,9 +400,9 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         if (v === null || v === undefined) return ''
         const s = String(v)
         const trimmed = s.trim()
-        // keep long numeric-like values as text when opened in Excel
-        const safe = /^\d{15,}$/.test(trimmed) ? `="${trimmed}"` : s
-        return '"' + safe.replace(/"/g, '""') + '"'
+        // keep long digit strings as raw Excel formula to preserve as text (no CSV quoting needed)
+        if (/^\d{15,}$/.test(trimmed)) return `="${trimmed}"`
+        return '"' + s.replace(/"/g, '""') + '"'
       }
       const csvLines = []
       csvLines.push(hdrs.map(h => escapeCsv(h)).join(','))
@@ -428,9 +444,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       const callDirIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('call direction'))
       const statusIndex = hdrs.findIndex(h => String(h).toLowerCase().includes('status'))
 
+      // Compute minCellWidth per column so header text fits without wrapping (~1.8mm per char in bold 8.5pt Helvetica + 4mm padding)
       const columnStyles = {}
-      if (descIndex >= 0) columnStyles[descIndex] = { cellWidth: 70 }
-      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { cellWidth: 60 }
+      hdrs.forEach((h, i) => {
+        columnStyles[i] = { minCellWidth: Math.max(10, (h || '').length * 1.8 + 4) }
+      })
+      if (descIndex >= 0) columnStyles[descIndex] = { ...columnStyles[descIndex], cellWidth: 70 }
+      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { ...columnStyles[fileNameIndex], cellWidth: 60 }
 
       const callDirColorMap = {
         'Incoming': { bg: [186,243,199], text: [23,21,21] }, 'Inbound': { bg: [186,243,199], text: [23,21,21] }, 'Outgoing': { bg: [173,216,230], text: [23,21,21] }, 'Outbound': { bg: [173,216,230], text: [23,21,21] }, 'Internal': { bg: [253,237,190], text: [23,21,21] }, 'Block': { bg: [255,120,120], text: [255,255,255] }, 'Tandem': { bg: [173,216,230], text: [255,255,255] }, 'External': { bg: [240,240,240], text: [23,21,21] }
@@ -450,6 +470,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         margin: { top: 22, left: 14, right: 14 },
         theme: 'grid',
         styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+        bodyStyles: { halign: 'left', valign: 'top' },
         headStyles: { fillColor: [41,128,185], textColor: [255,255,255], fontSize: 8.5, fontStyle: 'bold' },
         columnStyles: columnStyles,
         tableWidth: 'auto',

@@ -1618,7 +1618,7 @@ export function useHome() {
     document.addEventListener('click', onDocClick)
     try {
       pollSaveLogs()
-      // saveLogsInterval = setInterval(pollSaveLogs, 3000)
+      saveLogsInterval = setInterval(pollSaveLogs, 3000)
     } catch (e) { console.warn('start pollSaveLogs failed', e) }
     // file-share: WebSocket-only (server push). Polling removed.
     const checkFileShare = async () => {

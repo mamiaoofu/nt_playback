@@ -470,7 +470,7 @@ def ApiGetTicketHistory(request,type):
     })
 
 @login_required
-@require_action('Change User Status')
+@require_action('Change Delegate File Status', 'Change Ticket Status')
 @require_POST    
 def ApiChangeFileShareStatus(request, user_id, type):
     try:
