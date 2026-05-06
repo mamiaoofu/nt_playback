@@ -29,13 +29,13 @@ export default defineConfig({
     // Proxy API and auth requests from the dev server to the backend container
     proxy: {
       '/api': {
-        target: 'http://backend:6000',
+        target: 'http://backend:8080',
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path,
       },
       '/login': {
-        target: 'http://backend:6000',
+        target: 'http://backend:8080',
         changeOrigin: true,
         secure: false,
       }
