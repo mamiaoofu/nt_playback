@@ -1,0 +1,19 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\niceplayer]
+@="URL:Nice Player Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\niceplayer\DefaultIcon]
+@="\"C:\\Program Files (x86)\\niceplayer_wrapper\\niceplayer_wrapper.exe\",0"
+
+[HKEY_CLASSES_ROOT\niceplayer\shell]
+
+[HKEY_CLASSES_ROOT\niceplayer\shell\open]
+
+[HKEY_CLASSES_ROOT\niceplayer\shell\open\command]
+@="\"C:\\Program Files (x86)\\niceplayer_wrapper\\niceplayer_wrapper.exe\" \"%1\""
+
+; --- Allow Chrome to auto-launch niceplayer from specific origins ---
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\AutoLaunchProtocolsFromOrigins]
+"1"="{\"protocol\":\"niceplayer\",\"allowed_origins\":[\"http://127.0.0.1:6000\",\"http://192.168.1.90:6000\",\"http://nichetel-niceplayer:6000\",\"https://localhost\",\"https://192.168.1.90\"]}"
