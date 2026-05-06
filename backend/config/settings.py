@@ -58,8 +58,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://192.168.1.202",
     "https://ecmnichetelcomm.ddns.net",
     "https://ecmnichetelcomm.ddns.net:6001",
-    "http://localhost:6000",
-    "http://192.168.1.90:6000"
+    "http://localhost:8080",
+    "http://192.168.1.90:8080"
 ]
 SESSION_COOKIE_DOMAIN = None  # ให้ Django ใช้ host จาก request
 # Security cookie settings - defaults tuned for development; override via env in production
