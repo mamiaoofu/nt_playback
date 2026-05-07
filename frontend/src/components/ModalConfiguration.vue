@@ -633,12 +633,12 @@ const dependencyMap = {
     'Save As User Index' : ['User Management'],
     // 'Create Delegate File' : ['Delegate Management'],
     // 'Download Delegate File' : ['Delegate Management'],
-    // 'Change Delegate File Status' : ['Delegate Management'],
-    // 'Save As Delegate File Index' : ['Delegate Management'],
+    'Change Delegate File Status' : ['Delegate Management'],
+    'Save As Delegate File Index' : ['Delegate Management'],
     // 'Create Ticket' : ['Ticket Management'],
     // 'Download Ticket File' : ['Ticket Management'],
-    // 'Change Ticket Status' : ['Ticket Management'],
-    // 'Save As Ticket Index' : ['Ticket Management'],
+    'Change Ticket Status' : ['Ticket Management'],
+    'Save As Ticket Index' : ['Ticket Management'],
     'Ticket Resent' : ['Ticket Management'],
 
     //Role & Permissions
