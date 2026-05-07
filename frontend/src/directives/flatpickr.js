@@ -424,6 +424,15 @@ export default {
         // Expose doClear here, where it is in scope (const doClear is block-scoped
         // to this if-block, so the assignment at the bottom of mounted() is dead code)
         try { el._flatpickrDoClear = doClear } catch (e) {}
+        // Expose a lightweight state-reset helper for cases where Vue's binding
+        // already cleared el.value before updated() fires (e.g. v-model sync),
+        // leaving lastAppliedValue stale.
+        try {
+          el._flatpickrClearState = () => {
+            try { lastAppliedValue = '' } catch (e) {}
+            try { applied = false } catch (e) {}
+          }
+        } catch (e) {}
 
         const onActionClick = (ev) => {
           ev && ev.stopPropagation()
@@ -629,6 +638,9 @@ export default {
                   try {
                     const v = _snapApplied || ''
                     if (!v) return
+                    // Guard: if the reactive model was cleared externally (e.g. Reset button)
+                    // do not restore the stale value.
+                    if (target && key !== undefined && (!target[key] || String(target[key]).trim() === '')) return
                     const n = String(v).replace(/\s*,\s*/g, ' - ')
                     try { originalValueSetter.call(el, n) } catch (e) { try { el.value = n } catch (e) {} }
                     try { el.parentNode && el.parentNode.classList.toggle('has-value', n.trim() !== '') } catch (e) {}
@@ -876,17 +888,27 @@ export default {
       const key = binding.arg ? binding.arg : value.key
       if (!target || !key) return
       const newVal = target[key]
-      // Only clear when the reactive value is now empty but the input still shows something
-      if ((!newVal || String(newVal).trim() === '') && el.value && String(el.value).trim() !== '') {
+      // Clear when the reactive value is now empty
+      if (!newVal || String(newVal).trim() === '') {
         const doClearFn = el._flatpickrDoClear
-        if (typeof doClearFn === 'function') {
-          try { doClearFn() } catch (e) {}
+        if (el.value && String(el.value).trim() !== '') {
+          // Input still shows something — clear it properly via doClear
+          if (typeof doClearFn === 'function') {
+            try { doClearFn() } catch (e) {}
+          } else {
+            const instance = el._flatpickrInstance
+            if (instance) {
+              try { instance.clear() } catch (e) {}
+              try { el.value = '' } catch (e) {}
+              try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+            }
+          }
         } else {
-          const instance = el._flatpickrInstance
-          if (instance) {
-            try { instance.clear() } catch (e) {}
-            try { el.value = '' } catch (e) {}
-            try { el.parentNode && el.parentNode.classList.remove('has-value') } catch (e) {}
+          // el.value already empty (Vue's binding cleared it before updated() fired),
+          // but internal state (lastAppliedValue) may still be stale — reset it.
+          const clearStateFn = el._flatpickrClearState
+          if (typeof clearStateFn === 'function') {
+            try { clearStateFn() } catch (e) {}
           }
         }
       }
@@ -901,6 +923,7 @@ export default {
     delete el._flatpickrInstance
     delete el._flatpickr
     delete el._flatpickrDoClear
+    try { delete el._flatpickrClearState } catch(e){}
     try { delete el._flatpickrActionCleanup } catch(e){}
     // If we replaced the element's `value` property, remove it so prototype
     // behaviour is restored.
