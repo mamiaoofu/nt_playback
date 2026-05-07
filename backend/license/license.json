@@ -7,7 +7,7 @@
     "expiry": "2026-04-28T23:59:59Z",
     "features": {
       "max_main_db": 5,
-      "max_concurrent_users": 2,
+      "max_concurrent_users": 3,
       "allowed_menus": [],
       "config_flags": {}
     }
