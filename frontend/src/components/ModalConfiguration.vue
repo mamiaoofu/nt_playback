@@ -661,6 +661,7 @@ const dependencyMap = {
     // does not remove the access permission.
     'Save As System Log' : ['System Log'],
     'Save As Ticket History' : ['Ticket History'],
+    'Save As Audit Log' : ['Audit Log'],
 
     //Setting
     'Set Column' : ['Settings'],
