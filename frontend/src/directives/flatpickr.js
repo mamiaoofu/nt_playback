@@ -618,6 +618,30 @@ export default {
                 // allow writes again after short delay
                 setTimeout(() => { try { suppressWrites = false } catch (e) {} }, 200)
 
+              // For duration range: flatpickr may have partially parsed the input on open
+              // (e.g. "00:05:00 - 00:10:00" → writes back "00:05:00"), stripping the To part.
+              // Restore el.value from lastAppliedValue and enforce multiple times via setTimeout
+              // because flatpickr runs its own post-close write AFTER onClose returns,
+              // which would otherwise overwrite this synchronous fix.
+              if (isDurationRange && lastAppliedValue && String(lastAppliedValue).trim() !== '') {
+                const _snapApplied = lastAppliedValue
+                const _enforceRange = () => {
+                  try {
+                    const v = _snapApplied || ''
+                    if (!v) return
+                    const n = String(v).replace(/\s*,\s*/g, ' - ')
+                    try { originalValueSetter.call(el, n) } catch (e) { try { el.value = n } catch (e) {} }
+                    try { el.parentNode && el.parentNode.classList.toggle('has-value', n.trim() !== '') } catch (e) {}
+                    try { if (target && key) target[key] = n } catch (e) {}
+                  } catch (e) {}
+                }
+                try { _enforceRange() } catch (e) {}
+                setTimeout(_enforceRange, 0)
+                setTimeout(_enforceRange, 50)
+                setTimeout(_enforceRange, 150)
+                setTimeout(_enforceRange, 300)
+              }
+
               // Sync "To" picker for visual consistency, but do NOT mark as applied.
                 if (el && el.value) {
                 if (isDurationRange && el.value.includes(' - ') && el._flatpickrToContainer) {
@@ -709,16 +733,26 @@ export default {
                     el.value = noTime ? String(el.value).split(' ')[0] : String(el.value).replace(/\s*,\s*/g, ' - ')
                   } catch (e) {}
                 } else {
-                  // No range value (empty or single) — always reset both From and To to 00
-                  // to prevent stale values from a previous selection showing up when the calendar reopens.
+                  // No full range value — always reset To to 00
                   try {
                     const inputs = el._flatpickrToContainer.querySelectorAll('input')
                     inputs.forEach(i => { try { i.value = '00' } catch (e) {} })
                   } catch (e) {}
+                  // If there is a From-only value (e.g. "00:05:00"), restore it into the From inputs.
+                  // Only reset From to 00 when the input is truly empty.
                   try {
                     const fromContainer = instance && instance.calendarContainer ? instance.calendarContainer.querySelector('.flatpickr-time') : null
                     if (fromContainer) {
-                      fromContainer.querySelectorAll('input.numInput').forEach(i => { try { i.value = '00' } catch (e) {} })
+                      const curVal = el && el.value ? String(el.value).trim() : ''
+                      if (curVal) {
+                        const [fh, fm, fs] = curVal.split(':')
+                        const fromInputs = fromContainer.querySelectorAll('input.numInput')
+                        if (fromInputs[0]) fromInputs[0].value = (fh || '00').padStart(2, '0')
+                        if (fromInputs[1]) fromInputs[1].value = (fm || '00').padStart(2, '0')
+                        if (fromInputs[2]) fromInputs[2].value = (fs || '00').padStart(2, '0')
+                      } else {
+                        fromContainer.querySelectorAll('input.numInput').forEach(i => { try { i.value = '00' } catch (e) {} })
+                      }
                     }
                   } catch (e) {}
                 }
