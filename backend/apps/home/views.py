@@ -634,6 +634,9 @@ def ApiGetAudioList(request):
     sort_field = request.GET.get('sort[0][field]')
     sort_dir = request.GET.get('sort[0][dir]')
 
+    # Fields that belong to UserFileShare (not AudioInfo) — must be sorted in Python, not ORM
+    _share_only_sort_fields = {'start_at', 'expire_at', 'start_date', 'delegate_id', 'ticket_id', 'created_by'}
+
     if sort_field and sort_dir:
         sort_mapping = {
             'main_db': 'main_db__database_name',
@@ -648,8 +651,13 @@ def ApiGetAudioList(request):
             'full_name': ['agent__first_name', 'agent__last_name'],
             'custom_field_1': 'custom_field_1'
         }
-        
-        if sort_field in sort_mapping:
+
+        if sort_field in _share_only_sort_fields:
+            # Share-specific fields: ORM cannot traverse this relation.
+            # Sorting is handled later by the Python sort in file_share_mode.
+            # For non-share mode fall back to default ordering.
+            audio_list = audio_list.order_by('-start_datetime')
+        elif sort_field in sort_mapping:
             fields = sort_mapping[sort_field]
             if not isinstance(fields, list):
                 fields = [fields]
@@ -720,7 +728,7 @@ def ApiGetAudioList(request):
                 return str(share.get('code') or '')
             if sort_field == 'created_by':
                 return str(share.get('created_by') or '')
-            if sort_field == 'start_at':
+            if sort_field in ('start_at', 'start_date'):
                 return share.get('start_at_dt') or None
             if sort_field == 'expire_at':
                 return share.get('expire_at_dt') or None

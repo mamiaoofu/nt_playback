@@ -33,7 +33,7 @@
 
                 <div class="mt-3">
                     <div class="d-flex align-items-center" style="gap:12px; margin-top:6px;">
-                        <div class="form-check" v-if="(Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management'))">
+                        <div class="form-check" v-if="(Store.hasPermission('Create Delegate File'))">
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeUser">Deleagate</label>
                         </div>
@@ -217,7 +217,7 @@ const props = defineProps({ modelValue: { type: Boolean, default: false }, files
 const emit = defineEmits(['update:modelValue', 'share'])
 
 const selectionType = ref(
-    (Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management')) ? 'user' : (Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ? 'ticket' : ''
+    (Store.hasPermission('Create Delegate File')) ? 'user' : (Store.hasPermission('Create Ticket')) ? 'ticket' : ''
 )
 
 const shareUser = ref('')
@@ -564,7 +564,7 @@ watch(() => props.modelValue, async (open) => {
     descTicket.value = ''
     limitAccessTimes.value = null
     permissions.value = 'false'
-    selectionType.value = (Store.hasPermission('Create Delegate File') &&  Store.hasPermission('Delegate Management')) ? 'user' : (Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ? 'ticket' : ''
+    selectionType.value = (Store.hasPermission('Create Delegate File')) ? 'user' : (Store.hasPermission('Create Ticket')) ? 'ticket' : ''
     start.value = ''
     expire.value = ''
     errors.start = false
