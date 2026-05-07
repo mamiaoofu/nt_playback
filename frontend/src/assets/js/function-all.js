@@ -471,7 +471,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         startY: 22,
         margin: { top: 22, left: 8.5, right: 9.5 },
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 5.5, cellPadding: 1, overflow: 'linebreak' },
+        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1, overflow: 'linebreak' },
         bodyStyles: { halign: 'left', valign: 'top' },
         headStyles: { fillColor: [41,128,185], textColor: [255,255,255], fontSize: 8.5, fontStyle: 'bold' },
         columnStyles: columnStyles,
