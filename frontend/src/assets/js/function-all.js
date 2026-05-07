@@ -449,8 +449,10 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
       hdrs.forEach((h, i) => {
         columnStyles[i] = { minCellWidth: Math.max(10, (h || '').length * 1.8 + 4) }
       })
-      if (descIndex >= 0) columnStyles[descIndex] = { ...columnStyles[descIndex], cellWidth: 70 }
-      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { ...columnStyles[fileNameIndex], cellWidth: 60 }
+      if (descIndex >= 0) columnStyles[descIndex] = { ...columnStyles[descIndex], cellWidth: 31 }
+      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { ...columnStyles[fileNameIndex], cellWidth: 30 }
+      if (callDirIndex >= 0) columnStyles[callDirIndex] = { ...columnStyles[callDirIndex], cellWidth: 15 }
+
 
       const callDirColorMap = {
         'Incoming': { bg: [186,243,199], text: [23,21,21] }, 'Inbound': { bg: [186,243,199], text: [23,21,21] }, 'Outgoing': { bg: [173,216,230], text: [23,21,21] }, 'Outbound': { bg: [173,216,230], text: [23,21,21] }, 'Internal': { bg: [253,237,190], text: [23,21,21] }, 'Block': { bg: [255,120,120], text: [255,255,255] }, 'Tandem': { bg: [173,216,230], text: [255,255,255] }, 'External': { bg: [240,240,240], text: [23,21,21] }
@@ -467,9 +469,9 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
         head: [hdrs],
         body: exportData,
         startY: 22,
-        margin: { top: 22, left: 14, right: 14 },
+        margin: { top: 22, left: 8.5, right: 9.5 },
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 2, overflow: 'linebreak' },
+        styles: { font: 'helvetica', fontSize: 5.5, cellPadding: 1, overflow: 'linebreak' },
         bodyStyles: { halign: 'left', valign: 'top' },
         headStyles: { fillColor: [41,128,185], textColor: [255,255,255], fontSize: 8.5, fontStyle: 'bold' },
         columnStyles: columnStyles,
