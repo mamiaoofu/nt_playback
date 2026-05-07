@@ -368,7 +368,7 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
             if (forceAsText) {
               cellStyle += "mso-number-format:'@';"
             }
-            html += '<td style="' + cellStyle + '">' + text + '</td>'
+            html += '<td valign="top" style="' + cellStyle + '">' + text + '</td>'
           })
         html += '</tr>'
       })
@@ -501,15 +501,21 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
           } else if ((custNumIndex >= 0 && data.column.index === custNumIndex) || (extIndex >= 0 && data.column.index === extIndex)) {
             data.cell.styles.halign = 'right'
           }
+          if (data.section === 'body' && !data.cell.styles.halign) {
+            data.cell.styles.halign = 'left'
+          }
+          if (data.section === 'body') {
+            data.cell.styles.valign = 'top'
+          }
           if (callDirIndex >= 0 && data.column.index === callDirIndex && data.section === 'body') {
             const cellValue = data.cell.text[0]
             const colorInfo = callDirColorMap[cellValue]
-            if (colorInfo) { data.cell.styles.fillColor = colorInfo.bg; data.cell.styles.textColor = colorInfo.text }
+            if (colorInfo) { data.cell.styles.fillColor = colorInfo.bg; data.cell.styles.textColor = colorInfo.text; data.cell.styles.halign = 'left'; data.cell.styles.valign = 'top' }
           }
           if (statusIndex >= 0 && data.column.index === statusIndex && data.section === 'body') {
             const cellValue = data.cell.text[0]
             const colorInfo = statusColorMap[cellValue]
-            if (colorInfo) { data.cell.styles.fillColor = colorInfo.bg; data.cell.styles.textColor = colorInfo.text }
+            if (colorInfo) { data.cell.styles.fillColor = colorInfo.bg; data.cell.styles.textColor = colorInfo.text; data.cell.styles.halign = 'left'; data.cell.styles.valign = 'top' }
           }
         }
       })
