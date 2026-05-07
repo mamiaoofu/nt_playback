@@ -20,7 +20,7 @@
                 <div class="role-box-icon">
                   <i class="fas fa-crown"></i>
                 </div>
-                <span class="role-box-badge">Click to edit</span>
+                <span class="role-box-badge" v-if="authStore.hasPermission('Edit Base Roles')">Click to edit</span>
               </div>
               <div class="role-box-name">Administrator</div>
               <div class="role-box-desc">Full system access</div>
@@ -30,7 +30,7 @@
                 <div class="role-box-icon">
                   <i class="fas fa-clipboard-check"></i>
                 </div>
-                <span class="role-box-badge">Click to edit</span>
+                <span class="role-box-badge" v-if="authStore.hasPermission('Edit Base Roles')">Click to edit</span>
               </div>
               <div class="role-box-name">Auditor</div>
               <div class="role-box-desc">Read & audit access</div>
@@ -40,7 +40,7 @@
                 <div class="role-box-icon">
                   <i class="fas fa-headset"></i>
                 </div>
-                <span class="role-box-badge">Click to edit</span>
+                <span class="role-box-badge" v-if="authStore.hasPermission('Edit Base Roles')">Click to edit</span>
               </div>
               <div class="role-box-name">Operator/Agent</div>
               <div class="role-box-desc">Standard operations</div>
