@@ -56,7 +56,7 @@ export function useTicketHistory() {
     const columns = [
         { key: 'index', label: '#', isIndex: true },
         { key: 'code', label: 'Ticket ID' },
-        { key: 'email', label: 'Email', tooltip: true, labelKey: 'email_label' },
+        { key: 'email', label: 'Email', tooltip: true },
         { key: 'create_by', label: 'Created By' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Expire Date' },
