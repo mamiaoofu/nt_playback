@@ -84,7 +84,7 @@ export function useFileShareManagement() {
                 }
             }
         }
-        if (authStore.hasPermission('Change Ticket File Status') && authStore.hasPermission('Ticket Management') && typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' } )
+        if (authStore.hasPermission('Change Ticket Status') && authStore.hasPermission('Ticket Management') && typeUrl.value === 'ticket') cols.push({ key: 'limit_access_time', label: 'Limit Access Time' }, { key: 'status', label: 'Status' } )
 
         if (authStore.hasPermission('Ticket Resent') && typeUrl.value === 'ticket' ) cols.push({ key: 'action', label: 'Action' })
 
@@ -340,8 +340,11 @@ export function useFileShareManagement() {
 
     const typeUrl = computed(() => {
         const p = route.path || ''
+        console.log('Determining typeUrl from path:', p)
         if (p === '/ticket-management') return 'ticket'
         if (p === '/delegate-management') return 'delegate'
+        console.log('Unknown path for File Share Management:', p)
+
         return 'type_url_not_found'
     })
     
