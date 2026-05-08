@@ -683,6 +683,7 @@ const getSortIcon = (key) => {
 .table-container table tr.selected-row td {
   background-color: #49ABFF !important;
   color: #fff !important;
+  user-select: none;
 }
 
 .file-name-tooltip.tooltip-bottom .tooltip-arrow {

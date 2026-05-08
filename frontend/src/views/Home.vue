@@ -5,7 +5,7 @@
       <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       
       <div class="row col-lg-12">
-        <div v-if="authStore.hasPermission('Query Audio Records')" class="col-lg-2">
+        <div class="col-lg-2">
           <div class="card">
             <div class="card-body">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -18,7 +18,7 @@
                 </div>
               </div>
               <!-- Content Filters-->
-              <div class="filter-card">
+              <div class="filter-card" :class="{ 'filter-disabled': isFilterReadOnly }">
 
                 <div class="input-group" style="margin-top: 6px;">
                   <CustomSelect class="select-checkbox" v-model="filters.databaseServer"
@@ -91,7 +91,7 @@
                       </button>
                       <span v-if="showFileShareNotification" id="notiFileShare" class="badge badge-danger" style="position: absolute; top: -6px; right: 8px;width: 16px;"><i class="fa-solid fa-exclamation"></i></span>
                      </div>
-                <div class="card">
+                <div class="card" :class="{ 'filter-readonly': isFilterReadOnly }">
                   <div class="card-body" style="padding: 8px;">
 
                     <div class="d-flex justify-content-center" v-if="authStore.hasPermission('Query Audio Records')" >
@@ -101,7 +101,7 @@
                     </div>
 
                     <div class="dropup d-flex justify-content-center" ref="recentWrap">
-                      <button class="btn btn-light" type="button" @click.stop="toggleRecent" :aria-expanded="recentOpen" style="width: 100%;font-size: 12px;margin-bottom: 4px;">
+                      <button class="btn btn-light" type="button" @click.stop="toggleRecent" :aria-expanded="recentOpen" :disabled="isFilterReadOnly" style="width: 100%;font-size: 12px;margin-bottom: 4px;">
                         <div style="text-align: left;"><i class="fa-regular fa-clock"></i> <span>Recent</span></div>
                       </button>
                       <ul v-show="recentOpen" class="recent-dropdown">
@@ -120,11 +120,11 @@
                       <div class="row g-0-3">
                         <div class="col-lg-6">
                           <button class="btn btn-primary w-97" type="button" id="search_audio" style="font-size: 12px;"
-                            @click="onSearch"><span>Search</span></button>
+                            :disabled="isFilterReadOnly" @click="onSearch"><span>Search</span></button>
                         </div>
                         <div class="col-lg-6">
                           <button class="btn btn-light w-97" type="button" id="reset_audio"
-                            style="border-color: #f2e1e1;font-size: 12px;" @click="onReset"><span>Reset</span></button>
+                            style="border-color: #f2e1e1;font-size: 12px;" :disabled="isFilterReadOnly && !canDelegateFiles" @click="onReset"><span>Reset</span></button>
                         </div>
                       </div>
                     </div>
@@ -136,7 +136,7 @@
             </div>
           </div>
         </div>
-        <div :class="authStore.hasPermission('Query Audio Records') ? 'col-lg-10' : 'col-lg-12'">
+        <div class="col-lg-10">
           <div class="card">
             <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -151,7 +151,7 @@
                   </h5>
                 </div>
                 <div class="d-flex align-items-center">
-                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && ((authStore.hasPermission('Create Delegate File') && authStore.hasPermission('Audio Records')) || (authStore.hasPermission('Create Ticket') && authStore.hasPermission('Ticket Management'))) " class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
+                    <button v-if="(filters.is_ticket !=='true' && filters.file_share !== 'true') && ((authStore.hasPermission('Create Delegate File') && authStore.hasPermission('Audio Records')) || (authStore.hasPermission('Create Ticket') && authStore.hasPermission('Audio Records'))) " class="btn btn-light" id="shareBtn" style="position: relative;margin-right: 8px;font-size: 11px;color: #495669;font-weight: 600;" @click="openShare">
                         <i class="fa-solid fa-share-nodes"></i> File Share
                         <span v-if="selectedCount > 0" class="badge badge-danger" id="shareCount">{{ selectedCount }}</span>
                       </button>
@@ -239,6 +239,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import MainLayout from '../layouts/MainLayout.vue'
 import Breadcrumbs from '../components/Breadcrumbs.vue'
 import CustomSelect from '../components/CustomSelect.vue'
@@ -327,6 +328,10 @@ const {
   openShare
 } = useHome()
 
+const canQueryAudioRecords = computed(() => authStore.hasPermission('Query Audio Records'))
+const canDelegateFiles = computed(() => authStore.hasPermission('Delegate Files'))
+const isFilterReadOnly = computed(() => !canQueryAudioRecords.value)
+
 function onFileShareClick() {
   filters.file_share = 'true'
   // hide notification badge when user opens File Share
@@ -370,4 +375,15 @@ function onFileShareClick() {
   flex: 1 1 auto;
   font-size: 8px;
 }
+
+.filter-disabled {
+  pointer-events: none;
+  opacity: 0.55;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* .filter-readonly {
+  opacity: 0.55;
+} */
 </style>
