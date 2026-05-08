@@ -210,7 +210,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Query Audio Records','Audio Records')
+@require_action('Audio Records','Delegate Files')
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))

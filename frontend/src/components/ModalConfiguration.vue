@@ -622,7 +622,7 @@ const dependencyMap = {
     'Playback Audio Records' : ['Audio Records'],
     'Download Voice File' : ['Audio Records'],
     'Save As Index' : ['Audio Records'],
-    'Delegate Files' : ['Audio Records'],
+    // 'Delegate Files' : ['Audio Records'],
     'Create Ticket' : ['Audio Records'],
     'Create Delegate File' : ['Audio Records'],
     'Download Ticket File' : ['Audio Records'],

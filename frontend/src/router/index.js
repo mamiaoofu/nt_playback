@@ -73,7 +73,14 @@ router.beforeEach(async (to, from, next) => {
 		}
 
 		if (needsPermissions && !authStore.hasPermission(needsPermissions)) {
-			return next({ name: 'Denied' })
+			const allowHomeByDelegateFiles =
+				to.name === 'Home' &&
+				needsPermissions === 'Audio Records' &&
+				authStore.hasPermission('Delegate Files')
+
+			if (!allowHomeByDelegateFiles) {
+				return next({ name: 'Denied' })
+			}
 		}
 	}
 

@@ -1613,6 +1613,9 @@ export function useHome() {
   onMounted(() => {
     fetchIndexHome()
     fetchActiveColumns()
+    if (!authStore.hasPermission('Audio Records') && authStore.hasPermission('Delegate Files')) {
+      filters.file_share = 'true'
+    }
     registerRequest(fetchData())
     loadRecentFromStorage()
     document.addEventListener('click', onDocClick)
