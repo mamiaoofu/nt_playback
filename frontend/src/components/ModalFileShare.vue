@@ -37,7 +37,7 @@
                             <input class="form-check-input" type="radio" id="shareTypeUser" value="user" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeUser">Deleagate</label>
                         </div>
-                        <div class="form-check" v-if="(Store.hasPermission('Create Ticket')&& Store.hasPermission('Ticket Management')) ">
+                        <div class="form-check" v-if="(Store.hasPermission('Create Ticket')) ">
                             <input class="form-check-input" type="radio" id="shareTypeTicket" value="ticket" v-model="selectionType">
                             <label class="form-check-label" for="shareTypeTicket">Ticket</label>
                         </div>
