@@ -84,7 +84,7 @@
         </div>
 
         <div class="footer-styled">
-          <button v-if="canDownload || showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
+          <button v-if="showDownload" class="btn-blue-block" @click="downloadAudio">Download</button>
           <button class="btn-gray-block" @click="close">Close</button>
         </div>
       </div>
@@ -125,11 +125,14 @@ const showDownload = computed(() => {
   const d = metadata.value && metadata.value.download
   const isTicket = !!(filters && filters.value && (filters.value.is_ticket === 'true' || filters.value.is_ticket === true))
   const isFileShare = !!(filters && filters.value && (filters.value.file_share === 'true' || filters.value.file_share === true))
-  console.log('showDownload computed:', { d, isTicket, isFileShare, canDownload: canDownload.value })
-  if (d === true) return true
-  // if (isTicket === false && isFileShare === false) return canDownload
-  
-  return false
+
+  // In delegate or ticket mode: respect the row's download field strictly
+  if (isFileShare || isTicket) {
+    return d === true
+  }
+
+  // Regular mode: show if user has Download Voice File permission
+  return canDownload.value
 })
 
 // Local download modal state

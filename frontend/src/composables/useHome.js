@@ -1447,7 +1447,8 @@ export function useHome() {
   }
 
   const onRowDblClick = async (row) => {
-    if (!authStore.hasPermission('Playback Audio Records')) {
+    const canPlayback = authStore.hasPermission('Playback Audio Records') || authStore.hasPermission('Delegate Files')
+    if (!canPlayback) {
       showToast('Access Denied', 'error')
       return
     }

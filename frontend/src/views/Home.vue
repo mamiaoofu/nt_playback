@@ -5,7 +5,7 @@
       <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       
       <div class="row col-lg-12">
-        <div v-if="!isDelegateOnly" class="col-lg-2">
+        <div v-if="canShowFilters" class="col-lg-2">
           <div class="card">
             <div class="card-body">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -136,7 +136,7 @@
             </div>
           </div>
         </div>
-        <div :class="isDelegateOnly ? 'col-lg-12' : 'col-lg-10'">
+        <div :class="canShowFilters ? 'col-lg-10' : 'col-lg-12'">
           <div class="card">
             <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
@@ -330,8 +330,10 @@ const {
 
 const canQueryAudioRecords = computed(() => authStore.hasPermission('Query Audio Records'))
 const canDelegateFiles = computed(() => authStore.hasPermission('Delegate Files'))
+const canAudioRecords = computed(() => authStore.hasPermission('Audio Records'))
 const isDelegateOnly = computed(() => canDelegateFiles.value && !canQueryAudioRecords.value)
 const isFilterReadOnly = computed(() => !canQueryAudioRecords.value)
+const canShowFilters = computed(() => canQueryAudioRecords.value || (canDelegateFiles.value && canAudioRecords.value))
 
 function onFileShareClick() {
   filters.file_share = 'true'
