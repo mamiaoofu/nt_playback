@@ -592,10 +592,13 @@ const getSortIcon = (key) => {
   display: inline-block;
   z-index: 9999;
   pointer-events: auto;
+  max-width: min(90vw, 900px);
+  width: auto;
 }
 
   .file-name-tooltip .tooltip-inner {
-  max-width: 720px;
+  max-width: min(90vw, 900px);
+  width: auto;
   /* Preserve newlines and allow wrapping */
   white-space: pre-wrap;
   /* keep outer box fixed; inner content will scroll when tall */
