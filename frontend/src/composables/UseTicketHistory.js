@@ -8,6 +8,23 @@ import { exportTableToFormat } from '../assets/js/function-all'
 export function useTicketHistory() {
     const authStore = useAuthStore()
 
+    function wrapText(text, indent = '  ', maxLineLength = 50) {
+        if (!text || text.length <= maxLineLength) return text || '';
+        const words = text.split(' ');
+        let lines = [];
+        let currentLine = '';
+        for (const word of words) {
+            if (currentLine && (currentLine + ' ' + word).length > maxLineLength) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine += (currentLine ? ' ' : '') + word;
+            }
+        }
+        if (currentLine) lines.push(currentLine);
+        return lines.join('\n' + indent);
+    }
+
     const searchQuery = ref('')
     let searchTimeout = null
     let userFilterTimeout = null
@@ -121,16 +138,15 @@ export function useTicketHistory() {
                             // split by comma, then trim
                             fileList = rawFiles.split(',').map(s => s.trim()).filter(Boolean)
                         }
-                        const fcount = fileList.length
-                        if (fcount === 0 && rawFiles && typeof rawFiles === 'object') {
+                        if (fileList.length === 0 && rawFiles && typeof rawFiles === 'object') {
                             // fallback if server returned object-like
                             try { fileList = JSON.parse(String(rawFiles)) } catch (e) { }
                         }
-                        const filesTooltip = fcount > 1 ? ('File name:\n' + fileList.map(x => `- ${x}`).join('\n')) : (fileList[0] || '')
+                        const fcount = fileList.length
+                        const filesTooltip = fcount > 1 ? ('File name:\n' + fileList.map(x => `- ${wrapText(x)}`).join('\n')) : (fcount === 1 ? 'File name:\n- ' + wrapText(fileList[0]) : '')
                         out.files_audio = filesTooltip
                         out.files_audio_label = `Files Audio (${fcount})`
 
-                        // Email: may be stored like {"a","b"} or comma-separated
                         const rawEmail = r.email || ''
                         let emailList = []
                         if (Array.isArray(rawEmail)) emailList = rawEmail

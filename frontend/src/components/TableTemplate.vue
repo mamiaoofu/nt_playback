@@ -598,7 +598,7 @@ const getSortIcon = (key) => {
 
   .file-name-tooltip .tooltip-inner {
   max-width: min(90vw, 900px);
-  width: auto;
+  width: 350px;
   /* Preserve newlines and allow wrapping */
   white-space: pre-wrap;
   /* keep outer box fixed; inner content will scroll when tall */
