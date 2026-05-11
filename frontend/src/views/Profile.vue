@@ -82,7 +82,7 @@
                                             <label class="title-label">Old Password</label>
                                         </div>
                                         <div class="input-group mb-3" v-has-value>
-                                            <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" class="input" required minlength="8">
+                                            <input :type="showNewPass ? 'text' : 'password'" v-model="passwordForm.new_password" class="input" required minlength="8" autocomplete="new-password">
                                             <button type="button" class="toggle-visibility" @click="showNewPass = !showNewPass">
                                                 <i :class="showNewPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
                                             </button>

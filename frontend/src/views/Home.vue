@@ -159,7 +159,7 @@
                     <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
                       @typing="onTyping" @enter="onSearch" @clear="clearSearchQuery" />
                   </div>
-                  <div v-if="filters.is_ticket !== 'true' && ((filters.file_share === 'true' && authStore.hasPermission('Download Delegate File') && authStore.hasPermission('Audio Records')) || (filters.file_share !== 'true' && authStore.hasPermission('Save As Index') && authStore.hasPermission('Audio Records')))" class="ms-2 export-group" ref="exportWrap">
+                  <div v-if="filters.is_ticket !== 'true' && filters.file_share !== 'true' && (authStore.hasPermission('Save As Index') && authStore.hasPermission('Audio Records'))" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
                       <i class="fa-solid fa-download" style="color: #fff;"></i>
                     </button>
