@@ -153,6 +153,7 @@ class UserProfile(models.Model):
     create_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='create_by', db_column='create_by',related_name='created_profiles')
     session_token = models.CharField(max_length=255, verbose_name='session_token', null=True, blank=True) 
     privilege_history = models.BooleanField(verbose_name='สิทธิดูประวัติผู้ใช้', null=True, blank=True)
+    ad_account = models.BooleanField(verbose_name='ad_account', null=True, blank=True, default=False)
 
     class Meta:
         ordering = ['user__username']

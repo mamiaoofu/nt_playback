@@ -2,13 +2,56 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { registerRequest } from '../utils/pageLoad'
 import { showToast } from '../assets/js/function-all'
-import { API_GROUP_INDEX, API_GET_DATABASE, API_GET_ALL_ROLES_PERMISSIONS, API_CHECK_USERNAME, API_CREATE_USER, API_UPDATE_USER } from '../api/paths'
+import { API_GROUP_INDEX, API_GET_DATABASE, API_GET_ALL_ROLES_PERMISSIONS, API_CHECK_USERNAME, API_CREATE_USER, API_UPDATE_USER, API_GET_AD_USERS } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
+import { useAuthStore } from '../stores/auth.store'
 
 export function useUserForm(props) {
+    const authStore = useAuthStore()
     const loading = ref(false)
     const selectedGroupId = ref(null)
     const usernameCheck = ref(false)
+
+    const isDomainAccountMode = ref(false)
+    const adUsers = ref([])
+    const loadingAdUsers = ref(false)
+    const adUserOptions = computed(() => {
+        return adUsers.value.map(user => {
+            const name = `${user.first_name || ''} ${user.last_name || ''}`.trim()
+            const label = name ? `${user.username} (${name})` : user.username
+            return { value: user.username, label }
+        })
+    })
+    const showDomainAccountBtn = computed(() => {
+        return authStore.user && authStore.user.id === 1
+    })
+
+    const fetchAdUsers = async () => {
+        loadingAdUsers.value = true
+        try {
+            const res = await fetch(API_GET_AD_USERS(), { credentials: 'include' })
+            if (res.ok) {
+                const j = await res.json()
+                if (j.status === 'success') {
+                    adUsers.value = j.data || []
+                } else {
+                    showToast(j.message || 'Error fetching AD users', 'error')
+                }
+            }
+        } catch (e) {
+            console.error('Failed to fetch AD users', e)
+            showToast('Failed to fetch AD users', 'error')
+        } finally {
+            loadingAdUsers.value = false
+        }
+    }
+
+    const toggleDomainAccountMode = () => {
+        isDomainAccountMode.value = true
+        if (adUsers.value.length === 0) {
+            fetchAdUsers()
+        }
+    }
 
     const route = useRoute()
     const router = useRouter()
@@ -68,6 +111,14 @@ export function useUserForm(props) {
     })
 
     watch(() => form.value.username, (val) => {
+        if (isDomainAccountMode.value && val) {
+            const user = adUsers.value.find(u => u.username === val)
+            if (user) {
+                form.value.firstName = user.first_name || ''
+                form.value.lastName = user.last_name || ''
+            }
+        }
+        
         usernameCheck.value = false
         errors.username = false
         if (_usernameTimer) clearTimeout(_usernameTimer)
@@ -75,11 +126,13 @@ export function useUserForm(props) {
             try {
                 if (!val || String(val).trim() === '') { usernameCheck.value = false; return }
                 const uname = String(val).trim()
-                const unameOk = /^[A-Za-z0-9]+$/.test(uname)
-                if (!unameOk) {
-                    errors.username = 'Username must contain only English letters and numbers'
-                    usernameCheck.value = false
-                    return
+                if (!isDomainAccountMode.value) {
+                    const unameOk = /^[A-Za-z0-9]+$/.test(uname)
+                    if (!unameOk) {
+                        errors.username = 'Username must contain only English letters and numbers'
+                        usernameCheck.value = false
+                        return
+                    }
                 }
                 const userId = getInitialUserId()
                 const url = API_CHECK_USERNAME() + `?username=${encodeURIComponent(uname)}` + (userId ? `&user_id=${encodeURIComponent(String(userId))}` : '')
@@ -213,6 +266,7 @@ export function useUserForm(props) {
     }
 
     function clearUserInfo() {
+        isDomainAccountMode.value = false
         clearSelectedPermissions()
         selectedBaseRoleKey.value = null
         selectedCustomRoleId.value = null
@@ -266,11 +320,11 @@ export function useUserForm(props) {
 
         let hasError = false
         if (!form.value.username || String(form.value.username).trim() === '') { errors.username = 'This field is required.'; hasError = true }
-        else {
+        else if (!isDomainAccountMode.value) {
             const uname = String(form.value.username).trim()
             if (!/^[A-Za-z0-9]+$/.test(uname)) { errors.username = 'Username must contain only English letters and numbers'; hasError = true }
         }
-        if (mode && mode.value !== 'edit') {
+        if (mode && mode.value !== 'edit' && !isDomainAccountMode.value) {
             if (!form.value.password || String(form.value.password).trim() === '') { errors.password = 'This field is required.'; hasError = true }
             else if (String(form.value.password).length < 8) { errors.password = 'Password must be at least 8 characters long'; hasError = true }
             else if (!/^[\x21-\x7E]+$/.test(String(form.value.password))) { errors.password = 'Password must contain only English letters and special characters'; hasError = true }
@@ -323,6 +377,8 @@ export function useUserForm(props) {
 
         if (selectedTeamId.value) fd.append('team', selectedTeamId.value)
         if (selectedGroupId.value) fd.append('group', selectedGroupId.value)
+
+        fd.append('ad_account', isDomainAccountMode.value ? 'true' : 'false')
 
         if (selectedAllDatabases.value) {
             fd.append('db_id-all', 'all')
@@ -769,7 +825,12 @@ export function useUserForm(props) {
         selectedPermissions,
         permissionInputsEnabled,
         roleCardsDisabled,
-        teamOptions
+        teamOptions,
+        isDomainAccountMode,
+        adUsers,
+        loadingAdUsers,
+        adUserOptions,
+        showDomainAccountBtn
     }
 
     const actions = {
@@ -790,7 +851,9 @@ export function useUserForm(props) {
         applyBaseRolePermissions,
         togglePermission,
         fetchData,
-        fetchGetAllRolesPermissions
+        fetchGetAllRolesPermissions,
+        fetchAdUsers,
+        toggleDomainAccountMode
     }
 
     return {

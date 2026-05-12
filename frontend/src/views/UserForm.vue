@@ -18,9 +18,12 @@
                                         <h5 class="card-title mb-2 mt-1">User Information</h5>
                                     </div>
                                     <div class="d-flex align-items-center">
-                                        <div>
+                                        <div style="display: flex; gap: 8px;">
+                                            <button v-if="showDomainAccountBtn" class="customize-btn" type="button" @click="toggleDomainAccountMode" style="position:relative; height: 38px;">
+                                                <i class="fas fa-network-wired" style="margin-right: 6px;"></i> Domain account
+                                            </button>
                                             <button class="customize-btn" type="button" id="clearUserInfoBtn"
-                                                @click="clearUserInfo" style=" position:relative;">
+                                                @click="clearUserInfo" style="position:relative; height: 38px;">
                                                 <i class="fas fa-eraser" style="margin-right: 6px;"></i> Clear
                                             </button>
                                         </div>
@@ -28,25 +31,26 @@
                                 </div>
 
                                 <div class="permissions-grid-1">
-                                    <div class="input-group" style="margin-bottom: 12.2px;" v-has-value>
-                                        <input v-model="form.username" required type="text" name="username" autocomplete="off" :class="['input', { 'form-input-modal': usernameCheck || errors.username }]" maxlength="30" >
-                                        <label class="title-label">Username*</label>
+                                    <div class="input-group" style="margin-bottom: 12.2px;" :class="{'has-value': isDomainAccountMode || form.username}">
+                                        <input v-if="!isDomainAccountMode" v-model="form.username" required type="text" name="username" autocomplete="off" :class="['input', { 'form-input-modal': usernameCheck || errors.username }]" maxlength="30" >
+                                        <CustomSelect v-else :class="['select-search', { 'select-toggle-error': usernameCheck || errors.username }]" v-model="form.username" :options="adUserOptions" :always-up="false" :placeholder="loadingAdUsers ? 'Loading AD Users...' : 'Select AD User*'" name="adUserModal" />
+                                        <label v-if="!isDomainAccountMode" class="title-label">Username*</label>
                                         <div v-show="usernameCheck" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This username is already in the system.</div>
                                         <div v-show="errors.username && !usernameCheck" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.username === 'string' ? errors.username : 'This field is required.' }}</div>
                                     </div>
                                 </div>
 
                                 <div class="permissions-grid-2">
-                                    <div class="input-group" v-has-value v-if="mode !== 'edit'">
-                                        <input v-model="form.password" required :type="passwordVisible ? 'text' : 'password'" name="password" autocomplete="off" :class="['input', { 'form-input-modal': errors.password }]" maxlength="30">
+                                    <div class="input-group" v-has-value v-if="mode !== 'edit' && !isDomainAccountMode">
+                                        <input v-model="form.password" :required="!isDomainAccountMode" :type="passwordVisible ? 'text' : 'password'" name="password" autocomplete="off" :class="['input', { 'form-input-modal': errors.password }]" maxlength="30">
                                         <button type="button" class="toggle-visibility" @click="passwordVisible = !passwordVisible" aria-label="Toggle password visibility">
                                             <i :class="passwordVisible ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
                                         </button>
                                         <label class="title-label">Password*</label>
                                         <div v-show="errors.password" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.password === 'string' ? errors.password : 'This field is required.' }}</div>
                                     </div>
-                                    <div class="input-group" v-has-value v-if="mode !== 'edit'">
-                                        <input v-model="form.confirmPassword" required :type="confirmPasswordVisible ? 'text' : 'password'" name="confirmPassword" autocomplete="off" :class="['input', { 'form-input-modal': errors.confirmPassword }]" maxlength="30">
+                                    <div class="input-group" v-has-value v-if="mode !== 'edit' && !isDomainAccountMode">
+                                        <input v-model="form.confirmPassword" :required="!isDomainAccountMode" :type="confirmPasswordVisible ? 'text' : 'password'" name="confirmPassword" autocomplete="off" :class="['input', { 'form-input-modal': errors.confirmPassword }]" maxlength="30">
                                         <button type="button" class="toggle-visibility" @click="confirmPasswordVisible = !confirmPasswordVisible" aria-label="Toggle confirm password visibility">
                                             <i :class="confirmPasswordVisible ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
                                         </button>
@@ -63,12 +67,12 @@
                                         <label class="title-label">Last Name*</label>
                                         <div v-show="errors.lastName" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.lastName === 'string' ? errors.lastName : 'This field is required.' }}</div>
                                     </div>
-                                    <div class="input-group" v-has-value>
+                                    <div class="input-group" v-has-value v-if="!isDomainAccountMode">
                                         <input v-model="form.email" required type="text" name="email" autocomplete="off" class="input" maxlength="30">
                                         <label class="title-label">Email</label>
                                         <div v-show="errors.email" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.email === 'string' ? errors.email : 'Please enter a valid email address.' }}</div>
                                     </div>
-                                    <div class="input-group" v-has-value>
+                                    <div class="input-group" v-has-value v-if="!isDomainAccountMode">
                                         <input v-model="form.phone" required type="text" name="phone" autocomplete="off" class="input" maxlength="10">
                                         <label class="title-label">Phone</label>
                                     </div>
@@ -304,7 +308,14 @@ const {
     applyBaseRolePermissions,
     togglePermission,
     fetchData,
-    fetchGetAllRolesPermissions
+    fetchGetAllRolesPermissions,
+    isDomainAccountMode,
+    adUsers,
+    loadingAdUsers,
+    adUserOptions,
+    showDomainAccountBtn,
+    fetchAdUsers,
+    toggleDomainAccountMode
 } = useUserForm(props)
 </script>
 

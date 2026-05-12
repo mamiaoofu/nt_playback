@@ -772,6 +772,7 @@ def ApiSaveUser(request, user_id=None):
     first_name = post_data.get('first_name')
     last_name = post_data.get('last_name')
     phone = post_data.get('phone')
+    ad_account = post_data.get('ad_account') == 'true'
 
     # บทบาทและทีม
     role_input = post_data.get('role')
@@ -822,12 +823,13 @@ def ApiSaveUser(request, user_id=None):
                 profile_to_update = UserProfile.objects.filter(user=user_to_update).first()
                 if profile_to_update:
                     profile_to_update.phone = phone or profile_to_update.phone
+                    profile_to_update.ad_account = ad_account
                     if team_id:
                         profile_to_update.team = UserTeam.objects.filter(id=team_id).first()
                     profile_to_update.save()
                 else:
                     # create profile if missing
-                    UserProfile.objects.create(user=user_to_update, phone=phone, team=team_obj)
+                    UserProfile.objects.create(user=user_to_update, phone=phone, team=team_obj, ad_account=ad_account)
 
                 # รีเซ็ต UserAuth (ลบของเก่าแล้วสร้างใหม่)
                 UserAuth.objects.filter(user=user_to_update).delete()
@@ -901,7 +903,8 @@ def ApiSaveUser(request, user_id=None):
                     user=auth_user_create,
                     phone=phone,
                     team=team_obj,
-                    create_by=request.user
+                    create_by=request.user,
+                    ad_account=ad_account
                 )
 
             context = {
@@ -1034,3 +1037,65 @@ def ApiChangePassword(request):
     except Exception as e:
         create_user_log(user=request.user, action="Change Password", detail=f"Failed to change password for user: {user.username}", status="error", request=request, exception=e)
         return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
+
+@login_required(login_url='/login')
+def ApiGetAdUsers(request):
+    if request.user.id != 1:
+        return JsonResponse({'status': 'error', 'message': 'Access Denied'}, status=403)
+    
+    from django.conf import settings
+    from ldap3 import Server, Connection, NTLM, SIMPLE, ALL
+    from ldap3.core.exceptions import LDAPException
+    
+    ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
+    ad_domain = getattr(settings, 'AD_DOMAIN', None)
+    ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
+    ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
+    ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+
+    if not all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
+        return JsonResponse({'status': 'error', 'message': 'AD Configuration is incomplete.'})
+
+    user_principal = f"{ad_domain}\\{ad_bind_user}"
+    
+    try:
+        server = Server(ad_server_uri, get_info=ALL)
+        conn = Connection(
+            server,
+            user=user_principal,
+            password=ad_bind_password,
+            authentication=NTLM,
+            auto_bind=True
+        )
+        
+        search_filter = '(&(objectCategory=person)(objectClass=user))'
+        
+        conn.search(
+            search_base=ad_base_dn,
+            search_filter=search_filter,
+            attributes=['sAMAccountName', 'givenName', 'sn']
+        )
+        
+        users = []
+        for entry in conn.entries:
+            if hasattr(entry, 'sAMAccountName') and entry.sAMAccountName:
+                username = str(entry.sAMAccountName)
+                given_name = str(entry.givenName) if hasattr(entry, 'givenName') and entry.givenName else ''
+                sn = str(entry.sn) if hasattr(entry, 'sn') and entry.sn else ''
+                
+                if username:
+                    users.append({
+                        'username': username,
+                        'first_name': given_name,
+                        'last_name': sn
+                    })
+                    
+        conn.unbind()
+        
+        users.sort(key=lambda x: x['username'].lower())
+        return JsonResponse({'status': 'success', 'data': users})
+
+    except LDAPException as e:
+        return JsonResponse({'status': 'error', 'message': f'LDAP Error: {str(e)}'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})

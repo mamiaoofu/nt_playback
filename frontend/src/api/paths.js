@@ -61,6 +61,7 @@ export const API_GET_USER_PROFILE = (id) => `${getApiBase()}/api/user-management
 export const API_CHECK_USERNAME = () => `${getApiBase()}/api/add-user/check-username/`
 export const API_CREATE_USER = () => `${getApiBase()}/api/add-user/`
 export const API_UPDATE_USER = (id) => `${getApiBase()}/api/edit-user/${id}/`
+export const API_GET_AD_USERS = () => `${getApiBase()}/api/user-management/ad-users/`
 
 // หน้า Settings
 export const API_SETTINGS_INDEX = () => `${getApiBase()}/api/settings/index/`

@@ -1,10 +1,10 @@
 import json
 from django.http import JsonResponse
 from django.shortcuts import redirect
-from django.contrib.auth import login
+from django.contrib.auth import login, authenticate
 from django.contrib.auth import logout as django_logout
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
 from apps.core.utils.tokens import DailyExpiryRefreshToken as RefreshToken, _get_daily_expiry
 from django.middleware.csrf import get_token
@@ -35,11 +35,37 @@ def index(request):
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-        # ใช้ AuthenticationForm ตรวจสอบความถูกต้อง (Username/Password)
-        form = AuthenticationForm(request, data=data)
-        
-        if form.is_valid():
-            user = form.get_user()
+        username_input = data.get('username', '').strip()
+        password_input = data.get('password', '')
+
+        if not username_input or not password_input:
+            return JsonResponse({'error': 'The username or password is incorrect.'}, status=401)
+
+        # ตรวจสอบว่า user นี้เป็น AD account หรือไม่
+        User = get_user_model()
+        try:
+            db_user = User.objects.get(username__iexact=username_input)
+            is_ad = False
+            if UserProfile:
+                profile = UserProfile.objects.filter(user=db_user).first()
+                is_ad = bool(profile and profile.ad_account)
+        except User.DoesNotExist:
+            db_user = None
+            is_ad = False
+
+        if is_ad:
+            # ล็อกอิน AD: ใช้ ActiveDirectoryBackend โดยตรง
+            from apps.core.utils.ad_backend import ActiveDirectoryBackend
+            user = ActiveDirectoryBackend().authenticate(request, username=username_input, password=password_input)
+            backend_path = 'apps.core.utils.ad_backend.ActiveDirectoryBackend'
+        else:
+            # ล็อกอิน Local: ใช้ ModelBackend ปกติ
+            from django.contrib.auth.backends import ModelBackend
+            user = ModelBackend().authenticate(request, username=username_input, password=password_input)
+            backend_path = 'django.contrib.auth.backends.ModelBackend'
+
+        if user is not None and user.is_active:
+            user.backend = backend_path
             
             try:
                 if 'UserFileShare' in globals() and UserFileShare:
@@ -241,7 +267,6 @@ def index(request):
 
         else:
             # ❌ Login ล้มเหลว -> บันทึก Log Error
-            username_input = data.get('username', 'unknown')
             create_user_log(
                 user=None,
                 action="Login",
@@ -249,7 +274,6 @@ def index(request):
                 status="error",
                 request=request
             )
-            
             # ส่ง Error กลับเป็น JSON
             return JsonResponse({'error': 'The username or password is incorrect.'}, status=401)
 

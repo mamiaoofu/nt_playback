@@ -298,3 +298,16 @@ LICENSE_PUBLIC_KEY_PATH = LICENSE_DIR / 'public_key.pem'
 # HOST_FINGERPRINT is injected at runtime via HOST_FINGERPRINT env var — not a file
 # URL of the attestation agent running on the Windows host
 LICENSE_AGENT_URL = os.environ.get('LICENSE_AGENT_URL', 'http://host.docker.internal:7890')
+
+# Active Directory settings
+AD_SERVER_URI = os.environ.get('AD_SERVER_URI')
+AD_DOMAIN = os.environ.get('AD_DOMAIN')
+AD_BASE_DN = os.environ.get('AD_BASE_DN')
+AD_BIND_USER = os.environ.get('AD_BIND_USER')
+AD_BIND_PASSWORD = os.environ.get('AD_BIND_PASSWORD')
+
+# Add custom Active Directory authentication backend along with default ModelBackend
+AUTHENTICATION_BACKENDS = [
+    'apps.core.utils.ad_backend.ActiveDirectoryBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
