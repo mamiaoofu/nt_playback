@@ -44,7 +44,7 @@
                     </div>
                 </div>
 
-                <div class="permissions-grid-2">
+                <div class="permissions-grid-2" style="margin-bottom: 9px;">
                     <div v-if="selectionType === 'user'" class="input-group">
                         <CustomSelect class="select-search select-checkbox" v-model="shareUser" :always-up="true" :options="userOptions"  placeholder="User" name="shareUser" />
                     </div>

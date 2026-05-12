@@ -72,12 +72,12 @@
               <div class="favorite-card">
                 <form id="addFavoriteForm" @submit.prevent>
                   <div class="permissions-grid-1">
-                      <div class="input-group" v-has-value>
+                      <div class="input-group" v-has-value style="margin-bottom: 9px;">
                         <input v-model="addForm.firstName" required type="text" name="favoriteName" autocomplete="off" :class="['input', { 'form-input-modal': addNameTaken }]" maxlength="30">
                         <label class="title-label">Favorite name</label>
                         <div v-show="addNameTaken" class="validate" id="validateAddMyfavoriteName"><i class="fa-solid fa-circle-exclamation"></i> This name is already in the system.</div>
                       </div>
-                    <div class="input-group" v-has-value>
+                    <div class="input-group" v-has-value style="margin-bottom: 9px;">
                       <input v-model="addForm.description" required type="text" name="descriptionModal" autocomplete="off" class="input" maxlength="100">
                       <label class="title-label">Description</label>
                     </div>
@@ -1056,5 +1056,9 @@ async function saveFavorite() {
 .form-input-modal {
   border: 1px solid rgb(245, 163, 163) !important;
   box-shadow: rgba(220, 53, 69, 0.25) 0px 0px 0px 0.2rem !important;
+}
+
+.permissions-grid-1 {
+  gap: 0px !important;
 }
 </style>
