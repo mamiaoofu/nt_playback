@@ -554,7 +554,7 @@ def ApiChangeUserStatus(request, user_id):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('Role & Permissions')
+@require_action('Role & Permissions','User Management')
 def ApiGetAllRolesPermissions(request):
     try:
         admin_role = UserPermission.objects.filter(type='administrator').first()

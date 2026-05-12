@@ -112,7 +112,7 @@ def ApiGetRoleDetails(request, role_id):
     })
     
 @login_required(login_url='/login')
-@require_action('Group & Team')    
+@require_action('Group & Team','User Management')    
 def ApiIndexGroup(request):
     user_group = UserGroup.objects.filter(status=1).order_by('group_name')
     user_team = UserTeam.objects.filter(status=1).order_by('name')

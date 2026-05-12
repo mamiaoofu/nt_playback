@@ -155,13 +155,13 @@
               <div class="favorite-card">
                 <form id="addFavoriteForm" @submit.prevent>
                   <div class="permissions-grid-1">
-                    <div class="input-group" v-has-value>
+                    <div class="input-group" v-has-value style="margin-bottom: 9px;">
                       <input v-model="editForm.firstName" required type="text" name="favoriteName" autocomplete="off" :class="['input', { 'form-input-modal': editNameTaken }]"  maxlength="30">
                       <input v-model="editForm.id" required type="text" name="favoriteId" autocomplete="off" class="input d-none">
                       <label class="title-label">Favorite name</label>
                       <div v-show="editNameTaken" class="validate" id="validateEditMyfavoriteName"><i class="fa-solid fa-circle-exclamation"></i> This name is already in the system.</div>
                     </div>
-                    <div class="input-group" v-has-value>
+                    <div class="input-group" v-has-value style="margin-bottom: 9px;">
                       <input v-model="editForm.description" required type="text" name="descriptionModal" autocomplete="off" class="input"  maxlength="50">
                       <label class="title-label">Description</label>
                     </div>
