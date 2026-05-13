@@ -140,7 +140,7 @@
           <div class="card">
             <div class="card-body card-body-datatable" style="height: calc(100vh - 160px);">
               <div class="d-flex align-items-start justify-content-between" style="margin-bottom: 6px;">
-                  <div class="d-flex align-items-center">
+                <div class="d-flex align-items-center">
                   <div class="d-flex align-items-center justify-content-center me-1"
                     style="width:35px;height:35px;background-color: #D9E2F6;border-radius: 10px !important;">
                     <i class="fa-solid fa-file-audio" style="color:#2b6cb0;font-size:18px"></i>

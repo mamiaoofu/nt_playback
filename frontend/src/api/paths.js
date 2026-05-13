@@ -80,3 +80,8 @@ export const API_GEN_FORM_TICKET = () => `${getApiBase()}/api/gen-form-ticket/`
 
 // License
 export const API_LICENSE_INFO = () => `${getApiBase()}/api/license-info/`
+
+// Dashboard
+export const API_DASHBOARD_STATS = () => `${getApiBase()}/api/dashboard/stats/`
+export const API_DASHBOARD_ALARMS = () => `${getApiBase()}/api/dashboard/alarms/`
+export const API_DASHBOARD_ACTION = () => `${getApiBase()}/api/dashboard/action/`

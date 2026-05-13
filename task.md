@@ -1,0 +1,12 @@
+- `[x]` Update backend to include `is_superuser` in user profile payload
+- `[x]` Update frontend `auth.store.js` to store `is_superuser`
+- `[x]` Update frontend `useLogin.js` to redirect `is_superuser` to `/dashboard`
+- `[x]` Add `Dashboard.vue` route in `router/index.js`
+- `[x]` Create `Dashboard.vue` component with required UI
+- `[x]` Create `IPBlacklist` model in `apps.core.model.authorize.models`
+- `[x]` Create Dashboard API in `apps.home.dashboard_views.py`
+  - `[x]` Stats API (Users, Plays, CPU, RAM, Disk, License)
+  - `[x]` Alarms API (with IP address)
+  - `[x]` Action API (Kick Out, Block IP)
+- `[x]` Register Dashboard URLs in `apps.home.urls.py`
+- `[x]` Verify changes

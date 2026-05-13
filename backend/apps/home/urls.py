@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import dashboard_views
 
 urlpatterns = [
 	path('api/audio/list/', views.ApiGetAudioList, name='ApiGetAudioList'),
@@ -8,6 +9,12 @@ urlpatterns = [
 	path('api/home/add/my-favorite-search/', views.ApiSaveMyFavoriteSearch, name='ApiAddMyFavoriteSearch'),
 	path('api/home/check/my-favorite-search/', views.ApiCheckMyFavoriteName, name='ApiCheckMyFavoriteName'),
 	path('api/home/edit/my-favorite-search/<int:myfavoriteId>/', views.ApiIndexHome, name='ApiEditMyFavoriteSearch'),
+	
+	# Dashboard Endpoints
+	path('api/dashboard/stats/', dashboard_views.ApiDashboardStats, name='ApiDashboardStats'),
+	path('api/dashboard/alarms/', dashboard_views.ApiDashboardAlarms, name='ApiDashboardAlarms'),
+	path('api/dashboard/action/', dashboard_views.ApiDashboardAction, name='ApiDashboardAction'),
+	
 	path('api/log/play-audio/', views.ApiLogPlayAudio, name='ApiLogPlayAudio'),
 	path('api/log/download/', views.ApiLogDownload, name='ApiLogDownload'),
 	path('api/get/credentials/', views.ApiGetCredentials, name='ApiGetCredentials'),

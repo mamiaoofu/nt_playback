@@ -74,6 +74,12 @@
 
       <!-- Menu List -->
       <ul class="menu-list">
+        <li class="menu-item" v-if="store.user?.is_superuser">
+          <router-link to="/dashboard" class="menu-link">
+            <i class="fa-solid fa-chart-line"></i>
+            <span data-translate="dashboard">Dashboard</span>
+          </router-link>
+        </li>
         <li class="menu-item" v-if="store.hasPermission('User Management') || store.hasPermission('Delegate Management') || store.hasPermission('Ticket Management')">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isManagementOpen }"
             @click.prevent="isManagementOpen = !isManagementOpen" role="button" aria-expanded="false">

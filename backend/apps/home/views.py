@@ -201,7 +201,7 @@ def ApiIndexHome(request):
         'show_toast': show_toast,
         'main_db': main_db_serialized,
         'set_audio': set_audio.audio_path if set_audio else None,
-        'user_profile': {'id': request.user.id, 'username': request.user.username, 'role': role},
+        'user_profile': {'id': request.user.id, 'username': request.user.username, 'role': role, 'is_superuser': request.user.is_superuser},
         'favorite_search': favorite_search_serialized,
         'raw_data': raw_data,
         'favorite_search_all': favorite_search_all_serialized,

@@ -232,13 +232,15 @@ def index(request):
             # Also generate and send CSRF token and set CSRF cookie on the response
             csrf_token = get_token(request)
             user_auth = UserAuth.objects.filter(user=user).select_related('user_permission').first()
-            role = user_auth.user_permission.name
+            role = user_auth.user_permission.name if user_auth and user_auth.user_permission else "Superuser" if user.is_superuser else None
             resp = JsonResponse({
                 'access': str(refresh.access_token),
                 'username': user.username,
+                'id': user.id,
                 'csrfToken': csrf_token,
                 'message': 'Login successful',
                 'role': role,
+                'is_superuser': user.is_superuser,
                 'password_reset_required': password_reset_required,
             })
             try:

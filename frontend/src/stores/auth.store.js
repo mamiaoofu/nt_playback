@@ -164,7 +164,7 @@ export const useAuthStore = defineStore('auth', () => {
 			try { lastLoginAt.value = Date.now() } catch (e) {}
 			// store whatever user info the login returned (may include id)
 			if (data && data.username) {
-				setUser({ username: data.username, id: data.id || null, role: data.role || null })
+				setUser({ username: data.username, id: data.id || null, role: data.role || null, is_superuser: data.is_superuser || false })
 				setPasswordResetRequired(data.password_reset_required)
 			}
 
@@ -272,7 +272,7 @@ export const useAuthStore = defineStore('auth', () => {
 						// merge id into user state
 						if (up.id) {
 							const current = user.value || {}
-							setUser(Object.assign({}, current, { id: up.id, username: up.username, role: up.role }))
+							setUser(Object.assign({}, current, { id: up.id, username: up.username, role: up.role, is_superuser: up.is_superuser || false }))
 						}
 						if (up.reset_password === 9) {
 							setPasswordResetRequired(true)
@@ -300,7 +300,7 @@ export const useAuthStore = defineStore('auth', () => {
 	function hasPermission(name) {
 		// root user bypass
 		try {
-			if (user.value && user.value.id === 1) return true
+			if (user.value && (user.value.id === 1 || user.value.is_superuser)) return true
 		} catch (e) {}
 		if (!permissions.value) return false
 		return permissions.value.includes(name)

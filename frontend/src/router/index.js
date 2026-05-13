@@ -21,6 +21,7 @@ const routes = [
 	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
 	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Ticket Management' } },
 	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Delegate Management' } },
+	{ path: '/dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },
 ]
@@ -49,8 +50,15 @@ router.beforeEach(async (to, from, next) => {
 	}
 	if (to.name === 'Login' && isAuthenticated) {
 		if (!authStore.passwordResetRequired) {
+			if (authStore.user?.is_superuser) {
+				return next({ name: 'Dashboard' })
+			}
 			return next({ name: 'Home' })
 		}
+	}
+
+	if (to.name === 'Dashboard' && !authStore.user?.is_superuser) {
+		return next({ name: 'Denied' })
 	}
 
 	if (to.name === 'Profile' && authStore.isTicket && authStore.isTicket()) {

@@ -32,7 +32,11 @@ export function useLogin() {
         try { showToast('Please change your password for security.', 'warning') } catch (e) { }
       } else {
         try { showToast(`Welcome! ${authStore.user?.username || ''}`, 'success') } catch (e) { }
-        router.push('/')
+        if (authStore.user?.is_superuser) {
+          router.push('/dashboard')
+        } else {
+          router.push('/')
+        }
       }
     } else {
       try {

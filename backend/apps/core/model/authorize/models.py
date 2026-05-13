@@ -186,3 +186,17 @@ class UserFileShare(models.Model):
         db_table = 'tb_file_share'
         ordering = ['-create_at']
         verbose_name = 'User File Share'
+
+class IPBlacklist(models.Model):
+    ip_address = models.GenericIPAddressField(unique=True, verbose_name='IP Address')
+    reason = models.TextField(blank=True, verbose_name='Reason')
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        db_table = 'tb_ip_blacklist'
+        ordering = ['-created_at']
+        verbose_name = 'IP Blacklist'
+
+    def __str__(self):
+        return self.ip_address
