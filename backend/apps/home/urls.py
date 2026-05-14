@@ -14,6 +14,7 @@ urlpatterns = [
 	path('api/dashboard/stats/', dashboard_views.ApiDashboardStats, name='ApiDashboardStats'),
 	path('api/dashboard/alarms/', dashboard_views.ApiDashboardAlarms, name='ApiDashboardAlarms'),
 	path('api/dashboard/action/', dashboard_views.ApiDashboardAction, name='ApiDashboardAction'),
+	path('api/dashboard/active-users/', dashboard_views.ApiDashboardActiveUsers, name='ApiDashboardActiveUsers'),
 	
 	path('api/log/play-audio/', views.ApiLogPlayAudio, name='ApiLogPlayAudio'),
 	path('api/log/download/', views.ApiLogDownload, name='ApiLogDownload'),

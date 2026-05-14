@@ -11,14 +11,15 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
 from django.conf import settings
 from django.contrib.auth.models import User
-from django.apps import apps
+from django.apps import apps as django_apps
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+from apps.core.utils.license_service import LicenseService
 
-UserLog = apps.get_model('authorize', 'UserLog')
-UserAuth = apps.get_model('authorize', 'UserAuth')
-IPBlacklist = apps.get_model('authorize', 'IPBlacklist')
+UserLog = django_apps.get_model('authorize', 'UserLog')
+UserAuth = django_apps.get_model('authorize', 'UserAuth')
+IPBlacklist = django_apps.get_model('authorize', 'IPBlacklist')
 
 @login_required(login_url='/login')
 def ApiDashboardStats(request):
@@ -77,15 +78,11 @@ def ApiDashboardStats(request):
         memory_percent = -1
         disk_info = {'error': 'psutil not installed'}
 
-    # Licenses
-    license_data = {}
-    license_path = os.path.join(settings.BASE_DIR, 'license', 'license.json')
-    if os.path.exists(license_path):
-        try:
-            with open(license_path, 'r', encoding='utf-8') as f:
-                license_data = json.load(f)
-        except Exception:
-            pass
+    # Licenses & Concurrency
+    license_svc = LicenseService()
+    license_data = license_svc.get_license_info() or {}
+    active_user_count = license_svc.get_active_user_count()
+    max_concurrent_users = license_data.get('features', {}).get('max_concurrent_users', 0)
 
     return JsonResponse({
         'users_by_role': users_by_role,
@@ -94,7 +91,9 @@ def ApiDashboardStats(request):
         'cpu_percent': cpu_percent,
         'memory_percent': memory_percent,
         'disk_info': disk_info,
-        'license': license_data
+        'license': license_data,
+        'active_user_count': active_user_count,
+        'max_concurrent_users': max_concurrent_users
     })
 
 @login_required(login_url='/login')
@@ -102,16 +101,53 @@ def ApiDashboardAlarms(request):
     if not request.user.is_superuser:
         return JsonResponse({'error': 'Forbidden'}, status=403)
 
-    # Queries logs that look suspicious
-    alarms = UserLog.objects.filter(
-        Q(action__icontains='Failed login') | 
-        Q(status__icontains='error') | 
+    data = []
+    now_str = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 1. Concurrent Users Check
+    license_svc = LicenseService()
+    active_count = license_svc.get_active_user_count()
+    license_info = license_svc.get_license_info() or {}
+    max_users = license_info.get('features', {}).get('max_concurrent_users', 0)
+    
+    if max_users > 0 and active_count > max_users:
+        data.append({
+            'id': 'concurrent_limit',
+            'time': now_str,
+            'event': 'Concurrent Users Exceeded',
+            'message': f'Current active users ({active_count}) exceeds license limit ({max_users}).',
+            'ip_address': '-',
+            'user_id': None,
+            'username': '-',
+            'type': 'concurrent'
+        })
+
+    # 2. System Load Warnings
+    if _HAS_PSUTIL:
+        cpu = psutil.cpu_percent(interval=0.1)
+        mem = psutil.virtual_memory().percent
+        if cpu > 90 or mem > 90:
+            data.append({
+                'id': 'system_load',
+                'time': now_str,
+                'event': 'System Instability',
+                'message': f'High system load detected: CPU {cpu}%, Memory {mem}%.',
+                'ip_address': '-',
+                'user_id': None,
+                'username': '-',
+                'type': 'system'
+            })
+
+    # 3. Security & Strange Error Logs
+    # Exclude "Play audio" error logs and other non-critical logs as requested.
+    alarms_qs = UserLog.objects.filter(
+        (Q(status='error') & ~Q(action='Play audio')) | 
         Q(action__icontains='Blocked') |
-        Q(action__icontains='Unauthorized')
+        Q(action__icontains='Unauthorized') |
+        Q(action__icontains='System Error')
     ).order_by('-timestamp')[:50]
 
-    data = []
-    for a in alarms:
+    for a in alarms_qs:
         data.append({
             'id': a.id,
             'time': a.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
@@ -119,10 +155,40 @@ def ApiDashboardAlarms(request):
             'message': a.detail,
             'ip_address': a.ip_address or '-',
             'user_id': a.user.id if a.user else None,
-            'username': a.user.username if a.user else '-'
+            'username': a.user.username if a.user else '-',
+            'type': 'log'
         })
 
     return JsonResponse({'alarms': data})
+
+@login_required(login_url='/login')
+def ApiDashboardActiveUsers(request):
+    if not request.user.is_superuser:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    license_svc = LicenseService()
+    user_ids = license_svc.get_active_user_ids()
+    
+    users = User.objects.filter(id__in=user_ids).only('id', 'username', 'email')
+    user_map = {str(u.id): u for u in users}
+    
+    data = []
+    for uid in user_ids:
+        u = user_map.get(str(uid))
+        if not u: continue
+        
+        # Get last login info from logs
+        last_log = UserLog.objects.filter(user=u, action='Login', status='success').order_by('-timestamp').first()
+        
+        data.append({
+            'id': u.id,
+            'username': u.username,
+            'email': u.email,
+            'ip_address': last_log.ip_address if last_log else '-',
+            'login_time': last_log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if last_log else '-'
+        })
+        
+    return JsonResponse({'users': data})
 
 @csrf_exempt
 @login_required(login_url='/login')

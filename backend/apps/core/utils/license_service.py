@@ -277,6 +277,16 @@ class LicenseService:
         except Exception:
             return 0
 
+    def get_active_user_ids(self):
+        """Return a list of all active (non-expired) user IDs."""
+        try:
+            self._cleanup_expired_sessions()
+            r = _get_redis()
+            # Returns all members in the sorted set
+            return r.zrange(self.REDIS_ACTIVE_SESSIONS_KEY, 0, -1)
+        except Exception:
+            return []
+
     def check_concurrency(self, exclude_user_id=None):
         """
         Check if a new login is allowed under the concurrency limit.

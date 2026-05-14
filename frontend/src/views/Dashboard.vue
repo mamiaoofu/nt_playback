@@ -162,14 +162,17 @@
             :perPage="100"
           >
             <template #cell-event="{ row }">
-              <span class="fw-bold text-danger">{{ row.event }}</span>
+              <span class="fw-bold" :class="row.type === 'concurrent' ? 'text-warning' : 'text-danger'">{{ row.event }}</span>
             </template>
             <template #cell-ip_address="{ row }">
               <code class="text-primary">{{ row.ip_address }}</code>
             </template>
             <template #cell-actions="{ row }">
               <div class="d-flex gap-2 justify-content-end">
-                <button v-if="row.user_id" class="btn btn-sm btn-warning py-1 px-2 d-flex align-items-center gap-1" @click="kickOut(row.user_id)">
+                <button v-if="row.type === 'concurrent'" class="btn btn-sm btn-warning py-1 px-2 d-flex align-items-center gap-1" @click="showActiveUsersModal = true">
+                  <i class="fa-solid fa-users-slash"></i> Kick Users
+                </button>
+                <button v-else-if="row.user_id" class="btn btn-sm btn-warning py-1 px-2 d-flex align-items-center gap-1" @click="kickOut(row.user_id)">
                   <i class="fa-solid fa-right-from-bracket"></i> Kick
                 </button>
                 <button v-if="row.ip_address && row.ip_address !== '-'" class="btn btn-sm btn-danger py-1 px-2 d-flex align-items-center gap-1" @click="blockIp(row.ip_address)">
@@ -181,6 +184,8 @@
         </div>
       </div>
     </div>
+    
+    <ModalActiveUsers v-model="showActiveUsersModal" @refresh="fetchAlarms" />
   </MainLayout>
 </template>
 
@@ -195,6 +200,7 @@ import { API_DASHBOARD_STATS, API_DASHBOARD_ALARMS, API_DASHBOARD_ACTION } from 
 import axios from 'axios'
 import { getCsrfToken } from '../api/csrf'
 import { showToast } from '../assets/js/function-all'
+import ModalActiveUsers from '../components/ModalActiveUsers.vue'
 
 // Chart.js imports
 import {
@@ -229,6 +235,7 @@ const selectedRole = ref('all')
 const audioPlaysDays = ref('all')
 const audioPlaysStatus = ref('success')
 const chartReady = ref(true)
+const showActiveUsersModal = ref(false)
 
 const roleOptions = computed(() => {
   const roles = stats.value.users_by_role ? Object.keys(stats.value.users_by_role) : []

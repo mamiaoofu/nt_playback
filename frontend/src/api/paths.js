@@ -85,3 +85,4 @@ export const API_LICENSE_INFO = () => `${getApiBase()}/api/license-info/`
 export const API_DASHBOARD_STATS = () => `${getApiBase()}/api/dashboard/stats/`
 export const API_DASHBOARD_ALARMS = () => `${getApiBase()}/api/dashboard/alarms/`
 export const API_DASHBOARD_ACTION = () => `${getApiBase()}/api/dashboard/action/`
+export const API_DASHBOARD_ACTIVE_USERS = () => `${getApiBase()}/api/dashboard/active-users/`
