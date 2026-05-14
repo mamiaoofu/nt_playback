@@ -370,8 +370,8 @@ export function useFileShareManagement() {
             logUserAction('Change Delegate File Status', 'Access Denied: missing Change Delegate File Status or Delegate Management permission')
             return showToast('Access Denied', 'error')
         }
-        if (typeUrl.value === 'ticket' && (!authStore.hasPermission('Change Ticket File Status') || !authStore.hasPermission('Ticket Management'))) {
-            logUserAction('Change Ticket File Status', 'Access Denied: missing Change Ticket File Status or Ticket Management permission')
+        if (typeUrl.value === 'ticket' && (!authStore.hasPermission('Change Ticket Status') || !authStore.hasPermission('Ticket Management'))) {
+            logUserAction('Change Ticket Status', 'Access Denied: missing Change Ticket Status or Ticket Management permission')
             return showToast('Access Denied', 'error')
         }
         // Prefer locating the record by fileShareId (row.id) to avoid matching
@@ -531,7 +531,7 @@ export function useFileShareManagement() {
                 exprie_date: r.exprie_date || '-',
                 files_audio: rawFiles || '-',
                 limit_access_time: (typeUrl.value === 'ticket') ? `${r.access_time || 0} / ${r.limit_access_time || 0}` : '-',
-                ...((typeUrl.value === 'delegate' && authStore.hasPermission('Change Delegate File Status') && authStore.hasPermission('Delegate Management')) || (typeUrl.value === 'ticket' && authStore.hasPermission('Change Ticket File Status') && authStore.hasPermission('Ticket Management')) ? { status: r.status ? 'Active' : 'Inactive' } : {}),
+                ...((typeUrl.value === 'delegate' && authStore.hasPermission('Change Delegate File Status') && authStore.hasPermission('Delegate Management')) || (typeUrl.value === 'ticket' && authStore.hasPermission('Change Ticket Status') && authStore.hasPermission('Ticket Management')) ? { status: r.status ? 'Active' : 'Inactive' } : {}),
             }
         })
         const exportColumns = (columns.value || []).filter(c => c && c.key !== 'action' && c.key !== 'checked')
