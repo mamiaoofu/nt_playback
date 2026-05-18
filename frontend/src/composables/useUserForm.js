@@ -23,8 +23,11 @@ export function useUserForm(props) {
         })
     })
     const showDomainAccountBtn = computed(() => {
-        return authStore.user && authStore.user.id === 1
+        // return authStore.user && authStore.user.id === 1 
+        return authStore.hasPermission('Add User')
     })
+
+    const isSuperadmin = computed(() => !!authStore.user?.is_superuser)
 
     const fetchAdUsers = async () => {
         loadingAdUsers.value = true
@@ -79,7 +82,8 @@ export function useUserForm(props) {
         firstName: '',
         lastName: '',
         email: '',
-        phone: ''
+        phone: '',
+        isSuperadmin: false
     })
 
     let _usernameTimer = null
@@ -220,6 +224,7 @@ export function useUserForm(props) {
                 form.value.firstName = u.first_name || u.firstName || ''
                 form.value.lastName = u.last_name || u.lastName || ''
                 form.value.email = u.email || ''
+                form.value.isSuperadmin = !!(u.is_superuser || (up && up.user && up.user.is_superuser))
             }
         }
 
@@ -301,6 +306,7 @@ export function useUserForm(props) {
             form.value.lastName = ''
             form.value.email = ''
             form.value.phone = ''
+            form.value.isSuperadmin = false
         }
 
         selectedGroupId.value = null
@@ -382,7 +388,7 @@ export function useUserForm(props) {
 
         if (selectedTeamId.value) fd.append('team', selectedTeamId.value)
         if (selectedGroupId.value) fd.append('group', selectedGroupId.value)
-
+        fd.append('is_superuser', form.value.isSuperadmin ? 'true' : 'false')
         fd.append('ad_account', isDomainAccountMode.value ? 'true' : 'false')
 
         if (selectedAllDatabases.value) {
@@ -805,6 +811,7 @@ export function useUserForm(props) {
         usernameCheck,
         mode,
         form,
+        isSuperadmin,
         errors,
         groups,
         teams,

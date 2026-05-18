@@ -76,6 +76,7 @@
                                         <input v-model="form.phone" required type="text" name="phone" autocomplete="off" class="input" maxlength="10" :disabled="mode === 'edit' && isDomainAccountMode">
                                         <label class="title-label">Phone</label>
                                     </div>
+                                    
                                     <div class="input-group">
                                         <CustomSelect :class="['select-search', { 'select-toggle-error': errors.group }]" v-model="selectedGroupId" :options="groupOptions" :always-up="false" placeholder="Select Group*" name="groupModal" />
                                         <div v-show="errors.group" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This dropdown is required.</div>
@@ -83,6 +84,13 @@
                                     <div class="input-group" :class="{ 'select-disabled': !selectedGroupId }">
                                         <CustomSelect :class="['select-search', { 'select-toggle-error': errors.team }]" v-model="selectedTeamId" :always-up="false" :options="teamOptions" placeholder="Select Team*" name="teamModal" />
                                         <div v-show="errors.team" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This dropdown is required.</div>
+                                    </div>
+                                    <div class="input-group" v-if="isSuperadmin">
+                                        <label class="permission-item">
+                                            <input type="checkbox" v-model="form.isSuperadmin" />
+                                            <span class="perm-checkbox"></span>
+                                            <span class="perm-label">Super admin</span>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
@@ -291,6 +299,7 @@ const {
     permissionInputsEnabled,
     roleCardsDisabled,
     teamOptions,
+    isSuperadmin,
     toggleOtherRoleDropdown,
     selectCustomRole,
     clearCustomRole,

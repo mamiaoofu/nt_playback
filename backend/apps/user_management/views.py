@@ -105,6 +105,8 @@ def ApiGetUser(request):
         print(f"ApiGetUser: sync_ad_accounts failed: {e}")
     # prepare base query
     qs = UserProfile.objects.exclude(user__id=1).select_related('user', 'team')
+    if not request.user.is_superuser:
+        qs = qs.exclude(user__is_superuser=True)
 
     user_auths = UserAuth.objects.filter(
         allow=True,
@@ -672,6 +674,52 @@ def ApiGetUSerProfile(request, user_id):
         user_to_edit = user
         user_profile = UserProfile.objects.filter(user=user_to_edit).first()
 
+        # If user is AD account, query AD server for email and phone dynamically
+        if user_profile and user_profile.ad_account:
+            from django.conf import settings
+            from ldap3 import Server, Connection, NTLM, ALL
+            
+            ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
+            ad_domain = getattr(settings, 'AD_DOMAIN', None)
+            ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
+            ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
+            ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+
+            if all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
+                user_principal = f"{ad_domain}\\{ad_bind_user}"
+                try:
+                    server = Server(ad_server_uri, get_info=ALL)
+                    conn = Connection(
+                        server,
+                        user=user_principal,
+                        password=ad_bind_password,
+                        authentication=NTLM,
+                        auto_bind=True
+                    )
+                    search_filter = f'(&(objectCategory=person)(objectClass=user)(sAMAccountName={user.username}))'
+                    conn.search(
+                        search_base=ad_base_dn,
+                        search_filter=search_filter,
+                        attributes=['mail', 'telephoneNumber', 'mobile']
+                    )
+                    if conn.entries:
+                        entry = conn.entries[0]
+                        ad_email = str(entry.mail) if hasattr(entry, 'mail') and entry.mail else ''
+                        ad_phone = str(entry.telephoneNumber) if hasattr(entry, 'telephoneNumber') and entry.telephoneNumber else ''
+                        if not ad_phone and hasattr(entry, 'mobile') and entry.mobile:
+                            ad_phone = str(entry.mobile)
+                        
+                        # Save back to database if changed
+                        if ad_email and user.email != ad_email:
+                            user.email = ad_email
+                            user.save()
+                        if ad_phone and user_profile.phone != ad_phone:
+                            user_profile.phone = ad_phone
+                            user_profile.save()
+                    conn.unbind()
+                except Exception as ad_err:
+                    print(f"ApiGetUSerProfile: AD sync failed for user {user.username}: {ad_err}")
+
         user_auths = UserAuth.objects.filter(user=user_to_edit)
         selected_db_ids = [str(auth.maindatabase.id) for auth in user_auths if getattr(auth, 'allow', False)]
         
@@ -886,6 +934,11 @@ def ApiSaveUser(request, user_id=None):
                 user_to_update.last_name = last_name or user_to_update.last_name
                 user_to_update.email = email or user_to_update.email
 
+                if request.user.is_superuser:
+                    is_superuser = post_data.get('is_superuser') == 'true'
+                    user_to_update.is_superuser = is_superuser
+                    user_to_update.is_staff = is_superuser
+
                 if password:
                     user_to_update.set_password(password)
                 user_to_update.save()
@@ -940,14 +993,19 @@ def ApiSaveUser(request, user_id=None):
 
     try:
         with transaction.atomic():
-            auth_user_create = User.objects.create_user(
-                username=username,
-                password=password,
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                is_active=True,
-            )
+            create_kwargs = {
+                'username': username,
+                'password': password,
+                'first_name': first_name,
+                'last_name': last_name,
+                'email': email,
+                'is_active': True,
+            }
+            if request.user.is_superuser and post_data.get('is_superuser') == 'true':
+                create_kwargs['is_superuser'] = True
+                create_kwargs['is_staff'] = True
+
+            auth_user_create = User.objects.create_user(**create_kwargs)
 
             if auth_user_create:
                 main_dbs = list(MainDatabase.objects.only('id').order_by('id'))
@@ -1116,10 +1174,8 @@ def ApiChangePassword(request):
         return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
 
 @login_required(login_url='/login')
+@require_action('Add User')
 def ApiGetAdUsers(request):
-    if request.user.id != 1:
-        return JsonResponse({'status': 'error', 'message': 'Access Denied'}, status=403)
-    
     from django.conf import settings
     from ldap3 import Server, Connection, NTLM, SIMPLE, ALL
     from ldap3.core.exceptions import LDAPException
