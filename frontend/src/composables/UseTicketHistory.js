@@ -42,7 +42,7 @@ export function useTicketHistory() {
         action: [],
         createdBy: '',
         start_date: '',
-        exprie_date: '',
+        end_date: '',
         status: [],
         files_audio: []
     })
@@ -75,6 +75,7 @@ export function useTicketHistory() {
         { key: 'code', label: 'Ticket ID' },
         { key: 'email', label: 'Email', tooltip: true },
         { key: 'create_by', label: 'Created By' },
+        { key: 'create_at', label: 'Created Date' },
         { key: 'start_date', label: 'Start Date' },
         { key: 'exprie_date', label: 'Expire Date' },
         { key: 'files_audio', label: 'Files Audio', tooltip: true, labelKey: 'files_audio_label' },
@@ -192,8 +193,12 @@ export function useTicketHistory() {
                         }
                     }
                 }
-                ticketOptions.value = tOpts
-                createdByOptions.value = cOpts
+                if (!ticketOptions.value || ticketOptions.value.length <= 1) {
+                    ticketOptions.value = tOpts
+                }
+                if (!createdByOptions.value || createdByOptions.value.length <= 1) {
+                    createdByOptions.value = cOpts
+                }
             } catch (e) {
                 console.error('build options error', e)
             }
@@ -248,7 +253,7 @@ export function useTicketHistory() {
             filters.action = []
             filters.createdBy = ''
             filters.start_date = ''
-            filters.exprie_date = ''
+            filters.end_date = ''
             filters.status = []
             filters.files_audio = []
             startInput.value._flatpickrInstance.clear()

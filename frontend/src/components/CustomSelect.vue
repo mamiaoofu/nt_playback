@@ -298,4 +298,12 @@ onBeforeUnmount(() => {
 .input[type="checkbox" i] {
  cursor: pointer;
 }
+
+.option.option-search::marker {
+  display: none;
+}
+
+li.option.option-search {
+  list-style: none;
+}
 </style>

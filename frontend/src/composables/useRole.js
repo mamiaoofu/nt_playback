@@ -125,6 +125,13 @@ export function useRole() {
     } catch (e) { console.error('onRoleUpdated handler error', e) }
   }
 
+  function clearSearch() {
+    searchQuery.value = ''
+    nextTick(() => {
+      if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') searchInputRef.value.focus()
+    })
+  }
+
   onMounted(() => {
     fetchIndexRoles()
   })
@@ -147,7 +154,8 @@ export function useRole() {
     openCreateRole,
     deleteCustomRole,
     onRoleCreated,
-    onRoleUpdated
+    onRoleUpdated,
+    clearSearch
   }
 
   return {

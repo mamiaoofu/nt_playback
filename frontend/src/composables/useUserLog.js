@@ -181,7 +181,7 @@ export function useUserLog() {
                 const u = p.user ? p.user : p
                 const uname = u?.username || ''
                 const fullname = `${u?.first_name || ''} ${u?.last_name || ''}`.trim()
-                const label = fullname ? `${uname} (${fullname})` : uname
+                const label = fullname ? `${uname}` : uname
                 opts.push({ label, value: uname })
             }
             userOptions.value = opts

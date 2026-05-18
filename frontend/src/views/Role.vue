@@ -61,9 +61,14 @@
             </div>
             <div style="display: flex; align-items: center; gap: 10px">
               <div data-v-2dc54a20="" class="search-group" style="width: 260px; position: relative">
-                <i data-v-2dc54a20="" class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input data-v-2dc54a20="" v-model="searchQuery" type="text" class="form-control form-control-sm search-input"
-                  placeholder="Search..." fdprocessedid="lf0zjn" />
+                <li class="option option-search">
+                  <div class="search-input-wrap">
+                    <i data-v-2dc54a20="" class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input data-v-2dc54a20="" v-model="searchQuery" type="text" class="form-control form-control-sm search-input"
+                      placeholder="Search..." fdprocessedid="lf0zjn" />
+                    <i v-if="searchQuery" class="fa-solid fa-xmark fa-times clear-icon" aria-hidden="true" @click.stop="clearSearch"></i>
+                  </div>
+                </li>
               </div>
               <button v-if="authStore.hasPermission('Add New Custom Roles')" type="button" class="btn-role btn-primary btn-sm" id="addRoleBtn" @click.stop="openCreateRole">
                 <i class="fas fa-plus"></i>
@@ -126,8 +131,17 @@ const {
   openCreateRole,
   deleteCustomRole,
   onRoleCreated,
-  onRoleUpdated
+  onRoleUpdated,
+  clearSearch
 } = useRole()
 </script>
+<style scoped>
+.option.option-search::marker {
+  display: none;
+}
 
+li.option.option-search {
+  list-style: none;
+}
+</style>
 <style scoped src="../assets/css/role.css"></style>
