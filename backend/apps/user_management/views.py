@@ -29,6 +29,60 @@ from django.contrib.sessions.models import Session
 
 User = get_user_model()
 
+_last_ad_sync_time = 0
+
+def sync_ad_accounts():
+    global _last_ad_sync_time
+    import time
+    now = time.time()
+    if now - _last_ad_sync_time < 60:
+        return
+    _last_ad_sync_time = now
+
+    from django.conf import settings
+    from ldap3 import Server, Connection, NTLM, ALL
+    from apps.core.model.authorize.models import UserProfile
+
+    ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
+    ad_domain = getattr(settings, 'AD_DOMAIN', None)
+    ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
+    ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
+    ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+
+    if not all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
+        return
+
+    user_principal = f"{ad_domain}\\{ad_bind_user}"
+    try:
+        server = Server(ad_server_uri, get_info=ALL)
+        conn = Connection(
+            server,
+            user=user_principal,
+            password=ad_bind_password,
+            authentication=NTLM,
+            auto_bind=True
+        )
+        search_filter = '(&(objectCategory=person)(objectClass=user))'
+        conn.search(
+            search_base=ad_base_dn,
+            search_filter=search_filter,
+            attributes=['sAMAccountName']
+        )
+        ad_usernames = {str(entry.sAMAccountName).lower() for entry in conn.entries if hasattr(entry, 'sAMAccountName')}
+        conn.unbind()
+
+        profiles_to_update = UserProfile.objects.filter(ad_account__in=[False, None])
+        updated_count = 0
+        for profile in profiles_to_update:
+            if profile.user.username.lower() in ad_usernames:
+                profile.ad_account = True
+                profile.save()
+                updated_count += 1
+        if updated_count > 0:
+            print(f"sync_ad_accounts: Automatically marked {updated_count} AD users as ad_account=True.")
+    except Exception as e:
+        print(f"sync_ad_accounts failed: {e}")
+
 @login_required(login_url='/login')
 @require_action('User Management','Audit Log','System Log','Audio Records')
 def ApiGetUserAll(request, type):
@@ -45,6 +99,10 @@ def ApiGetUserAll(request, type):
 @login_required(login_url='/login')
 @require_action('User Management','Audit Log','System Log','Audio Records')
 def ApiGetUser(request):
+    try:
+        sync_ad_accounts()
+    except Exception as e:
+        print(f"ApiGetUser: sync_ad_accounts failed: {e}")
     # prepare base query
     qs = UserProfile.objects.exclude(user__id=1).select_related('user', 'team')
 
@@ -603,6 +661,10 @@ def ApiGetAllRolesPermissions(request):
 @login_required(login_url='/login')
 def ApiGetUSerProfile(request, user_id):
     try:
+        sync_ad_accounts()
+    except Exception as e:
+        print(f"ApiGetUSerProfile: sync_ad_accounts failed: {e}")
+    try:
         user = User.objects.get(id=user_id)
         # if user == request.user:
         #     return JsonResponse({'status': 'error', 'message': 'Cannot access your own profile here.'})
@@ -800,6 +862,15 @@ def ApiSaveUser(request, user_id=None):
     if user_id:
         try:
             user_to_update = User.objects.get(id=user_id)
+            profile_to_update = UserProfile.objects.filter(user=user_to_update).first()
+            if profile_to_update and profile_to_update.ad_account:
+                username = user_to_update.username
+                first_name = user_to_update.first_name
+                last_name = user_to_update.last_name
+                email = user_to_update.email
+                phone = profile_to_update.phone
+                password = None
+                ad_account = True
         except User.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': 'User not found.'})
 
@@ -933,10 +1004,12 @@ def ApiResetPassword(request, user_id):
     """
     try:
         user = User.objects.get(id=user_id)
+        user_profile = UserProfile.objects.filter(user=user).first()
+        if user_profile and user_profile.ad_account:
+            return JsonResponse({'status': 'error', 'message': 'Cannot reset password for Domain accounts.'})
+
         user.set_password(user.username)
         user.save()
-
-        user_profile = UserProfile.objects.filter(user=user).first()
         if user_profile:
             try:
                 user_profile.reset_password = 9
@@ -980,6 +1053,10 @@ def ApiResetPassword(request, user_id):
 @require_POST
 def ApiChangePassword(request):
     user = request.user
+    user_profile = UserProfile.objects.filter(user=user).first()
+    if user_profile and user_profile.ad_account:
+        return JsonResponse({'status': 'error', 'message': 'Domain accounts cannot change their passwords.'})
+
     old_password = request.POST.get('old_password')
     new_password = request.POST.get('new_password')
 
@@ -1073,7 +1150,7 @@ def ApiGetAdUsers(request):
         conn.search(
             search_base=ad_base_dn,
             search_filter=search_filter,
-            attributes=['sAMAccountName', 'givenName', 'sn']
+            attributes=['sAMAccountName', 'givenName', 'sn', 'mail', 'telephoneNumber', 'mobile']
         )
         
         users = []
@@ -1082,12 +1159,18 @@ def ApiGetAdUsers(request):
                 username = str(entry.sAMAccountName)
                 given_name = str(entry.givenName) if hasattr(entry, 'givenName') and entry.givenName else ''
                 sn = str(entry.sn) if hasattr(entry, 'sn') and entry.sn else ''
+                email = str(entry.mail) if hasattr(entry, 'mail') and entry.mail else ''
+                phone = str(entry.telephoneNumber) if hasattr(entry, 'telephoneNumber') and entry.telephoneNumber else ''
+                if not phone and hasattr(entry, 'mobile') and entry.mobile:
+                    phone = str(entry.mobile)
                 
                 if username:
                     users.append({
                         'username': username,
                         'first_name': given_name,
-                        'last_name': sn
+                        'last_name': sn,
+                        'email': email,
+                        'phone': phone
                     })
                     
         conn.unbind()

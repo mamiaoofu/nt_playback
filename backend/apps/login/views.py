@@ -53,6 +53,8 @@ def index(request):
             db_user = None
             is_ad = False
 
+        user = None
+        backend_path = ''
         if is_ad:
             # ล็อกอิน AD: ใช้ ActiveDirectoryBackend โดยตรง
             from apps.core.utils.ad_backend import ActiveDirectoryBackend
@@ -63,6 +65,13 @@ def index(request):
             from django.contrib.auth.backends import ModelBackend
             user = ModelBackend().authenticate(request, username=username_input, password=password_input)
             backend_path = 'django.contrib.auth.backends.ModelBackend'
+            
+            # Fallback: If local login fails but the user exists in Django, try AD authentication!
+            if user is None and db_user is not None:
+                from apps.core.utils.ad_backend import ActiveDirectoryBackend
+                user = ActiveDirectoryBackend().authenticate(request, username=username_input, password=password_input)
+                if user is not None:
+                    backend_path = 'apps.core.utils.ad_backend.ActiveDirectoryBackend'
 
         if user is not None and user.is_active:
             user.backend = backend_path

@@ -52,6 +52,15 @@ class ActiveDirectoryBackend(ModelBackend):
         # 4. If AD auth succeeds, check if the user exists in Django DB
         try:
             user = User.objects.get(username__iexact=username)
+            # Ensure their profile's ad_account is marked as True
+            try:
+                from apps.core.model.authorize.models import UserProfile
+                profile, created = UserProfile.objects.get_or_create(user=user)
+                if not profile.ad_account:
+                    profile.ad_account = True
+                    profile.save()
+            except Exception as pe:
+                print(f"ActiveDirectoryBackend: Failed to update UserProfile for {username}: {pe}")
             return user
         except User.DoesNotExist:
             print(f"ActiveDirectoryBackend: User {username} authenticated via AD but does not exist in Django DB.")

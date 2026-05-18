@@ -116,6 +116,8 @@ export function useUserForm(props) {
             if (user) {
                 form.value.firstName = user.first_name || ''
                 form.value.lastName = user.last_name || ''
+                form.value.email = user.email || ''
+                form.value.phone = user.phone || ''
             }
         }
         
@@ -208,6 +210,9 @@ export function useUserForm(props) {
     function populateFromInitial(data) {
         if (!data) return
         const up = data.user_profile || data.userProfile || null
+        if (up && (up.ad_account === true || up.ad_account === 'true')) {
+            isDomainAccountMode.value = true
+        }
         const u = up && (up.user || up.user_to_edit || up.user) || (data.user_to_edit && data.user_to_edit) || null
         if (u) {
             if (form && form.value) {

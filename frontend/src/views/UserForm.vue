@@ -19,10 +19,10 @@
                                     </div>
                                     <div class="d-flex align-items-center">
                                         <div style="display: flex; gap: 8px;">
-                                            <button v-if="showDomainAccountBtn" class="customize-btn" type="button" @click="toggleDomainAccountMode" style="position:relative; height: 38px;">
+                                            <button v-if="mode !== 'edit' && showDomainAccountBtn" class="customize-btn" type="button" @click="toggleDomainAccountMode" style="position:relative; height: 38px;">
                                                 <i class="fas fa-network-wired" style="margin-right: 6px;"></i> Domain account
                                             </button>
-                                            <button class="customize-btn" type="button" id="clearUserInfoBtn"
+                                            <button v-if="!(mode === 'edit' && isDomainAccountMode)" class="customize-btn" type="button" id="clearUserInfoBtn"
                                                 @click="clearUserInfo" style="position:relative; height: 38px;">
                                                 <i class="fas fa-eraser" style="margin-right: 6px;"></i> Clear
                                             </button>
@@ -32,9 +32,9 @@
 
                                 <div class="permissions-grid-1">
                                     <div class="input-group" style="margin-bottom: 12.2px;" :class="{'has-value': isDomainAccountMode || form.username}">
-                                        <input v-if="!isDomainAccountMode" v-model="form.username" required type="text" name="username" autocomplete="off" :class="['input', { 'form-input-modal': usernameCheck || errors.username }]" maxlength="30" >
-                                        <CustomSelect v-else :class="['select-search', { 'select-toggle-error': usernameCheck || errors.username }]" v-model="form.username" :options="adUserOptions" :always-up="false" :placeholder="loadingAdUsers ? 'Loading AD Users...' : 'Select AD User*'" name="adUserModal" />
-                                        <label v-if="!isDomainAccountMode" class="title-label">Username*</label>
+                                        <input v-if="mode === 'edit' || !isDomainAccountMode" v-model="form.username" required type="text" name="username" autocomplete="off" :class="['input', { 'form-input-modal': usernameCheck || errors.username }]" maxlength="30" :disabled="mode === 'edit' && isDomainAccountMode">
+                                        <CustomSelect v-else-if="mode !== 'edit' && isDomainAccountMode" :class="['select-search', { 'select-toggle-error': usernameCheck || errors.username }]" v-model="form.username" :options="adUserOptions" :always-up="false" :placeholder="loadingAdUsers ? 'Loading AD Users...' : 'Select AD User*'" name="adUserModal" />
+                                        <label v-if="mode === 'edit' || !isDomainAccountMode" class="title-label">Username*</label>
                                         <div v-show="usernameCheck" class="validate"><i class="fa-solid fa-circle-exclamation"></i> This username is already in the system.</div>
                                         <div v-show="errors.username && !usernameCheck" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.username === 'string' ? errors.username : 'This field is required.' }}</div>
                                     </div>
@@ -58,22 +58,22 @@
                                         <div v-show="errors.confirmPassword" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.confirmPassword === 'string' ? errors.confirmPassword : 'This field is required.' }}</div>
                                     </div>
                                     <div class="input-group" v-has-value>
-                                        <input v-model="form.firstName" required type="text" name="firstName" autocomplete="off" :class="['input', { 'form-input-modal': errors.firstName }]" maxlength="30">
+                                        <input v-model="form.firstName" required type="text" name="firstName" autocomplete="off" :class="['input', { 'form-input-modal': errors.firstName }]" maxlength="30" :disabled="mode === 'edit' && isDomainAccountMode">
                                         <label class="title-label">First Name*</label>
                                         <div v-show="errors.firstName" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.firstName === 'string' ? errors.firstName : 'This field is required.' }}</div>
                                     </div>
                                     <div class="input-group" v-has-value>
-                                        <input v-model="form.lastName" required type="text" name="lastName" autocomplete="off" :class="['input', { 'form-input-modal': errors.lastName }]" maxlength="30">
+                                        <input v-model="form.lastName" required type="text" name="lastName" autocomplete="off" :class="['input', { 'form-input-modal': errors.lastName }]" maxlength="30" :disabled="mode === 'edit' && isDomainAccountMode">
                                         <label class="title-label">Last Name*</label>
                                         <div v-show="errors.lastName" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.lastName === 'string' ? errors.lastName : 'This field is required.' }}</div>
                                     </div>
-                                    <div class="input-group" v-has-value v-if="!isDomainAccountMode">
-                                        <input v-model="form.email" required type="text" name="email" autocomplete="off" class="input" maxlength="30">
+                                    <div class="input-group" v-has-value>
+                                        <input v-model="form.email" required type="text" name="email" autocomplete="off" class="input" maxlength="30" :disabled="mode === 'edit' && isDomainAccountMode">
                                         <label class="title-label">Email</label>
                                         <div v-show="errors.email" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ typeof errors.email === 'string' ? errors.email : 'Please enter a valid email address.' }}</div>
                                     </div>
-                                    <div class="input-group" v-has-value v-if="!isDomainAccountMode">
-                                        <input v-model="form.phone" required type="text" name="phone" autocomplete="off" class="input" maxlength="10">
+                                    <div class="input-group" v-has-value>
+                                        <input v-model="form.phone" required type="text" name="phone" autocomplete="off" class="input" maxlength="10" :disabled="mode === 'edit' && isDomainAccountMode">
                                         <label class="title-label">Phone</label>
                                     </div>
                                     <div class="input-group">

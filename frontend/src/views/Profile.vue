@@ -21,7 +21,7 @@
                                 <li class="nav-item">
                                     <a class="nav-link" :class="{ active: activeTab === 'personal' }" href="#" @click.prevent="activeTab = 'personal'">Personal info</a>
                                 </li>
-                                <li class="nav-item">
+                                <li class="nav-item" v-if="!userProfile.ad_account">
                                     <a class="nav-link" :class="{ active: activeTab === 'password' }" href="#" @click.prevent="activeTab = 'password'">Password</a>
                                 </li>
                             </ul>
@@ -72,7 +72,7 @@
                                 </div>
 
                                 <!-- Password -->
-                                <div v-if="activeTab === 'password'" class="tab-pane fade show active">
+                                <div v-if="activeTab === 'password' && !userProfile.ad_account" class="tab-pane fade show active">
                                     <form @submit.prevent="submitPasswordChange" class="col-md-4 ps-2">
                                         <div class="input-group mb-3" v-has-value>
                                             <input :type="showOldPass ? 'text' : 'password'" v-model="passwordForm.old_password" class="input" required>

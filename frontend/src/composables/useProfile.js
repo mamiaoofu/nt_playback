@@ -84,7 +84,8 @@ export function useProfile() {
                     group_name: group.group_name || '',
                     team_name: team.name || '',
                     role: role,
-                    db_name: db_name
+                    db_name: db_name,
+                    ad_account: up.ad_account || false
                 }
             }
         } catch (e) { console.error('Fetch profile error', e) } finally { loading.value = false }
