@@ -313,5 +313,5 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # ออกจากระบบเมื่อปิด browser
-SESSION_COOKIE_AGE = 3600  # max 1 ชั่วโมง
-SESSION_SAVE_EVERY_REQUEST = True  # refresh timeout ทุกครั้งที่มี request
+# SESSION_COOKIE_AGE = 3600  # max 1 ชั่วโมง
+# SESSION_SAVE_EVERY_REQUEST = True  # refresh timeout ทุกครั้งที่มี request
