@@ -238,6 +238,20 @@ export function useGroupAndTeam() {
         }
     }
 
+    function clearSearch() {
+        searchQuery.value = ''
+        nextTick(() => {
+        if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') searchInputRef.value.focus()
+        })
+    }
+
+    function clearTeamSearch() {
+        teamSearchQuery.value = ''
+        nextTick(() => {
+        if (teamSearchInputRef.value && typeof teamSearchInputRef.value.focus === 'function') teamSearchInputRef.value.focus()
+        })
+    }
+
     onMounted(() => {
         fetchIndexGroup()
     })
@@ -272,7 +286,9 @@ export function useGroupAndTeam() {
         openCreateTeam,
         openEditTeam,
         deleteTeam,
-        onGroupSaved
+        onGroupSaved,
+        clearSearch,
+        clearTeamSearch
     }
 
     return {

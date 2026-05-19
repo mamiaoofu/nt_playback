@@ -17,10 +17,15 @@
 
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <div class="search-group" style="width:260px; position:relative;">
-                                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                        <input v-model="searchQuery" type="text"
-                                            class="form-control form-control-sm search-input"
-                                            placeholder="Search..." @input="onTyping" @keyup.enter="onSearch" />
+                                        <li class="option option-search">
+                                            <div class="search-input-wrap">
+                                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                                <input v-model="searchQuery" type="text"
+                                                    class="form-control form-control-sm search-input"
+                                                    placeholder="Search..." @input="onTyping" @keyup.enter="onSearch" />
+                                                    <i v-if="searchQuery" class="fa-solid fa-xmark fa-times clear-icon" aria-hidden="true" @click.stop="clearSearch"></i>
+                                            </div>
+                                        </li>
                                     </div>
                                     <button v-if="authStore.hasPermission('Add New Group')" class="btn-role btn-primary btn-sm" id="addGroupBtn"
                                         @click.stop="openCreateGroup">
@@ -104,10 +109,13 @@
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 10px;">
                                     <div class="search-group" style="width:260px; position:relative;">
-                                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                        <input v-model="teamSearchQuery" type="text"
-                                            class="form-control form-control-sm search-input"
-                                            placeholder="Search..." @input="onTypingTeam" @keyup.enter="onSearchTeam" />
+                                        <li class="option option-search">
+                                            <div class="search-input-wrap">
+                                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                                <input v-model="teamSearchQuery" type="text" class="form-control form-control-sm search-input" placeholder="Search..." @input="onTypingTeam" @keyup.enter="onSearchTeam" />
+                                                <i v-if="teamSearchQuery" class="fa-solid fa-xmark fa-times clear-icon" aria-hidden="true" @click.stop="clearTeamSearch"></i>
+                                            </div>
+                                        </li>
                                     </div>
                                     <button v-if="authStore.hasPermission('Add New Team')" class="btn-role btn-primary btn-sm" id="addTeamBtn"
                                         @click.stop="openCreateTeam">
@@ -205,8 +213,19 @@ const {
     openCreateTeam,
     openEditTeam,
     deleteTeam,
-    onGroupSaved
+    onGroupSaved,
+    clearSearch,
+    clearTeamSearch
 } = useGroupAndTeam()
 </script>
+<style scoped>
+    .option.option-search::marker {
+    display: none;
+    }
+
+    li.option.option-search {
+    list-style: none;
+    }
+</style>
 
 <style scoped src="../assets/css/group-and-team.css"></style>

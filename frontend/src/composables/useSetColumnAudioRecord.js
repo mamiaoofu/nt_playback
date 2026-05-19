@@ -152,6 +152,14 @@ export function useSetColumnAudioRecord() {
         fetchGetColumnAudioRecord()
     })
 
+    function clearSearch() {
+        searchQuery.value = ''
+        nextTick(() => {
+        if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') searchInputRef.value.focus()
+        })
+    }
+
+
     const state = {
         searchQuery,
         authStore,
@@ -173,7 +181,8 @@ export function useSetColumnAudioRecord() {
         openEditColumn,
         deleteColumn,
         toggleSetColumnUse,
-        onModalSaved
+        onModalSaved,
+        clearSearch
     }
 
     return {
