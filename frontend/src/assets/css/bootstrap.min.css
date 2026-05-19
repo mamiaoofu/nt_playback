@@ -6706,7 +6706,8 @@ fieldset:disabled .btn {
   align-items: center;
   -webkit-text-decoration-color: rgba(var(--bs-link-color-rgb), var(--bs-link-opacity, 0.5));
   text-decoration-color: rgba(var(--bs-link-color-rgb), var(--bs-link-opacity, 0.5));
-  text-underline-offset: 0.25em;
+  /* text-underline-offset: 0.25em; */
+  text-decoration: none !important;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }

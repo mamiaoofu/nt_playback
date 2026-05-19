@@ -10,8 +10,10 @@
     </div>
 
     <Navbar />
-    
-    <main class="main-content">
+
+    <SystemSidebar v-if="showSystemSidebar" @toggle="onSidebarToggle" />
+
+    <main :class="['main-content', { 'with-system-sidebar': showSystemSidebar, 'system-sidebar-expanded': isSidebarExpanded }]">
       <slot />
     </main>
 
@@ -23,12 +25,26 @@
   </div>
 </template>
 
+
 <script setup>
 import Navbar from '../components/Navbar.vue'
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import SystemSidebar from '../components/SystemSidebar.vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { whenIdle } from '../utils/pageLoad'
 
 const pageLoading = ref(true)
+const route = useRoute()
+const isSidebarExpanded = ref(true)
+
+const onSidebarToggle = (expanded) => {
+  isSidebarExpanded.value = expanded
+}
+const showSystemSidebar = computed(() => {
+  try {
+    return (route && route.path && String(route.path).startsWith('/system-tool'))
+  } catch (e) { return false }
+})
 
 onMounted(() => {
   const waitForWindowLoad = new Promise((resolve) => {
@@ -91,7 +107,11 @@ onBeforeUnmount(() => {})
 
 .main-content {
   flex: 1 1 auto;
+  transition: padding-left 0.18s ease;
 }
+
+.main-content.with-system-sidebar { padding: 58px 8px 0px 56px; }
+.main-content.with-system-sidebar.system-sidebar-expanded { padding-left: 240px; }
 
 /* Small-screen tweak */
 @media (max-width: 576px) {
