@@ -2,13 +2,13 @@
   <MainLayout>
     <div class="dashboard-root py-3" style="background-color: #f1f5f9; min-height: calc(100vh - 60px);">
       <div class="dashboard-container">
-        <Breadcrumbs :items="[{ text: 'Dashboard', to: '/dashboard' }]" />
+        <!-- <Breadcrumbs :items="[{ text: 'Dashboard', to: '/system-tool/dashboard' }]" /> -->
 
         <!-- Summary Cards -->
         <div class="summary-cards row g-3 mb-4">
           
           <!-- Users Card -->
-          <div class="col-md-3">
+          <div class="col-md-4">
             <div class="card h-100 shadow-sm border-0" style="border-radius: 12px;">
               <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -33,7 +33,7 @@
           </div>
 
           <!-- Audio Plays Card -->
-          <div class="col-md-3">
+          <div class="col-md-4">
             <div class="card h-100 shadow-sm border-0" style="border-radius: 12px;">
               <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -68,7 +68,7 @@
           </div>
 
           <!-- Disk Info Card -->
-          <div class="col-md-3">
+          <div class="col-md-4">
             <div class="card h-100 shadow-sm border-0" style="border-radius: 12px;">
               <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -90,7 +90,7 @@
           </div>
 
           <!-- Licenses Card -->
-          <div class="col-md-3">
+          <!-- <div class="col-md-3">
             <div class="card h-100 shadow-sm border-0" style="border-radius: 12px;">
               <div class="card-body p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -110,7 +110,7 @@
                 <div v-else style="font-size: 14px; color: #94a3b8;">No license information available</div>
               </div>
             </div>
-          </div>
+          </div> -->
 
         </div>
 
@@ -193,7 +193,7 @@
 import { ref, shallowRef, computed, onMounted, onUnmounted } from 'vue'
 import { useLicenseStore } from '../stores/license.store'
 import MainLayout from '../layouts/MainLayout.vue'
-import Breadcrumbs from '../components/Breadcrumbs.vue'
+// import Breadcrumbs from '../components/Breadcrumbs.vue'
 import CustomSelect from '../components/CustomSelect.vue'
 import TableTemplate from '../components/TableTemplate.vue'
 import { API_DASHBOARD_STATS, API_DASHBOARD_ALARMS, API_DASHBOARD_ACTION } from '../api/paths'
@@ -439,4 +439,6 @@ onUnmounted(() => {
 .icon-style {
   width:35px;height:35px;background-color: #D9E2F6;border-radius: 10px !important;
 }
+
+
 </style>

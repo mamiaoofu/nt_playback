@@ -21,7 +21,11 @@ const routes = [
 	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
 	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Ticket Management' } },
 	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Delegate Management' } },
-	{ path: '/dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
+	{ path: '/system-tool/dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
+	{ path: '/system-tool/active-directory', name: 'ActiveDirectoryConfig', component: () => import('../views/ActiveDirectoryConfig.vue') },
+	{ path: '/system-tool/network-share', name: 'NetworkShareConfig', component: () => import('../views/NetworkShareConfig.vue') },
+	{ path: '/system-tool/mail-settings', name: 'MailSettingsConfig', component: () => import('../views/MailSettingsConfig.vue') },
+	{ path: '/system-tool/nice-player', name: 'NicePlayerConfig', component: () => import('../views/NicePlayerConfig.vue') },
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },
 ]

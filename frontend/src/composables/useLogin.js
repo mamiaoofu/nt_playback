@@ -33,7 +33,7 @@ export function useLogin() {
       } else {
         try { showToast(`Welcome! ${authStore.user?.username || ''}`, 'success') } catch (e) { }
         if (authStore.user?.is_superuser) {
-          router.push('/dashboard')
+          router.push('/system-tool/dashboard')
         } else {
           router.push('/')
         }
