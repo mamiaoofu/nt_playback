@@ -107,7 +107,7 @@
                             @per-change="setPerPage">
 
                             <template #cell-username="{ row }">
-                                {{ row.user?.username || '' }}
+                                {{ row.user?.username ? row.user.username + (row.ad_account ? ' (AD)' : '') : '' }}
                             </template>
 
                             <template #cell-full_name="{ row }">

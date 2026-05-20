@@ -788,6 +788,8 @@ export function useUserManagement() {
         }
     }
 
+    const isSuperadmin = computed(() => !!authStore.user?.is_superuser)
+
     const state = {
         authStore,
         searchQuery,
@@ -825,7 +827,8 @@ export function useUserManagement() {
         downloadProgress,
         downloadSpeed,
         downloadRemaining,
-        downloading
+        downloading,
+        isSuperadmin
     }
 
     const actions = {
