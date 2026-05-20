@@ -93,7 +93,6 @@
     <ModalSetColumn v-if="authStore.hasPermission('Set Column')" v-model="showModal" :mode="modalMode" :columnData="editColumnData" @saved="onModalSaved"/>
 </template>
 
-
 <script setup>
 import MainLayout from '../layouts/MainLayout.vue'
 import Breadcrumbs from '../components/Breadcrumbs.vue'
@@ -124,11 +123,11 @@ const {
 </script>
 <style scoped>
 .option.option-search::marker {
-  display: none;
+display: none;
 }
 
 li.option.option-search {
-  list-style: none;
+list-style: none;
 }
 </style>
 

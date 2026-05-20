@@ -484,13 +484,13 @@ def ApiChangeFileShareStatus(request, user_id, type):
             user.save()
             user_file_share.status = not user_file_share.status
             user_file_share.save()
-            create_user_log(user=request.user, action="Change Ticket File Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request)
             status_msg = 'Active' if user.is_active else 'Inactive'
+            create_user_log(user=request.user, action="Change Ticket Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request)
         elif type == "delegate":
             user_file_share.status = not user_file_share.status
             user_file_share.save()
-            create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request)
-            status_msg = 'Active' if user_file_share.status else 'Inactive' 
+            status_msg = 'Active' if user_file_share.status else 'Inactive'
+            create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request) 
         
         
         return JsonResponse({'status': 'success', 'message': f'{type} ID {user_file_share.code} is now {status_msg}.'})
