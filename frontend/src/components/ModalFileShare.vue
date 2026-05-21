@@ -236,6 +236,8 @@ const fetchUsers = async () => {
         const list = json.data || []
         const opts = []
         for (const p of list) {
+            // skip superuser if current user is not superuser
+            if (!Store.user?.is_superuser && p.is_superuser) continue
             const u = p.user ? p.user : p
             const uname = u?.username || ''
             const fullname = `${u?.first_name || ''} ${u?.last_name || ''}`.trim()

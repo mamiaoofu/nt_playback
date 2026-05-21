@@ -572,13 +572,13 @@ export function useUserForm(props) {
     const baseRoles = ref({})
     const selectedBaseRoleKey = ref(null)
     const selectedPermissions = ref({})
+    const roleCardsDisabled = ref(false)
+    const databaseSelectionDisabled = ref(false)
 
     const permissionInputsEnabled = computed(() => {
         if (mode && mode.value === 'edit') return true
         return !!selectedBaseRoleKey.value || !!selectedCustomRoleId.value
     })
-
-    const roleCardsDisabled = computed(() => false)
 
     function clearSelectedPermissions() {
         selectedPermissions.value = {}
@@ -805,6 +805,31 @@ export function useUserForm(props) {
         errors.phone = digits.length > 0 ? false : 'Phone must contain only numbers'
     })
 
+    watch(() => form.value.isSuperadmin, (val) => {
+        // Only apply forced settings when creating a new user (mode === 'add')
+        if (mode && mode.value === 'add') {
+            if (val) {
+                // When super admin is checked, force Administrator role and All Databases
+                selectedBaseRoleKey.value = 'administrator'
+                applyBaseRolePermissions('administrator')
+                
+                // Force select all databases
+                if (!selectedAllDatabases.value) {
+                    selectedAllDatabases.value = true
+                    selectedDatabaseIds.value = databases.value.map(d => String(d.id))
+                }
+                
+                // Disable role and database selection
+                roleCardsDisabled.value = true
+                databaseSelectionDisabled.value = true
+            } else {
+                // When super admin is unchecked, enable role and database selection
+                roleCardsDisabled.value = false
+                databaseSelectionDisabled.value = false
+            }
+        }
+    })
+
     const state = {
         loading,
         selectedGroupId,
@@ -837,6 +862,7 @@ export function useUserForm(props) {
         selectedPermissions,
         permissionInputsEnabled,
         roleCardsDisabled,
+        databaseSelectionDisabled,
         teamOptions,
         isDomainAccountMode,
         adUsers,
