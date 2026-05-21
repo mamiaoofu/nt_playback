@@ -193,12 +193,12 @@
 
                                 <div class="database-grid">
                                     <label class="db-card">
-                                        <input type="checkbox" value="all" :checked="selectedAllDatabases" @change="toggleAllDatabases">
+                                        <input type="checkbox" value="all" :checked="selectedAllDatabases" @change="toggleAllDatabases" :disabled="databaseSelectionDisabled">
                                         <span class="db-checkbox"></span>
                                         <span class="db-name">All Databases</span>
                                     </label>
                                     <label class="db-card" v-for="db in databases" :key="db.id">
-                                        <input type="checkbox" :value="db.id" :checked="selectedDatabaseIds.includes(String(db.id))" @change="() => toggleDatabase(db)">
+                                        <input type="checkbox" :value="db.id" :checked="selectedDatabaseIds.includes(String(db.id))" @change="() => toggleDatabase(db)" :disabled="databaseSelectionDisabled">
                                         <span class="db-checkbox"></span>
                                         <span class="db-name">{{ db.database_name }}</span>
                                     </label>
@@ -324,7 +324,8 @@ const {
     adUserOptions,
     showDomainAccountBtn,
     fetchAdUsers,
-    toggleDomainAccountMode
+    toggleDomainAccountMode,
+    databaseSelectionDisabled
 } = useUserForm(props)
 </script>
 

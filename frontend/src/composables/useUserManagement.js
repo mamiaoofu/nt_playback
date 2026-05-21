@@ -172,6 +172,8 @@ export function useUserManagement() {
                         const uOpts = [{ label: 'All Users', value: 'all' }]
                         const seen = new Set()
                         for (const u of (uList || [])) {
+                            // skip superuser if current user is not superuser
+                            if (!authStore.user?.is_superuser && u.is_superuser) continue
                             // support both direct username/id objects and simple strings
                             const label = (u && (u.username || u.name || `${u.first_name || ''} ${u.last_name || ''}`.trim())) || String(u || '')
                             const value = (u && (u.id ?? u.username ?? u.value)) ?? String(u || '')
@@ -189,6 +191,8 @@ export function useUserManagement() {
                     const uOpts = [{ label: 'All Users', value: 'all' }]
                     if (Array.isArray(records.value)) {
                         for (const r of records.value) {
+                            // skip superuser if current user is not superuser
+                            if (!authStore.user?.is_superuser && r.user && r.user.is_superuser) continue
                             const uname = r && r.user && (r.user.username || r.user.name) || ''
                             const uid = r && r.user && r.user.id
                             const uVal = uid ?? uname

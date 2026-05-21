@@ -88,9 +88,12 @@ def sync_ad_accounts():
 def ApiGetUserAll(request, type):
     try:
         if type == 'user':
-            users = User.objects.exclude(Q(username__icontains='TKT') | Q(id=1)).values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
-        else :
-            users = User.objects.all().values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
+            users = User.objects.exclude(Q(username__icontains='TKT') | Q(id=1))
+        else:
+            users = User.objects.all()
+        if not request.user.is_superuser:
+            users = users.exclude(is_superuser=True)
+        users = users.values('id', 'username', 'first_name', 'last_name', 'email').order_by('username')
         user_list = list(users)
         return JsonResponse({'status': 'success', 'data': user_list})
     except Exception as e:
