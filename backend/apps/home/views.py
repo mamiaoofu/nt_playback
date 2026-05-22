@@ -1037,9 +1037,9 @@ def _is_download_intent(request):
 def _log_voice_download(request, file_name, status='success', error=None):
     try:
         if status == 'success':
-            create_user_log(user=request.user, action="Dowload", detail=f"file: {file_name}", status="success", request=request)
+            create_user_log(user=request.user, action="Download", detail=f"file: {file_name}", status="success", request=request)
         else:
-            create_user_log(user=request.user, action="Dowload", detail={"file": file_name, "error": str(error or '')}, status="error", request=request)
+            create_user_log(user=request.user, action="Download", detail={"file": file_name, "error": str(error or '')}, status="error", request=request)
     except Exception:
         pass
 
@@ -1277,11 +1277,11 @@ def ApiLogDownload(request):
             except Exception:
                 file_name = ''
 
-        create_user_log(user=request.user, action="Dowload", detail=f"file: {file_name}", status="success", request=request)
+        create_user_log(user=request.user, action="Download", detail=f"file: {file_name}", status="success", request=request)
         return JsonResponse({"status": "ok"}, status=201)
     except Exception as e:
         try:
-            create_user_log(user=request.user, action="Dowload", detail={"error": str(e)}, status="error", request=request)
+            create_user_log(user=request.user, action="Download", detail={"error": str(e)}, status="error", request=request)
         except Exception:
             pass
         return JsonResponse({"error": str(e)}, status=400)
