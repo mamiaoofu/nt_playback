@@ -1708,16 +1708,17 @@ def ApiPlayAudio(request, file_id):
             finally:
                 conn.close()
 
-        # Check if transcoding is needed
-        if not AudioTranscoder.is_browser_compatible(target_path):
-            transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
-            if err:
-                # If transcoding failed, but we have a file, try serving as-is as fallback
-                pass
-            else:
-                target_path = transcoded_path
-                temp_files.append(transcoded_path)
-                file_name = file_name
+        # Do not transcode original .nmf files when this request is an explicit download/export.
+        if not (_is_download_intent(request) and file_name.lower().endswith('.nmf')):
+            if not AudioTranscoder.is_browser_compatible(target_path):
+                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+                if err:
+                    # If transcoding failed, but we have a file, try serving as-is as fallback
+                    pass
+                else:
+                    target_path = transcoded_path
+                    temp_files.append(transcoded_path)
+                    file_name = file_name
 
         # Serve the file
         response = RangeFileResponse(
