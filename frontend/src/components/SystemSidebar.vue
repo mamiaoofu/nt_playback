@@ -55,11 +55,11 @@
               <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Mail settings</span>
             </router-link>
           </li>
-          <li>
+          <!-- <li>
             <router-link to="/system-tool/nice-player" class="sub-link">
               <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Nice player</span>
             </router-link>
-          </li>
+          </li> -->
         </ul>
       </li>
     </ul>

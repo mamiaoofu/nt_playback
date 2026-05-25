@@ -38,8 +38,8 @@
                             </div>
 
                             <div class="button-group mt-4">
-                                <button class="btn btn-primary" type="button">
-                                    <i class="fas fa-save"></i> Save Changes
+                                <button class="btn btn-primary" type="button" @click="saveChanges" :disabled="saving">
+                                    <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save Changes' }}
                                 </button>
                             </div>
                         </div>
@@ -51,8 +51,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import MainLayout from '../layouts/MainLayout.vue'
+import { API_ACTIVE_DIRECTORY_CONFIG } from '../api/paths'
+import { showToast } from '../assets/js/function-all'
+import { getCsrfToken } from '../api/csrf'
 
 const form = ref({
     host: '',
@@ -60,6 +63,62 @@ const form = ref({
     baseDn: '',
     username: '',
     password: ''
+})
+
+const loading = ref(false)
+const saving = ref(false)
+
+const loadSettings = async () => {
+    loading.value = true
+    try {
+        const res = await fetch(API_ACTIVE_DIRECTORY_CONFIG(), { credentials: 'include' })
+        if (res.ok) {
+            const json = await res.json()
+            if (json.status === 'success') {
+                form.value = json.data
+            }
+        } else {
+            showToast('Failed to load settings', 'error')
+        }
+    } catch (err) {
+        console.error('Error loading AD settings:', err)
+        showToast('Error loading settings', 'error')
+    } finally {
+        loading.value = false
+    }
+}
+
+const saveChanges = async () => {
+    saving.value = true
+    try {
+        const csrfToken = getCsrfToken()
+        const res = await fetch(API_ACTIVE_DIRECTORY_CONFIG(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify(form.value),
+            credentials: 'include'
+        })
+        const json = await res.json()
+        if (json.status === 'success') {
+            showToast(json.message || 'Settings saved successfully', 'success')
+            // Reload to reset the password field to placeholder '******'
+            loadSettings()
+        } else {
+            showToast(json.message || 'Failed to save settings', 'error')
+        }
+    } catch (err) {
+        console.error('Error saving AD settings:', err)
+        showToast('Error saving settings', 'error')
+    } finally {
+        saving.value = false
+    }
+}
+
+onMounted(() => {
+    loadSettings()
 })
 </script>
 

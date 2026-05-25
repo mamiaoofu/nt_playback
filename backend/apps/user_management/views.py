@@ -43,11 +43,13 @@ def sync_ad_accounts():
     from ldap3 import Server, Connection, NTLM, ALL
     from apps.core.model.authorize.models import UserProfile
 
-    ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
-    ad_domain = getattr(settings, 'AD_DOMAIN', None)
-    ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
-    ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
-    ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+    from apps.setting.helpers import get_ad_settings
+    ad_settings = get_ad_settings()
+    ad_server_uri = ad_settings.get('AD_SERVER_URI')
+    ad_domain = ad_settings.get('AD_DOMAIN')
+    ad_base_dn = ad_settings.get('AD_BASE_DN')
+    ad_bind_user = ad_settings.get('AD_BIND_USER')
+    ad_bind_password = ad_settings.get('AD_BIND_PASSWORD')
 
     if not all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
         return
@@ -682,11 +684,13 @@ def ApiGetUSerProfile(request, user_id):
             from django.conf import settings
             from ldap3 import Server, Connection, NTLM, ALL
             
-            ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
-            ad_domain = getattr(settings, 'AD_DOMAIN', None)
-            ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
-            ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
-            ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+            from apps.setting.helpers import get_ad_settings
+            ad_settings = get_ad_settings()
+            ad_server_uri = ad_settings.get('AD_SERVER_URI')
+            ad_domain = ad_settings.get('AD_DOMAIN')
+            ad_base_dn = ad_settings.get('AD_BASE_DN')
+            ad_bind_user = ad_settings.get('AD_BIND_USER')
+            ad_bind_password = ad_settings.get('AD_BIND_PASSWORD')
 
             if all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
                 user_principal = f"{ad_domain}\\{ad_bind_user}"
@@ -1183,11 +1187,13 @@ def ApiGetAdUsers(request):
     from ldap3 import Server, Connection, NTLM, SIMPLE, ALL
     from ldap3.core.exceptions import LDAPException
     
-    ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
-    ad_domain = getattr(settings, 'AD_DOMAIN', None)
-    ad_base_dn = getattr(settings, 'AD_BASE_DN', None)
-    ad_bind_user = getattr(settings, 'AD_BIND_USER', None)
-    ad_bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
+    from apps.setting.helpers import get_ad_settings
+    ad_settings = get_ad_settings()
+    ad_server_uri = ad_settings.get('AD_SERVER_URI')
+    ad_domain = ad_settings.get('AD_DOMAIN')
+    ad_base_dn = ad_settings.get('AD_BASE_DN')
+    ad_bind_user = ad_settings.get('AD_BIND_USER')
+    ad_bind_password = ad_settings.get('AD_BIND_PASSWORD')
 
     if not all([ad_server_uri, ad_domain, ad_base_dn, ad_bind_user, ad_bind_password]):
         return JsonResponse({'status': 'error', 'message': 'AD Configuration is incomplete.'})

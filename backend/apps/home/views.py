@@ -140,7 +140,9 @@ def ApiSendShareEmail(request):
         if not recipients:
             return JsonResponse({'ok': False, 'error': 'no recipients found'}, status=400)
 
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', getattr(settings, 'EMAIL_HOST_USER', None))
+        from apps.setting.helpers import get_mail_settings
+        mail_settings = get_mail_settings()
+        from_email = mail_settings.get('DEFAULT_FROM_EMAIL') or mail_settings.get('EMAIL_HOST_USER')
 
         # send emails in parallel to reduce total latency
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1128,11 +1130,12 @@ def ApiProxyAudio(request):
             # ensure we only allow simple file names
             base = os.path.basename(base)
 
-        # SMB share configuration (use env/settings with sensible defaults)
-        smb_host = getattr(settings, 'NT_SHARE_HOST')
-        smb_share = getattr(settings, 'NT_SHARE_SHARE')
-        smb_user = getattr(settings, 'NT_SHARE_USER')
-        smb_pass = getattr(settings, 'NT_SHARE_PASS')
+        from apps.setting.helpers import get_network_share_settings
+        ns_settings = get_network_share_settings()
+        smb_host = ns_settings.get('NT_SHARE_HOST')
+        smb_share = ns_settings.get('NT_SHARE_SHARE')
+        smb_user = ns_settings.get('NT_SHARE_USER')
+        smb_pass = ns_settings.get('NT_SHARE_PASS')
 
         print(f"Proxying audio file: {base} from SMB share {smb_host}/{smb_share} as user {smb_user}")
 
@@ -1146,7 +1149,7 @@ def ApiProxyAudio(request):
             return JsonResponse({'error': 'pysmb not installed on server: ' + str(e)}, status=500)
 
         # Use a fixed or configurable client name instead of socket.gethostname()
-        client_name = getattr(settings, 'NT_SMB_CLIENT_NAME', 'nt_playback')
+        client_name = ns_settings.get('NT_SMB_CLIENT_NAME', 'nt_playback')
         try:
             conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
             connected = conn.connect(smb_host, 445, timeout=10)
@@ -1665,13 +1668,15 @@ def ApiPlayAudio(request, file_id):
 
         if is_smb:
             # Download from SMB to temp file
-            smb_host = getattr(settings, 'NT_SHARE_HOST')
-            smb_share = getattr(settings, 'NT_SHARE_SHARE')
-            smb_user = getattr(settings, 'NT_SHARE_USER')
-            smb_pass = getattr(settings, 'NT_SHARE_PASS')
+            from apps.setting.helpers import get_network_share_settings
+            ns_settings = get_network_share_settings()
+            smb_host = ns_settings.get('NT_SHARE_HOST')
+            smb_share = ns_settings.get('NT_SHARE_SHARE')
+            smb_user = ns_settings.get('NT_SHARE_USER')
+            smb_pass = ns_settings.get('NT_SHARE_PASS')
             
             from smb.SMBConnection import SMBConnection
-            client_name = getattr(settings, 'NT_SMB_CLIENT_NAME', 'nt_playback')
+            client_name = ns_settings.get('NT_SMB_CLIENT_NAME', 'nt_playback')
             conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
             if not conn.connect(smb_host, 445):
                 return JsonResponse({'error': 'Failed to connect to SMB share'}, status=502)
