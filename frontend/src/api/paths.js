@@ -68,6 +68,9 @@ export const API_SETTINGS_INDEX = () => `${getApiBase()}/api/settings/index/`
 export const API_UPDATE_SETTINGS = () => `${getApiBase()}/api/settings/update/`
 export const API_GET_COLUMN_AUDIO_RECORD = () => `${getApiBase()}/api/setting/get/column-audio-record/`
 export const API_SAVE_COLUMN_AUDIO_RECORD = () => `${getApiBase()}/api/setting/save/column-audio-record/`
+export const API_ACTIVE_DIRECTORY_CONFIG = () => `${getApiBase()}/api/setting/active-directory/`
+export const API_NETWORK_SHARE_CONFIG = () => `${getApiBase()}/api/setting/network-share/`
+export const API_MAIL_SETTINGS_CONFIG = () => `${getApiBase()}/api/setting/mail/`
 
 // หน้า Profile
 export const API_CHANGE_PASSWORD = () => `${getApiBase()}/api/change-password/`

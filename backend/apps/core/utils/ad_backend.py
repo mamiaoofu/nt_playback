@@ -12,8 +12,10 @@ class ActiveDirectoryBackend(ModelBackend):
             return None
 
         # 1. Fetch AD config
-        ad_server_uri = getattr(settings, 'AD_SERVER_URI', None)
-        ad_domain = getattr(settings, 'AD_DOMAIN', None)
+        from apps.setting.helpers import get_ad_settings
+        ad_settings = get_ad_settings()
+        ad_server_uri = ad_settings.get('AD_SERVER_URI')
+        ad_domain = ad_settings.get('AD_DOMAIN')
 
         if not ad_server_uri or not ad_domain:
             return None

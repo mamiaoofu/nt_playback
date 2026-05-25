@@ -3,6 +3,7 @@ from django.shortcuts import  redirect
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
+from django.db import transaction
 from apps.core.utils.function import create_user_log, get_user_os_browser_architecture
 from apps.core.utils.permissions import  require_action
 
@@ -115,4 +116,149 @@ def ApiSaveColumnAudioRecord(request):
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     except Exception as e:
         create_user_log(user=request.user, action="Save Column Audio Record", detail=str(e), status="error", request=request)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_action('Settings')
+def ApiActiveDirectorySetting(request):
+    try:
+        from apps.setting.models import ActiveDirectorySetting
+        config = ActiveDirectorySetting.objects.first()
+        if not config:
+            config = ActiveDirectorySetting()
+
+        if request.method == 'GET':
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'host': config.server_uri,
+                    'domain': config.domain,
+                    'baseDn': config.base_dn,
+                    'username': config.bind_user,
+                    'password': '******' if config.bind_password else ''
+                }
+            })
+
+        elif request.method == 'POST':
+            data = json.loads(request.body)
+            with transaction.atomic():
+                db_config, created = ActiveDirectorySetting.objects.get_or_create(id=1)
+                db_config.server_uri = data.get('host', '').strip()
+                db_config.domain = data.get('domain', '').strip()
+                db_config.base_dn = data.get('baseDn', '').strip()
+                db_config.bind_user = data.get('username', '').strip()
+                
+                password = data.get('password', '')
+                if password and password != '******':
+                    db_config.set_password(password)
+                elif not password:
+                    db_config.bind_password = None
+                
+                db_config.save()
+                
+            create_user_log(user=request.user, action="Update AD Config", detail="Updated Active Directory settings in DB", status="success", request=request)
+            return JsonResponse({'status': 'success', 'message': 'Active Directory settings updated successfully.'})
+
+    except Exception as e:
+        create_user_log(user=request.user, action="Update AD Config", detail=str(e), status="error", request=request)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_action('Settings')
+def ApiNetworkShareSetting(request):
+    try:
+        from apps.setting.models import NetworkShareSetting
+        config = NetworkShareSetting.objects.first()
+        if not config:
+            config = NetworkShareSetting()
+
+        if request.method == 'GET':
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'host': config.host,
+                    'shareName': config.share,
+                    'username': config.user,
+                    'password': '******' if config.password else '',
+                    'clientName': config.client_name
+                }
+            })
+
+        elif request.method == 'POST':
+            data = json.loads(request.body)
+            with transaction.atomic():
+                db_config, created = NetworkShareSetting.objects.get_or_create(id=1)
+                db_config.host = data.get('host', '').strip()
+                db_config.share = data.get('shareName', '').strip()
+                db_config.user = data.get('username', '').strip()
+                db_config.client_name = data.get('clientName', 'nt_playback').strip() or 'nt_playback'
+                
+                password = data.get('password', '')
+                if password and password != '******':
+                    db_config.set_password(password)
+                elif not password:
+                    db_config.password = None
+                
+                db_config.save()
+
+            create_user_log(user=request.user, action="Update Network Share Config", detail="Updated Network Share settings in DB", status="success", request=request)
+            return JsonResponse({'status': 'success', 'message': 'Network share settings updated successfully.'})
+
+    except Exception as e:
+        create_user_log(user=request.user, action="Update Network Share Config", detail=str(e), status="error", request=request)
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_action('Settings')
+def ApiMailSetting(request):
+    try:
+        from apps.setting.models import MailSetting
+        config = MailSetting.objects.first()
+        if not config:
+            config = MailSetting()
+
+        if request.method == 'GET':
+            return JsonResponse({
+                'status': 'success',
+                'data': {
+                    'host': config.host,
+                    'port': config.port,
+                    'tls': config.use_tls,
+                    'fromEmail': config.from_email,
+                    'username': config.host_user,
+                    'password': '******' if config.host_password else '',
+                    'backend': config.backend
+                }
+            })
+
+        elif request.method == 'POST':
+            data = json.loads(request.body)
+            with transaction.atomic():
+                db_config, created = MailSetting.objects.get_or_create(id=1)
+                db_config.host = data.get('host', '').strip()
+                try:
+                    db_config.port = int(data.get('port', 587))
+                except (ValueError, TypeError):
+                    db_config.port = 587
+                db_config.use_tls = bool(data.get('tls', True))
+                db_config.from_email = data.get('fromEmail', '').strip()
+                db_config.host_user = data.get('username', '').strip()
+                db_config.backend = data.get('backend', 'django.core.mail.backends.smtp.EmailBackend').strip() or 'django.core.mail.backends.smtp.EmailBackend'
+                
+                password = data.get('password', '')
+                if password and password != '******':
+                    db_config.set_password(password)
+                elif not password:
+                    db_config.host_password = None
+                
+                db_config.save()
+
+            create_user_log(user=request.user, action="Update Mail Config", detail="Updated Mail settings in DB", status="success", request=request)
+            return JsonResponse({'status': 'success', 'message': 'Mail settings updated successfully.'})
+
+    except Exception as e:
+        create_user_log(user=request.user, action="Update Mail Config", detail=str(e), status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
