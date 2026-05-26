@@ -10,6 +10,7 @@ import re
 
 from apps.core.model.authorize.models import UserLog
 from apps.core.utils.permissions import get_user_actions
+from apps.core.utils.permission_ids import PermissionIDs
 
 def ApiGetUserLogs(request,type):
     try:
@@ -18,10 +19,18 @@ def ApiGetUserLogs(request,type):
         return JsonResponse({'status': False, 'message': 'Invalid type'}, status=400)
 
     # permission check depending on log type
-    required_action = 'System Log' if type == 'system' else ('Audit Log' if type == 'audit' else 'User Logs')
-    user_actions = get_user_actions(request.user)
-    if required_action not in user_actions:
-        return JsonResponse({'detail': 'Access Denied'}, status=403)
+    if type == 'system':
+        required_id = PermissionIDs.SYSTEM_LOG_ACCESS
+    elif type == 'audit':
+        required_id = PermissionIDs.AUDIT_LOG_ACCESS
+    else:
+        required_id = PermissionIDs.SYSTEM_LOG_ACCESS
+
+    # superuser / ID=1 bypass
+    if not (getattr(request.user, 'is_superuser', False) or getattr(request.user, 'id', None) == 1):
+        user_actions = get_user_actions(request.user)
+        if required_id not in user_actions:
+            return JsonResponse({'detail': 'Access Denied'}, status=403)
     
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
