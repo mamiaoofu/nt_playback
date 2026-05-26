@@ -71,6 +71,14 @@ export function useHome() {
   const totalItems = ref(0)
   const loading = ref(false)
 
+  const ensureWavDownloadName = (fileName = '') => {
+    const m = (fileName || '').match(/^(.*?)(\.[^.]+)?$/)
+    if (!m) return fileName || ''
+    const ext = (m[2] || '').toLowerCase()
+    const downloadExts = ['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm']
+    return downloadExts.includes(ext) ? `${m[1]}.wav` : fileName || ''
+  }
+
   // download modal state
   const downloading = ref(false)
   const downloadProgress = ref(0) // percent 0-100
@@ -1166,6 +1174,7 @@ export function useHome() {
                     const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
                     if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
                   } catch (e) {}
+                  outName = ensureWavDownloadName(outName)
                   zip.file(outName, blob)
                   try { markTaskDone(blob.size) } catch (er) {}
                 } catch (err) {
@@ -1266,6 +1275,7 @@ export function useHome() {
               const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
               if (m) outName = decodeURIComponent((m[1] || m[2] || '').trim()) || outName
             } catch (e) {}
+            outName = ensureWavDownloadName(outName)
             const safePrefix = (multipleOutput) ? (`Audio record${timestampForName}_`) : ''
             const a = document.createElement('a')
             a.href = URL.createObjectURL(blob)
