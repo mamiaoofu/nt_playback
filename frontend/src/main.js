@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { useAuthStore } from './stores/auth.store.js'
+import { useAuthStore, setRouter } from './stores/auth.store.js'
 import App from './App.vue'
 import router from './router'
 import { loadRuntimeConfig } from './api/runtimeConfig'
@@ -32,6 +32,7 @@ import './assets/css/datatable.css'
 	const pinia = createPinia()
 	app.use(pinia)
 	app.use(router)
+	setRouter(router)
 	app.directive('flatpickr', flatpickrDirective)
 	app.directive('flatrangepickr', flatrangepickrDirective)
 	app.directive('has-value', hasValueDirective)

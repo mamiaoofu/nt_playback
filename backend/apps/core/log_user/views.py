@@ -21,6 +21,7 @@ from django.contrib.auth.models import User
 from apps.model_center.authorize.models import UserAuth,MainDatabase
 from apps.model_center.authorize.models import UserLog,UserProfile
 from apps.core.utils.permissions import get_user_actions, require_action
+from apps.core.utils.permission_ids import PermissionIDs
 #serializer
 from apps.model_center.authorize.serializers import MainDatabaseSerializer
 
@@ -44,7 +45,7 @@ def check_permission(view_func):
 
 
 @login_required(login_url='/login')
-@require_action('System Logs', 'Audit Logs', 'Export Logs')
+@require_action(PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS)
 def index(request, type):
     template = 'default/layout-leftbar.html'
     title = ''
@@ -65,12 +66,12 @@ def index(request, type):
     return render(request, 'log_user/index.html', context)
 
 @login_required(login_url='/login')
-@require_action('System Logs', 'Audit Logs', 'Export Logs')
+@require_action(PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS)
 def get_log(request,type):
     # permission check based on type
-    required_action = 'System Logs' if type == 'system' else ('Audit Logs' if type == 'audit' else 'User Logs')
+    required_action_id = PermissionIDs.SYSTEM_LOG_ACCESS if type == 'system' else PermissionIDs.AUDIT_LOG_ACCESS
     user_actions = get_user_actions(request.user)
-    if required_action not in user_actions:
+    if required_action_id not in user_actions:
         return JsonResponse({'detail': 'Access Denied'}, status=403)
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))

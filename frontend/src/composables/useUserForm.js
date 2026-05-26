@@ -165,19 +165,21 @@ export function useUserForm(props) {
     const groupedPermissions = ref({})
     const orderedTypes = [
         'access',
-        'Audio records',
+        'Audio Records',
         'Management',
         'Role & Permissions',
         'Group & Team',
+        'Ticket',
         'Logs',
         'Setting'
     ]
     const typeLabels = {
         'access': 'ACCESS',
-        'Audio records': 'AUDIO RECORDING',
+        'Audio Records': 'AUDIO RECORDING',
         'Management': 'MANAGEMENT',
         'Role & Permissions': 'ROLE & PERMISSIONS',
         'Group & Team': 'GROUP & TEAM',
+        'Ticket': 'TICKET',
         'Logs': 'LOGS',
         'Setting': 'SETTING'
     }
@@ -487,14 +489,13 @@ export function useUserForm(props) {
         const role = customRoles.value.find(r => String(r.id) === String(roleId))
         clearSelectedPermissions()
         if (!role) return
-        let permNames = []
-        if (Array.isArray(role.permissions)) {
-            permNames = role.permissions.flat(Infinity).map(x => String(x || '').trim().toLowerCase()).filter(Boolean)
-        }
+        if (!Array.isArray(role.permissions)) return
 
+        const rolePerms = role.permissions.flat(Infinity).map(x => String(x).trim().toLowerCase())
         for (const p of allPermissions.value) {
-            const pname = String(p.name || p.action || '').trim().toLowerCase()
-            const matched = permNames.some(rn => rn === pname || rn.includes(pname) || pname.includes(rn))
+            const actionIdStr = String(p.action).trim().toLowerCase()
+            const actionNameStr = String(p.name || '').trim().toLowerCase()
+            const matched = rolePerms.some(rn => rn === actionIdStr || rn === actionNameStr)
             if (matched) selectedPermissions.value[p.action] = true
         }
     }
@@ -704,14 +705,14 @@ export function useUserForm(props) {
                 baseRoles.value = json.base_roles || {}
 
                 const map = {}
-                for (const t of orderedTypes) map[t] = []
+                for (const t of orderedTypes) map[t.toLowerCase()] = []
                 for (const p of perms) {
-                    const t = (p.type || '').toString().trim()
-                    if (!map[t]) map[t] = []
+                    const t = (p.type || '').toString().trim().toLowerCase()
+                    if (map[t] === undefined) map[t] = []
                     map[t].push(p)
                 }
                 for (const t of orderedTypes) {
-                    groupedPermissions.value[t] = map[t] || []
+                    groupedPermissions.value[t] = map[t.toLowerCase()] || []
                 }
 
                 if (selectedBaseRoleKey.value) {
