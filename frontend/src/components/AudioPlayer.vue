@@ -116,6 +116,7 @@ const currentTime = ref(0)
 const volume = ref(0.5)
 const isDragging = ref(false)
 let dragTimeout = null
+let currentLoadController = null
 const audioUrl = ref(null)
 
 const authStore = useAuthStore()
@@ -173,17 +174,46 @@ async function loadAudio() {
   audioBuffer.value = null
   peaks.value = []
 
+  // cancel any pending load for the previous source
+  try {
+    if (currentLoadController) {
+      currentLoadController.abort()
+    }
+  } catch (e) {
+    console.warn('Failed to abort previous audio load', e)
+  }
+  currentLoadController = new AbortController()
+  const { signal } = currentLoadController
+
+  const a = audioRef.value
+  if (a) {
+    try {
+      a.pause()
+      a.currentTime = 0
+      a.src = ''
+      a.load()
+    } catch (e) {
+      console.warn('Failed to stop previous audio before load', e)
+    }
+  }
+
   try {
     if (!audioCtx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext
       audioCtx = new AudioContext()
     }
 
-    const response = await fetch(src.value, { credentials: 'include' })
+    const response = await fetch(src.value, { credentials: 'include', signal })
     const blob = await response.blob()
 
+    if (signal.aborted) return
+
     // สร้าง Blob URL สำหรับเล่นเสียง (แก้ปัญหา Seek ไม่ได้)
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+    if (audioUrl.value) {
+      URL.revokeObjectURL(audioUrl.value)
+      audioUrl.value = null
+    }
+
     audioUrl.value = URL.createObjectURL(blob)
     if (audioRef.value) {
       audioRef.value.src = audioUrl.value
@@ -198,13 +228,15 @@ async function loadAudio() {
     }
 
     const arrayBuffer = await blob.arrayBuffer()
+    if (signal.aborted) return
     const decoded = await audioCtx.decodeAudioData(arrayBuffer)
 
     audioBuffer.value = decoded
     processPeaks(decoded)
     draw()
   } catch (e) {
-    console.error("Failed to load audio waveform", e)
+    if (e.name === 'AbortError') return
+    console.error('Failed to load audio waveform', e)
     // Fallback: ถ้าโหลด Blob ไม่ได้ ให้ลองใช้ src เดิม
     if (audioRef.value && src.value) audioRef.value.src = src.value
   }
@@ -584,6 +616,16 @@ watch(() => src.value, (n) => {
   playing.value = false
   currentTime.value = 0
   audioDuration.value = 0
+
+  try {
+    a.pause()
+    a.currentTime = 0
+    a.src = ''
+    a.load()
+  } catch (e) {
+    console.warn('Failed to clear current audio source', e)
+  }
+
   if (n) {
     loadAudio()
     // ลบการกำหนด a.src = n ตรงนี้ออก เพราะเราให้ loadAudio จัดการผ่าน Blob แล้ว
@@ -596,6 +638,13 @@ watch(currentTime, () => {
 
 onBeforeUnmount(() => {
   if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+  if (currentLoadController) {
+    try {
+      currentLoadController.abort()
+    } catch (e) {
+      console.warn('Failed to abort audio load on unmount', e)
+    }
+  }
 })
 </script>
 
