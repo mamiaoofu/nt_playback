@@ -611,8 +611,10 @@ const dependencyMap = {
     'Download Audio Records' : ['Audio Records'],
     'Save as Audio Index' : ['Audio Records'],
     'Delegate Files' : ['Audio Records'],
+    'Create Ticket' : ['Audio Records'],
+    'Playback Ticket File' : ['Audio Records'],
 
-    // Management
+    // User Management
     'Add User' : ['User Management'],
     'Edit User' : ['User Management'],
     'Delete User' : ['User Management'],
@@ -639,8 +641,6 @@ const dependencyMap = {
     'Delete Team' : ['Group & Team'],
 
     // Ticket
-    'Create Ticket' : ['Ticket Management'],
-    'Playback Ticket File' : ['Ticket Management'],
     'Download Ticket File' : ['Ticket Management'],
     'Change Ticket Status' : ['Ticket Management'],
     'Ticket Reset' : ['Ticket Management'],
