@@ -587,10 +587,10 @@ const groupedPermissions = computed(() => {
         return acc
     }, {})
 
-    const order = ['access', 'Audio Records', 'Management', 'Role & Permissions', 'Group & Team', 'Logs', 'Settings']
+    const order = ['access', 'audio records', 'management', 'role & permissions', 'group & team', 'ticket', 'logs', 'setting', 'settings']
     const keys = Object.keys(grouped).sort((a, b) => {
-        const ia = order.indexOf(a.toString().trim())
-        const ib = order.indexOf(b.toString().trim())
+        const ia = order.indexOf(a.toString().trim().toLowerCase())
+        const ib = order.indexOf(b.toString().trim().toLowerCase())
         if (ia !== -1 && ib !== -1) return ia - ib
         if (ia !== -1) return -1
         if (ib !== -1) return 1
@@ -605,72 +605,54 @@ const groupedPermissions = computed(() => {
 // Map of permission display names -> required access-group permission names
 // When a permission (non-access) is selected, ensure these access names are checked.
 const dependencyMap = {
-    // Access
-    // 'Audio Records' : [],
-    // 'User Management' : [],
-    // 'Delegate Management' : [],
-    // 'Ticket Management' : [],
-    // 'Role & Permissions' : [],
-    // 'Group & Team' : [],
-    // 'Audit Log' : [],
-    // 'System Log' : [],
-    // 'Ticket History' : [],
-    // 'Settings' : [],
-
     // Audio Records
     'Query Audio Records' : ['Audio Records'],
     'Playback Audio Records' : ['Audio Records'],
-    'Download Voice File' : ['Audio Records'],
-    'Save As Index' : ['Audio Records'],
-    // 'Delegate Files' : ['Audio Records'],
-    'Create Ticket' : ['Audio Records'],
-    'Create Delegate File' : ['Audio Records'],
-    'Download Ticket File' : ['Audio Records'],
-    'Download Delegate File' : ['Audio Records'],
+    'Download Audio Records' : ['Audio Records'],
+    'Save as Audio Index' : ['Audio Records'],
+    'Delegate Files' : ['Audio Records'],
 
-    //Management
+    // Management
     'Add User' : ['User Management'],
     'Edit User' : ['User Management'],
     'Delete User' : ['User Management'],
     'Change User Status' : ['User Management'],
     'Reset User Password' : ['User Management'],
     'Save As User Index' : ['User Management'],
-    // 'Create Delegate File' : ['Delegate Management'],
-    // 'Download Delegate File' : ['Delegate Management'],
-    'Change Delegate File Status' : ['Delegate Management'],
-    'Save As Delegate File Index' : ['Delegate Management'],
-    // 'Create Ticket' : ['Ticket Management'],
-    // 'Download Ticket File' : ['Ticket Management'],
-    'Change Ticket Status' : ['Ticket Management'],
-    'Save As Ticket Index' : ['Ticket Management'],
-    'Ticket Resent' : ['Ticket Management'],
+    'Create Delegate' : ['Delegate Management'],
+    'Playback Delegate File' : ['Delegate Management'],
+    'Download Delegate File' : ['Delegate Management'],
+    'Change Delegate Status' : ['Delegate Management'],
 
-    //Role & Permissions
-    'Edit Base Roles' : ['Role & Permissions'],
-    'Add New Custom Roles' : ['Role & Permissions'],
-    'Edit Custom Roles' : ['Role & Permissions'],
-    'Delete Custom Roles' : ['Role & Permissions'],
+    // Role & Permissions
+    'Edit Base Role' : ['Role & Permissions'],
+    'Add Custom Role' : ['Role & Permissions'],
+    'Edit Custom Role' : ['Role & Permissions'],
+    'Delete Custom Role' : ['Role & Permissions'],
 
-    //Group & Team
-    'Add New Group' : ['Group & Team'],
+    // Group & Team
+    'Add Group' : ['Group & Team'],
     'Edit Group' : ['Group & Team'],
     'Delete Group' : ['Group & Team'],
-    'Add New Team' : ['Group & Team'],
+    'Add Team' : ['Group & Team'],
     'Edit Team' : ['Group & Team'],
     'Delete Team' : ['Group & Team'],
 
-    //Logs
-    // NOTE: keep 'Save As Audit Log' from automatically removing the 'Audit Log' access
-    // when it is unchecked. We'll handle its addition explicitly below so unchecking
-    // does not remove the access permission.
+    // Ticket
+    'Create Ticket' : ['Ticket Management'],
+    'Playback Ticket File' : ['Ticket Management'],
+    'Download Ticket File' : ['Ticket Management'],
+    'Change Ticket Status' : ['Ticket Management'],
+    'Ticket Reset' : ['Ticket Management'],
+
+    // Logs
     'Save As System Log' : ['System Log'],
-    'Save As Ticket History' : ['Ticket History'],
     'Save As Audit Log' : ['Audit Log'],
+    'Save As Ticket History' : ['Ticket History'],
 
-    //Setting
-    'Set Column' : ['Settings'],
-    'Download Player' : ['Settings'],
-
+    // Setting
+    'Set Column' : ['Setting'],
+    'Download Player' : ['Setting']
 }
 
 // Helper: map permission display name -> action value (from allPermissions)

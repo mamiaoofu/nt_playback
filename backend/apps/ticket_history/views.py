@@ -22,6 +22,7 @@ from django.contrib.auth import get_user_model
 from django.utils.crypto import get_random_string
 
 from apps.core.utils.permissions import get_user_actions, require_action
+from apps.core.utils.permission_ids import PermissionIDs
 # models
 from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
@@ -470,7 +471,7 @@ def ApiGetTicketHistory(request,type):
     })
 
 @login_required
-@require_action('Change Delegate File Status', 'Change Ticket Status')
+@require_action(PermissionIDs.CHANGE_DELEGATE_STATUS, PermissionIDs.CHANGE_TICKET_STATUS)
 @require_POST    
 def ApiChangeFileShareStatus(request, user_id, type):
     try:

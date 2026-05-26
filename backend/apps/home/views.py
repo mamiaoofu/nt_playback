@@ -31,6 +31,7 @@ import traceback
 import socket
 
 from apps.core.utils.permissions import get_user_actions, require_action
+from apps.core.utils.permission_ids import PermissionIDs
 # models
 from apps.core.model.authorize.models import UserAuth,MainDatabase,SetAudio,UserProfile,Agent,UserFileShare
 from apps.core.model.audio.models import AudioInfo
@@ -212,7 +213,7 @@ def ApiIndexHome(request):
     })
     
 @login_required(login_url='/login')
-@require_action('Audio Records','Delegate Files')
+@require_action(PermissionIDs.AUDIO_RECORDS_ACCESS, PermissionIDs.DELEGATE_FILES)
 def ApiGetAudioList(request):
     draw = int(request.GET.get("draw", 1))
     start = int(request.GET.get("start", 0))
@@ -873,7 +874,7 @@ def ApiGetMyPermissions(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('Query Audio Records')
+@require_action(PermissionIDs.QUERY_AUDIO_RECORDS)
 def ApiSaveMyFavoriteSearch(request):
     
     if request.method == "POST":
@@ -974,7 +975,7 @@ def ApiSaveMyFavoriteSearch(request):
     return JsonResponse({"status": "error", "message": "Invalid request"})
 
 @login_required(login_url='/login')
-@require_action('Query Audio Records')
+@require_action(PermissionIDs.QUERY_AUDIO_RECORDS)
 def ApiCheckMyFavoriteName(request):
     favorite_name = request.GET.get('favoriteName', '').strip()
     favorite_id = request.GET.get('favoriteId', None)
@@ -1113,7 +1114,7 @@ def ApiInstallerConfig(request):
 
 
 @login_required(login_url='/login')
-@require_action('Playback Audio Records')
+@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS)
 def ApiProxyAudio(request):
     """
     Proxy endpoint to stream audio files from a network share (SMB).
@@ -1214,7 +1215,7 @@ def ApiProxyAudio(request):
     
 @login_required
 @require_POST
-@require_action("Playback Audio Records")
+@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS)
 def ApiLogPlayAudio(request):
     """
     API endpoint สำหรับรับ Log การเล่นไฟล์เสียงจาก Frontend
@@ -1248,7 +1249,7 @@ def ApiLogUserAction(request):
 
 @login_required
 @require_POST
-@require_action('Save As Index')
+@require_action(PermissionIDs.SAVE_AS_AUDIO_INDEX)
 def ApiLogSaveFile(request):
     try:
         data = json.loads(request.body)
@@ -1639,7 +1640,7 @@ class RangeFileResponse(FileResponse):
                     pass
 
 @login_required(login_url='/login')
-@require_action('Playback Audio Records', 'Download Voice File')
+@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS)
 def ApiPlayAudio(request, file_id):
     """
     API endpoint to play audio files with on-the-fly transcoding for legacy codecs.

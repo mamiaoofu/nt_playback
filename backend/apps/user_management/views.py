@@ -19,6 +19,7 @@ from apps.core.model.authorize.models import MainDatabase,UserAuth,UserProfile,D
 
 from apps.configuration.models import UserPermission,UserPermissionDetail
 from apps.core.utils.permissions import require_action, get_user_actions
+from apps.core.utils.permission_ids import PermissionIDs
 
 #serializer
 from apps.core.model.authorize.serializers import UserProfileSerializer,DepartmentSerializer,UserGroupSerializer,UserTeamSerializer
@@ -86,7 +87,7 @@ def sync_ad_accounts():
         print(f"sync_ad_accounts failed: {e}")
 
 @login_required(login_url='/login')
-@require_action('User Management','Audit Log','System Log','Audio Records')
+@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS)
 def ApiGetUserAll(request, type):
     try:
         if type == 'user':
@@ -102,7 +103,7 @@ def ApiGetUserAll(request, type):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('User Management','Audit Log','System Log','Audio Records')
+@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS)
 def ApiGetUser(request):
     try:
         sync_ad_accounts()
@@ -599,7 +600,7 @@ def ApiGetUser(request):
     })
 
 @login_required
-@require_action('Change User Status')
+@require_action(PermissionIDs.CHANGE_USER_STATUS)
 @require_POST
 def ApiChangeUserStatus(request, user_id):
     try:
@@ -619,7 +620,7 @@ def ApiChangeUserStatus(request, user_id):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action('Role & Permissions','User Management')
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS, PermissionIDs.USER_MANAGEMENT_ACCESS)
 def ApiGetAllRolesPermissions(request):
     try:
         admin_role = UserPermission.objects.filter(type='administrator').first()
@@ -629,9 +630,9 @@ def ApiGetAllRolesPermissions(request):
             details = UserPermissionDetail.objects.filter(user_permission=admin_role).order_by('id')
             for d in details:
                 all_perms_data.append({
-                    'action': d.action,
-                    'name': d.action.replace('-', ' ').title(), 
-                    'type': d.type
+                    'action': d.action_id,
+                    'name': d.action.name.replace('-', ' ').title() if d.action and d.action.name else '', 
+                    'type': d.type.name if d.type else ''
                 })
 
         roles = UserPermission.objects.all()
@@ -642,7 +643,7 @@ def ApiGetAllRolesPermissions(request):
             active_actions = list(UserPermissionDetail.objects.filter(
                 user_permission=role, 
                 status=True
-            ).values_list('action'))
+            ).values_list('action_id', flat=True))
             
             if role.type in ['administrator', 'auditor', 'operator']:
                 roles_permissions[role.type] = {
@@ -788,7 +789,7 @@ def ApiGetUSerProfile(request, user_id):
         return JsonResponse({'status': 'error', 'message': 'User not found.'})
 
 @login_required
-@require_action('Change User Status')
+@require_action(PermissionIDs.CHANGE_USER_STATUS)
 @require_POST
 def ChangeUserStatus(request, user_id):
     try:
@@ -812,7 +813,7 @@ def ChangeUserStatus(request, user_id):
         return JsonResponse({'status': 'error', 'message': str(e)})
     
 @login_required
-@require_action('Delete User')
+@require_action(PermissionIDs.DELETE_USER)
 @require_POST
 def ApiDeleteUser(request, user_id):
     """
@@ -868,7 +869,7 @@ def ApiCheckUsername(request):
         return JsonResponse({'status': 'success', 'is_taken': False})
 
 @login_required(login_url='/login')
-@require_action('Add User', 'Edit User')
+@require_action(PermissionIDs.ADD_USER, PermissionIDs.EDIT_USER)
 @require_POST
 def ApiSaveUser(request, user_id=None):
     """สร้างหรืออัพเดตผู้ใช้
@@ -907,10 +908,10 @@ def ApiSaveUser(request, user_id=None):
     # ตรวจสิทธิ์: ถ้าเป็นอัพเดต ต้องมี 'Edit User' ถ้าสร้างต้องมี 'Add User'
     user_actions = get_user_actions(request.user)
     if user_id:
-        if 'Edit User' not in user_actions:
+        if PermissionIDs.EDIT_USER not in user_actions:
             return JsonResponse({'status': 'error', 'message': 'Access Denied'}, status=403)
     else:
-        if 'Add User' not in user_actions:
+        if PermissionIDs.ADD_USER not in user_actions:
             return JsonResponse({'status': 'error', 'message': 'Access Denied'}, status=403)
 
     # กรณีอัพเดตเมื่อมี user_id
@@ -1061,7 +1062,7 @@ def ApiSaveUser(request, user_id=None):
         return JsonResponse({"status": "error", "message": f"Error: {str(e)}"})
 
 @login_required
-@require_action('Reset User Password')
+@require_action(PermissionIDs.RESET_USER_PASSWORD)
 @require_POST
 def ApiResetPassword(request, user_id):
     """
@@ -1181,7 +1182,7 @@ def ApiChangePassword(request):
         return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
 
 @login_required(login_url='/login')
-@require_action('Add User')
+@require_action(PermissionIDs.ADD_USER)
 def ApiGetAdUsers(request):
     from django.conf import settings
     from ldap3 import Server, Connection, NTLM, SIMPLE, ALL

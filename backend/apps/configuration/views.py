@@ -20,6 +20,7 @@ import json
 
 from apps.core.utils.function import create_user_log, get_user_os_browser_architecture
 from apps.core.utils.permissions import  require_action
+from apps.core.utils.permission_ids import PermissionIDs
 
 # models
 from apps.core.model.authorize.models import UserAuth,MainDatabase,UserLog,UserGroup,UserTeam
@@ -47,7 +48,7 @@ def check_permission(view_func):
     return _wrapped_view
 
 @login_required(login_url='/login')
-@require_action('Role & Permissions')
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS)
 def ApiIndexRole(request):
     
     base_user_permission_qs = UserPermission.objects.filter(type__in=["administrator", "auditor", "operator"])
@@ -66,7 +67,7 @@ def ApiIndexRole(request):
     })
 
 @login_required(login_url='/login')
-@require_action('Role & Permissions')
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS)
 def ApiGetRoleDetails(request, role_id):
     try:
         role_id = int(role_id)
@@ -90,17 +91,17 @@ def ApiGetRoleDetails(request, role_id):
 
     for detail in details:
         all_permissions.append({
-            'action': detail.action,
-            'name': f"{detail.action}",
-            'type': detail.type,
+            'action': detail.action_id,
+            'name': detail.action.name if detail.action else '',
+            'type': detail.type.name if detail.type else '',
             'id': detail.id
         })
 
         if detail.status:
-            role_permissions.append(detail.action)
+            role_permissions.append(detail.action_id)
 
         if detail.default:
-            default_permissions.append(detail.action)
+            default_permissions.append(detail.action_id)
 
     return JsonResponse({
         'status': True,
@@ -112,7 +113,7 @@ def ApiGetRoleDetails(request, role_id):
     })
     
 @login_required(login_url='/login')
-@require_action('Group & Team','User Management')    
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS, PermissionIDs.USER_MANAGEMENT_ACCESS)    
 def ApiIndexGroup(request):
     user_group = UserGroup.objects.filter(status=1).order_by('group_name')
     user_team = UserTeam.objects.filter(status=1).order_by('name')
@@ -125,7 +126,7 @@ def ApiIndexGroup(request):
     })
 
 @login_required(login_url='/login')
-@require_action('Group & Team')    
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS)    
 def ApiGetTeamByGroup(request, group_id):
     try:
         group_id = int(group_id)
@@ -145,7 +146,7 @@ def ApiGetTeamByGroup(request, group_id):
     return JsonResponse({'status': 'success', 'teams': team_list})
 
 @login_required(login_url='/login')
-@require_action('Role & Permissions')   
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS)   
 def ApiCheckRoleName(request):
     role_name = request.GET.get('role_name', None)
     role_id = request.GET.get('role_id', None)
@@ -163,7 +164,7 @@ def ApiCheckRoleName(request):
 
 @require_POST
 @login_required(login_url='/login')
-@require_action('Role & Permissions')   
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS)   
 def ApiSaveRole(request, role_id=None):
     """
     Create a new role or update an existing one.
@@ -210,7 +211,7 @@ def ApiSaveRole(request, role_id=None):
                 # Update Permissions
                 details = UserPermissionDetail.objects.filter(user_permission=role)
                 for detail in details:
-                    is_active = str(detail.action) in map(str, permissions)
+                    is_active = str(detail.action_id) in map(str, permissions)
                     detail.status = is_active
                     detail.save()
 
@@ -236,14 +237,14 @@ def ApiSaveRole(request, role_id=None):
 
                 for detail in admin_details:
                     # Check if this action is in the selected permissions
-                    is_active = str(detail.action) in map(str, permissions)
+                    is_active = str(detail.action_id) in map(str, permissions)
 
                     new_details.append(UserPermissionDetail(
                         user_permission=new_role,
                         action=detail.action,
                         status=is_active,
                         type=detail.type,
-                        default='t' if is_active else 'f'
+                        default=is_active
                     ))
 
                 UserPermissionDetail.objects.bulk_create(new_details)
@@ -267,7 +268,7 @@ def ApiSaveRole(request, role_id=None):
 
 @require_POST
 @login_required(login_url='/login')
-@require_action('Role & Permissions', 'Delete Custom Role')  
+@require_action(PermissionIDs.ROLE_PERMISSIONS_ACCESS, PermissionIDs.DELETE_CUSTOM_ROLE)  
 def ApiDeleteRole(request, role_id=None):
     try:
         body_role_id = None
@@ -298,7 +299,7 @@ def ApiDeleteRole(request, role_id=None):
 
 @require_GET
 @login_required(login_url='/login')
-@require_action('Group & Team')   
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS)   
 def ApiCheckGroupName(request):
     group_name = request.GET.get('group_name', None)
     group_id = request.GET.get('group_id', None)
@@ -316,7 +317,7 @@ def ApiCheckGroupName(request):
     
 @require_GET
 @login_required(login_url='/login')
-@require_action('Group & Team')   
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS)   
 def ApiCheckTeamName(request):
     team_name = request.GET.get('team_name', None)
     team_id = request.GET.get('team_id', None)
@@ -349,7 +350,7 @@ def ApiCheckTeamName(request):
     
 @require_POST
 @login_required(login_url='/login')
-@require_action('Group & Team')   
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS)   
 def ApiSaveGroup(request):
     """
     Single endpoint to Create / Update / Delete a UserGroup.
@@ -449,7 +450,7 @@ def ApiSaveGroup(request):
     
 @require_POST
 @login_required(login_url='/login')
-@require_action('Group & Team')   
+@require_action(PermissionIDs.GROUP_TEAM_ACCESS)   
 def ApiSaveTeam(request):
     """
     Single endpoint to Create / Update / Delete a UserTeam.

@@ -2,25 +2,26 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '../views/Home.vue'
 import Role from '../views/Role.vue'
 import { useAuthStore } from '../stores/auth.store'
+import { PERMISSIONS } from '../stores/permissions.constants'
 import { ensureCsrf } from '../api/csrf'
 
 const routes = [
 	{ path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
-	{ path: '/', name: 'Home', component: Home, meta: { permission: 'Audio Records' } },
-	{ path: '/user-management', name: 'UserManagement', component: () => import('../views/UserManagement.vue'), meta: { permission: 'User Management' } },
+	{ path: '/', name: 'Home', component: Home, meta: { permission: PERMISSIONS.AUDIO_RECORDS_ACCESS } },
+	{ path: '/user-management', name: 'UserManagement', component: () => import('../views/UserManagement.vue'), meta: { permission: PERMISSIONS.USER_MANAGEMENT_ACCESS } },
 	{ path: '/configuration/role', name: 'role', component: Role },
-	{ path: '/configuration/role', name: 'role', component: Role, meta: { permission: 'Role & Permissions' } },
-	{ path: '/configuration/group', name: 'Group', component: () => import('../views/GroupAndTeam.vue'), meta: { permission: 'Group & Team' } },
+	{ path: '/configuration/role', name: 'role', component: Role, meta: { permission: PERMISSIONS.ROLE_PERMISSIONS_ACCESS } },
+	{ path: '/configuration/group', name: 'Group', component: () => import('../views/GroupAndTeam.vue'), meta: { permission: PERMISSIONS.GROUP_TEAM_ACCESS } },
 	{ path: '/configuration/users', name: 'Users', component: () => import('../views/Users.vue') },
-	{ path: '/user-management/add', name: 'AddUser', component: () => import('../views/AddUser.vue'), meta: { permission: 'Add User' } },
-	{ path: '/user-management/edit/:id', name: 'EditUser', component: () => import('../views/EditUser.vue'), meta: { permission: 'Edit User' } },
+	{ path: '/user-management/add', name: 'AddUser', component: () => import('../views/AddUser.vue'), meta: { permission: PERMISSIONS.ADD_USER } },
+	{ path: '/user-management/edit/:id', name: 'EditUser', component: () => import('../views/EditUser.vue'), meta: { permission: PERMISSIONS.EDIT_USER } },
 	{ path: '/profile', name: 'Profile', component: () => import('../views/Profile.vue') },
-	{ path: '/logs/system', name: 'SystemLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'System Log' } },
-	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: 'Audit Log' } },
+	{ path: '/logs/system', name: 'SystemLogs', component: () => import('../views/UserLog.vue'), meta: { permission: PERMISSIONS.SYSTEM_LOG_ACCESS } },
+	{ path: '/logs/audit', name: 'AuditLogs', component: () => import('../views/UserLog.vue'), meta: { permission: PERMISSIONS.AUDIT_LOG_ACCESS } },
 	{ path: '/setting/column/audio-record', name: 'SettingColumnAudioRecord', component: () => import('../views/SetColumnAudioRecord.vue') },
-	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: 'Ticket History' } },
-	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Ticket Management' } },
-	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: 'Delegate Management' } },
+	{ path: '/logs/ticket-history', name: 'TicketHistory', component: () => import('../views/TicketHistory.vue'), meta: { permission: PERMISSIONS.TICKET_HISTORY_ACCESS } },
+	{ path: '/ticket-management', name: 'TicketManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: PERMISSIONS.TICKET_MANAGEMENT_ACCESS } },
+	{ path: '/delegate-management', name: 'DelegateManagement', component: () => import('../views/FileShareManagement.vue'), meta: { permission: PERMISSIONS.DELEGATE_MANAGEMENT_ACCESS } },
 	{ path: '/system-tool/dashboard', name: 'Dashboard', component: () => import('../views/Dashboard.vue') },
 	{ path: '/system-tool/active-directory', name: 'ActiveDirectoryConfig', component: () => import('../views/ActiveDirectoryConfig.vue') },
 	{ path: '/system-tool/network-share', name: 'NetworkShareConfig', component: () => import('../views/NetworkShareConfig.vue') },
@@ -76,9 +77,13 @@ router.beforeEach(async (to, from, next) => {
 		const missingUserId = !authStore.user?.id
 		const missingPermissions = !authStore.permissions || authStore.permissions.length === 0
 
+		console.log('RouterGuard: Route:', to.name, 'needsPermissions:', needsPermissions, 'missingUserId:', missingUserId, 'missingPermissions:', missingPermissions)
+
 		if (missingUserId || (needsPermissions && missingPermissions)) {
 			try {
+				console.log('RouterGuard: fetching permissions...')
 				await authStore.fetchPermissions()
+				console.log('RouterGuard: fetched user:', authStore.user, 'permissions:', authStore.permissions)
 			} catch (e) {
 				console.error('Failed to load user info/permissions in router:', e)
 			}
@@ -87,10 +92,13 @@ router.beforeEach(async (to, from, next) => {
 		if (needsPermissions && !authStore.hasPermission(needsPermissions)) {
 			const allowHomeByDelegateFiles =
 				to.name === 'Home' &&
-				needsPermissions === 'Audio Records' &&
-				authStore.hasPermission('Delegate Files')
+				needsPermissions === PERMISSIONS.AUDIO_RECORDS_ACCESS &&
+				authStore.hasPermission(PERMISSIONS.DELEGATE_FILES)
+
+			console.log('RouterGuard: access check failed. allowHomeByDelegateFiles:', allowHomeByDelegateFiles)
 
 			if (!allowHomeByDelegateFiles) {
+				console.log('RouterGuard: redirecting to Denied')
 				return next({ name: 'Denied' })
 			}
 		}

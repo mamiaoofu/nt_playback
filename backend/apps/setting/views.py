@@ -6,12 +6,13 @@ from django.views.decorators.http import require_GET, require_POST
 from django.db import transaction
 from apps.core.utils.function import create_user_log, get_user_os_browser_architecture
 from apps.core.utils.permissions import  require_action
+from apps.core.utils.permission_ids import PermissionIDs
 
 from apps.home.models import SetColumnAudioRecord
 
 @login_required
 @require_GET
-@require_action('Set Column','Audio Records')
+@require_action(PermissionIDs.SET_COLUMN, PermissionIDs.AUDIO_RECORDS_ACCESS)
 def ApiGetColumnAudioRecord(request):
     try:
         user = request.user
@@ -31,7 +32,7 @@ def ApiGetColumnAudioRecord(request):
         
 @login_required
 @require_POST
-@require_action('Set Column')
+@require_action(PermissionIDs.SET_COLUMN)
 def ApiSaveColumnAudioRecord(request):
     try:
         data = json.loads(request.body)
@@ -120,7 +121,7 @@ def ApiSaveColumnAudioRecord(request):
 
 
 @login_required
-@require_action('Settings')
+@require_action(PermissionIDs.SETTING_ACCESS)
 def ApiActiveDirectorySetting(request):
     try:
         from apps.setting.models import ActiveDirectorySetting
@@ -166,7 +167,7 @@ def ApiActiveDirectorySetting(request):
 
 
 @login_required
-@require_action('Settings')
+@require_action(PermissionIDs.SETTING_ACCESS)
 def ApiNetworkShareSetting(request):
     try:
         from apps.setting.models import NetworkShareSetting
@@ -212,7 +213,7 @@ def ApiNetworkShareSetting(request):
 
 
 @login_required
-@require_action('Settings')
+@require_action(PermissionIDs.SETTING_ACCESS)
 def ApiMailSetting(request):
     try:
         from apps.setting.models import MailSetting

@@ -2,7 +2,78 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { API_LOGIN, API_HOME_INDEX, API_LOGOUT } from '../api/paths'
 import { ensureCsrf, setCsrfToken } from '../api/csrf'
-import router from '../router'
+
+let router = null
+export function setRouter(r) {
+	router = r
+}
+
+const permissionNameToIdMap = {
+	'audio records': 1,
+	'user management': 2,
+	'delegate management': 3,
+	'ticket management': 4,
+	'role & permissions': 5,
+	'group & team': 6,
+	'system log': 7,
+	'system logs': 7,
+	'audit log': 8,
+	'audit logs': 8,
+	'ticket history': 9,
+	'setting': 10,
+	'settings': 10,
+	'user profile': 11,
+	'query audio records': 12,
+	'query audio': 12,
+	'playback audio records': 13,
+	'playback audio': 13,
+	'download audio records': 14,
+	'download voice file': 14,
+	'download audio': 14,
+	'save as audio index': 15,
+	'save as index': 15,
+	'delegate files': 16,
+	'add user': 17,
+	'edit user': 18,
+	'delete user': 19,
+	'change user status': 20,
+	'reset user password': 21,
+	'reset password': 21,
+	'save as user index': 22,
+	'create delegate': 23,
+	'create delegate file': 23,
+	'playback delegate file': 24,
+	'download delegate file': 25,
+	'change delegate status': 26,
+	'change delegate file status': 26,
+	'edit base role': 27,
+	'edit base roles': 27,
+	'add custom role': 28,
+	'add new custom roles': 28,
+	'edit custom role': 29,
+	'edit custom roles': 29,
+	'delete custom role': 30,
+	'delete custom roles': 30,
+	'add group': 31,
+	'add new group': 31,
+	'edit group': 32,
+	'delete group': 33,
+	'add team': 34,
+	'add new team': 34,
+	'edit team': 35,
+	'delete team': 36,
+	'create ticket': 37,
+	'playback ticket file': 38,
+	'download ticket file': 39,
+	'change ticket status': 40,
+	'ticket reset': 41,
+	'ticket resent': 41,
+	'save as system log': 42,
+	'save as audit log': 43,
+	'save as ticket history': 44,
+	'set column': 45,
+	'download player': 46
+}
 
 export const useAuthStore = defineStore('auth', () => {
 	// Keep session in memory only (no persistence across full page reload)
@@ -297,13 +368,30 @@ export const useAuthStore = defineStore('auth', () => {
 		}
 	}
 
-	function hasPermission(name) {
+	function hasPermission(actionId) {
 		// root user bypass
 		try {
-			if (user.value && (user.value.id === 1 || user.value.is_superuser)) return true
+			if (user.value && (user.value.id === 1 || user.value.is_superuser)) {
+				console.log('hasPermission: bypass active (ID 1 or superuser)', user.value)
+				return true
+			}
 		} catch (e) {}
-		if (!permissions.value) return false
-		return permissions.value.includes(name)
+		if (!permissions.value) {
+			console.log('hasPermission: no permissions.value')
+			return false
+		}
+
+		let id = actionId
+		if (typeof actionId === 'string') {
+			const mappedId = permissionNameToIdMap[actionId.trim().toLowerCase()]
+			if (mappedId !== undefined) {
+				id = mappedId
+			}
+		}
+
+		const hasIt = permissions.value.includes(Number(id)) || permissions.value.includes(id)
+		console.log(`hasPermission check for action ${actionId} (resolved to ID ${id}): ${hasIt}. Current perms:`, permissions.value)
+		return hasIt
 	}
 
 	return { user, token, permissions, lastLoginAt, passwordResetRequired, loginWarning, licenseError, setUser, setToken, clear, logout, fullName, login, fetchPermissions, hasPermission, roleName, tryRestoreFromRefresh, waitReady, setPasswordResetRequired, isTicket }
