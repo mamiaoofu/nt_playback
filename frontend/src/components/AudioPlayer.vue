@@ -497,12 +497,28 @@ async function downloadAudio() {
     const contentLength = resp.headers.get('content-length')
     const totalBytes = contentLength ? parseInt(contentLength, 10) : null
 
+    const getDownloadName = (response) => {
+      let downloadName = metadata.value.fileName || shortName.value || 'audio'
+      try {
+        const cd = response.headers.get('content-disposition') || ''
+        const m = cd.match(/filename\*=UTF-8''(.+)$|filename="?([^;\n"]+)"?/)
+        if (m) downloadName = decodeURIComponent((m[1] || m[2] || '').trim()) || downloadName
+      } catch (e) {}
+      const m2 = downloadName.match(/^(.*?)(\.[^.]+)?$/)
+      if (m2) {
+        const ext = (m2[2] || '').toLowerCase()
+        const downloadExts = ['.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm']
+        if (downloadExts.includes(ext)) return `${m2[1]}.wav`
+      }
+      return downloadName
+    }
+
     if (!resp.body || !resp.body.getReader) {
       const blob = await resp.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = metadata.value.fileName || shortName.value || 'audio'
+      a.download = getDownloadName(resp)
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -548,7 +564,7 @@ async function downloadAudio() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = metadata.value.fileName || shortName.value || 'audio'
+    a.download = getDownloadName(resp)
     document.body.appendChild(a)
     a.click()
     a.remove()

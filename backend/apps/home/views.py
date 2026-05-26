@@ -1201,11 +1201,37 @@ def ApiProxyAudio(request):
             except Exception: pass
 
         bio.seek(0)
-        ctype = mimetypes.guess_type(base)[0] or 'application/octet-stream'
-        response = HttpResponse(bio.read(), content_type=ctype)
-        response['Content-Disposition'] = f'attachment; filename="{base}"'
+        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
+        base_name, ext = os.path.splitext(base)
+        is_wav_download = _is_download_intent(request) and ext.lower() in download_exts
+        download_name = base
+
+        disposition = 'attachment' if _is_download_intent(request) else 'inline'
+
+        if is_wav_download and ext.lower() != '.wav':
+            tmp_fd, tmp_source = tempfile.mkstemp(suffix=ext)
+            os.close(tmp_fd)
+            temp_files.append(tmp_source)
+            with open(tmp_source, 'wb') as f:
+                f.write(bio.read())
+
+            transcoded_path, err = AudioTranscoder.transcode_to_wav(tmp_source)
+            if err:
+                response = FileResponse(open(tmp_source, 'rb'), content_type=mimetypes.guess_type(tmp_source)[0] or 'application/octet-stream')
+                response['Content-Disposition'] = f'{disposition}; filename="{base}"'
+            else:
+                temp_files.append(transcoded_path)
+                download_name = f'{base_name}.wav'
+                response = FileResponse(open(transcoded_path, 'rb'), content_type='audio/wav')
+                response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
+        else:
+            ctype = mimetypes.guess_type(base)[0] or 'application/octet-stream'
+            download_name = base_name + '.wav' if is_wav_download else base
+            response = HttpResponse(bio.read(), content_type=ctype)
+            response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
+
         if _is_download_intent(request):
-            _log_voice_download(request, base, status='success')
+            _log_voice_download(request, download_name, status='success')
         return response
     except Exception as e:
         if _is_download_intent(request):
@@ -1709,29 +1735,44 @@ def ApiPlayAudio(request, file_id):
             finally:
                 conn.close()
 
-        # Do not transcode original .nmf files when this request is an explicit download/export.
+        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
+        original_ext = os.path.splitext(file_name)[1].lower()
+        is_wav_download = _is_download_intent(request) and original_ext in download_exts
+        download_name = file_name
+
         if not (_is_download_intent(request) and file_name.lower().endswith('.nmf')):
-            if not AudioTranscoder.is_browser_compatible(target_path):
+            if is_wav_download and original_ext != '.wav':
                 transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
                 if err:
-                    # If transcoding failed, but we have a file, try serving as-is as fallback
                     pass
                 else:
                     target_path = transcoded_path
                     temp_files.append(transcoded_path)
-                    file_name = file_name
+                    download_name = f"{os.path.splitext(file_name)[0]}.wav"
+            elif not AudioTranscoder.is_browser_compatible(target_path):
+                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+                if err:
+                    pass
+                else:
+                    target_path = transcoded_path
+                    temp_files.append(transcoded_path)
+                    if is_wav_download:
+                        download_name = f"{os.path.splitext(file_name)[0]}.wav"
 
-        # Serve the file
+        if is_wav_download and original_ext == '.wav':
+            download_name = f"{os.path.splitext(file_name)[0]}.wav"
+
         response = RangeFileResponse(
             request,
             open(target_path, 'rb'), 
-            content_type=mimetypes.guess_type(target_path)[0] or 'audio/wav',
+            content_type='audio/wav' if is_wav_download else mimetypes.guess_type(target_path)[0] or 'audio/wav',
             temp_to_cleanup=temp_files
         )
-        response['Content-Disposition'] = f'inline; filename="{file_name}"'
+        disposition = 'attachment' if _is_download_intent(request) else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
         response['Accept-Ranges'] = 'bytes'
         if _is_download_intent(request):
-            _log_voice_download(request, file_name, status='success')
+            _log_voice_download(request, download_name, status='success')
         return response
 
     except Exception as e:
