@@ -10,7 +10,25 @@ export const API_GET_CSRF = () => `${getApiBase()}/api/get/csrf/`
 // หน้า Home
 export const API_HOME_INDEX = () => `${getApiBase()}/api/home/index/`
 export const API_AUDIO_LIST = () => `${getApiBase()}/api/audio/list/`
-export const API_PLAY_AUDIO = (fileId) => `${getApiBase()}/api/audio/play/${fileId}/`
+export const API_PLAY_AUDIO = (fileIdentifier) => {
+	const base = getApiBase()
+	if (fileIdentifier == null) return `${base}/api/audio/play/`
+	// numeric id -> legacy URL path
+	if (typeof fileIdentifier === 'number' || (/^\d+$/.test(String(fileIdentifier)))) {
+		return `${base}/api/audio/play/${fileIdentifier}/`
+	}
+	// object with file_path and optional file_name
+	if (typeof fileIdentifier === 'object' && fileIdentifier !== null) {
+		const fp = fileIdentifier.file_path || fileIdentifier.path || ''
+		const fn = fileIdentifier.file_name || fileIdentifier.fileName || ''
+		const q = new URLSearchParams()
+		if (fp) q.set('file_path', fp)
+		if (fn) q.set('file_name', fn)
+		return `${base}/api/audio/play/?${q.toString()}`
+	}
+	// otherwise assume it's a file path string -> pass as query param
+	return `${base}/api/audio/play/?file_path=${encodeURIComponent(String(fileIdentifier))}`
+}
 export const API_PROXY_AUDIO = (fileName) => `${getApiBase()}/api/audio/proxy/?file=${encodeURIComponent(fileName || '')}`
 export const API_CHECK_MY_FAVORITE_NAME = () => `${getApiBase()}/api/home/check/my-favorite-search/`
 export const API_ADD_MY_FAVORITE_SEARCH = () => `${getApiBase()}/api/home/add/my-favorite-search/`

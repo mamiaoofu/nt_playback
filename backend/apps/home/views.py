@@ -1667,73 +1667,53 @@ class RangeFileResponse(FileResponse):
 
 @login_required(login_url='/login')
 @require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS)
-def ApiPlayAudio(request, file_id):
+def ApiPlayAudio(request, file_id=None):
     """
     API endpoint to play audio files with on-the-fly transcoding for legacy codecs.
     Supports local files and SMB shares.
     """
     temp_files = []
     try:
-        from apps.core.model.audio.models import AudioFile
-        audio_file = AudioFile.objects.filter(id=file_id).first()
-        if not audio_file:
-            return JsonResponse({'error': 'Audio file not found'}, status=404)
-
-        source_path = audio_file.file_path
-        file_name = audio_file.file_name
-        
-        # If the file_path is virtual (e.g. /audio/80596.wav), construct the actual remote path
-        # matching the logic in ApiProxyAudio
-        if source_path.startswith('/audio/') or not os.path.isabs(source_path):
-            is_smb = True
-            remote_path = f"Administrator/Desktop/Music/{file_name}"
+        # Two modes supported:
+        # - client provides `file_path` (query param or POST) -> attempt to open that path directly
+        # - client provides `file_id` in URL -> resolve via AudioFile model (legacy behaviour)
+        file_path_param = request.GET.get('file_path') or request.POST.get('file_path')
+        audio_file = None
+        if file_path_param:
+            # Only accept absolute paths or UNC-style paths to avoid ambiguous relative access.
+            fp = str(file_path_param)
+            # Normalize backslashes
+            fp_norm = fp.replace('\\', '\\')
+            # allow client to suggest a filename for download; sanitize it
+            file_name_param = request.GET.get('file_name') or request.POST.get('file_name')
+            if file_name_param:
+                safe_name = os.path.basename(str(file_name_param))
+            else:
+                safe_name = None
+            # Basic safety: require absolute or UNC path
+            if not (os.path.isabs(fp_norm) or fp_norm.startswith('\\') or fp_norm.startswith('//')):
+                return JsonResponse({'error': 'file_path must be an absolute or UNC path'}, status=400)
+            if not os.path.exists(fp_norm):
+                return JsonResponse({'error': 'File not found at provided file_path'}, status=404)
+            target_path = fp_norm
+            file_name = safe_name or os.path.basename(fp_norm)
+            is_smb = False
         else:
-            is_smb = source_path.startswith('\\\\') or source_path.startswith('//')
-            remote_path = source_path.replace('\\', '/')
-        
-        target_path = source_path
+            from apps.core.model.audio.models import AudioFile
+            if file_id is None:
+                return JsonResponse({'error': 'file_id or file_path required'}, status=400)
+            audio_file = AudioFile.objects.filter(id=file_id).first()
+            if not audio_file:
+                return JsonResponse({'error': 'Audio file not found'}, status=404)
 
-        if is_smb:
-            # Download from SMB to temp file
-            from apps.setting.helpers import get_network_share_settings
-            ns_settings = get_network_share_settings()
-            smb_host = ns_settings.get('NT_SHARE_HOST')
-            smb_share = ns_settings.get('NT_SHARE_SHARE')
-            smb_user = ns_settings.get('NT_SHARE_USER')
-            smb_pass = ns_settings.get('NT_SHARE_PASS')
-            
-            from smb.SMBConnection import SMBConnection
-            client_name = ns_settings.get('NT_SMB_CLIENT_NAME', 'nt_playback')
-            conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
-            if not conn.connect(smb_host, 445):
-                return JsonResponse({'error': 'Failed to connect to SMB share'}, status=502)
+            source_path = audio_file.file_path
+            file_name = audio_file.file_name
+            # Do not attempt SMB/remote retrieval here. Require an absolute filesystem path
+            # (or UNC path) that the Django process can open directly.
+            if not (os.path.isabs(source_path) or source_path.startswith('\\') or source_path.startswith('//')):
+                return JsonResponse({'error': 'Audio file path is not an absolute or UNC path. Please configure storage as a mounted path.'}, status=400)
 
-            fd, smb_temp = tempfile.mkstemp(suffix=os.path.splitext(file_name)[1])
-            os.close(fd)
-            temp_files.append(smb_temp)
-            
-            try:
-                # Try multiple shares if needed (C$ fallback)
-                shares_to_try = [smb_share, 'C$'] if smb_share else ['C$']
-                success = False
-                for share in shares_to_try:
-                    try:
-                        with open(smb_temp, 'wb') as f:
-                            # Some basic path logic
-                            path_in_share = remote_path.lstrip('/')
-                            if share.upper() == 'C$' and not path_in_share.lower().startswith('users/'):
-                                path_in_share = f"Users/{path_in_share}"
-                            conn.retrieveFile(share, path_in_share, f)
-                        success = True
-                        break
-                    except:
-                        continue
-                
-                if not success:
-                    return JsonResponse({'error': 'File not found on SMB share'}, status=404)
-                target_path = smb_temp
-            finally:
-                conn.close()
+            target_path = source_path
 
         download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
         original_ext = os.path.splitext(file_name)[1].lower()
