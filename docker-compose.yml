@@ -7,15 +7,15 @@ services:
       - ./backend:/app
       # Mount host recordings directory into container for direct file access
       - C:\\Recordings\\Music:/recordings:ro
-      # Mount all active Windows host drives dynamically via Docker Desktop's mount point
-      - /run/desktop/mnt/host:/host:ro
+      # Mount the entire WSL2 /mnt folder to access all local and network drives dynamically
+      - /mnt:/host_mnt:ro
     env_file:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
       # Mapping from Windows host path -> container mount point
-      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings"}
+      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings","Z:\\":"\\\\\\\\NICHETEL-DOMAIN\\\\Users\\\\Administrator\\\\Desktop\\\\"}
     ports:
       - "8080:8080"
     restart: always
