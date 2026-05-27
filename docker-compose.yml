@@ -6,15 +6,15 @@ services:
     volumes:
       - ./backend:/app
       # Mount host recordings directory into container for direct file access
-      # Update this path to the actual host folder containing audio files
       - C:\\Recordings\\Music:/recordings:ro
+      # Mount all active Windows host drives dynamically via Docker Desktop's mount point
+      - /run/desktop/mnt/host:/host:ro
     env_file:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
-      # Mapping from Windows host path -> container mount point (JSON string)
-      # Example: {"C:\\Recordings\\Music":"/recordings"}
+      # Mapping from Windows host path -> container mount point
       - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings"}
     ports:
       - "8080:8080"

@@ -1619,6 +1619,7 @@ def ApiGenerateTicketCode(request):
         code = _generate_unique_ticket_code()
         return JsonResponse({'ok': True, 'ticketCode': code})
     except Exception as e:
+        create_user_log(user=request.user, action="Generate Ticket Code", detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
 
 
@@ -1691,6 +1692,21 @@ def map_host_to_container_path(path):
     except Exception as e:
         print(f"Error mapping host to container path: {e}")
         
+    # Dynamic drive letter fallback mapping:
+    # If path starts with a Windows drive letter (e.g. "D:\", "E:\"), map it dynamically to "/host/<drive_letter>/"
+    import re
+    drive_match = re.match(r'^([A-Za-z]):\\', path_norm)
+    if not drive_match:
+        drive_match = re.match(r'^([A-Za-z]):/', path_norm)
+        
+    if drive_match:
+        drive_letter = drive_match.group(1).lower()
+        rel = path_norm[3:].lstrip('\\/')
+        rel_unix = rel.replace('\\', '/')
+        mapped = f"/host/{drive_letter}/{rel_unix}"
+        print(f"Dynamic mapped drive '{drive_letter}' path '{path_norm}' -> container path '{mapped}'")
+        return mapped
+
     return path_norm
 
 @login_required(login_url='/login')
