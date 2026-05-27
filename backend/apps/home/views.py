@@ -1680,23 +1680,33 @@ def ApiPlayAudio(request, file_id=None):
         file_path_param = request.GET.get('file_path') or request.POST.get('file_path')
         audio_file = None
         if file_path_param:
-            # Only accept absolute paths or UNC-style paths to avoid ambiguous relative access.
+            # Normalize and sanitize incoming path
             fp = str(file_path_param)
-            # Normalize backslashes
-            fp_norm = fp.replace('\\', '\\')
+            fp_norm = os.path.normpath(fp)
             # allow client to suggest a filename for download; sanitize it
             file_name_param = request.GET.get('file_name') or request.POST.get('file_name')
-            if file_name_param:
-                safe_name = os.path.basename(str(file_name_param))
-            else:
-                safe_name = None
+            safe_name = os.path.basename(str(file_name_param)) if file_name_param else None
+
+            # If client provided a directory (exists or ends with a separator) and also provided file_name,
+            # join them into a candidate file path.
+            candidate_path = fp_norm
+            try:
+                if os.path.isdir(fp_norm) and safe_name:
+                    candidate_path = os.path.join(fp_norm, safe_name)
+                elif (fp_norm.endswith(os.sep) or fp_norm.endswith('/') or fp_norm.endswith('\\')) and safe_name:
+                    candidate_path = os.path.join(fp_norm, safe_name)
+            except Exception:
+                # os.path.isdir may raise on malformed paths; fall back to using fp_norm
+                candidate_path = fp_norm
+
             # Basic safety: require absolute or UNC path
-            if not (os.path.isabs(fp_norm) or fp_norm.startswith('\\') or fp_norm.startswith('//')):
+            if not (os.path.isabs(candidate_path) or candidate_path.startswith('\\\\') or candidate_path.startswith('//')):
                 return JsonResponse({'error': 'file_path must be an absolute or UNC path'}, status=400)
-            if not os.path.exists(fp_norm):
+            if not os.path.exists(candidate_path):
                 return JsonResponse({'error': 'File not found at provided file_path'}, status=404)
-            target_path = fp_norm
-            file_name = safe_name or os.path.basename(fp_norm)
+
+            target_path = candidate_path
+            file_name = safe_name or os.path.basename(candidate_path)
             is_smb = False
         else:
             from apps.core.model.audio.models import AudioFile
