@@ -1666,6 +1666,84 @@ class RangeFileResponse(FileResponse):
                     pass
 
 
+def parse_unc_path(unc_path):
+    if not unc_path:
+        return None
+    path = unc_path.replace('/', '\\')
+    if not path.startswith('\\\\'):
+        return None
+    
+    parts = [p for p in path[2:].split('\\') if p]
+    if len(parts) < 2:
+        return None
+        
+    server = parts[0]
+    share = parts[1]
+    rel_path = '/'.join(parts[2:])
+    return {
+        'server': server,
+        'share': share,
+        'rel_path': rel_path
+    }
+
+
+def retrieve_file_from_smb(server, share, rel_path, smb_user, smb_pass):
+    import tempfile
+    import os
+    from smb.SMBConnection import SMBConnection
+    
+    client_name = 'nt_playback_client'
+    conn = SMBConnection(smb_user, smb_pass, client_name, server, use_ntlm_v2=True, is_direct_tcp=True)
+    connected = conn.connect(server, 445, timeout=10)
+    if not connected:
+        raise Exception(f"Failed to connect to SMB server {server}")
+        
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='_' + os.path.basename(rel_path))
+        os.close(tmp_fd)
+        with open(tmp_path, 'wb') as f:
+            conn.retrieveFile(share, rel_path.lstrip('/\\'), f)
+        return tmp_path
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def resolve_and_fetch_if_unc(path, temp_files):
+    if not path:
+        return path, None
+    import os
+    is_unc = path.startswith('\\\\') or path.startswith('//')
+    if not is_unc:
+        if not os.path.exists(path):
+            return None, f"File not found at provided path: {path}"
+        return path, None
+        
+    unc_info = parse_unc_path(path)
+    if not unc_info:
+        return None, f"Malformed UNC path: {path}"
+        
+    try:
+        from apps.setting.helpers import get_network_share_settings
+        ns_settings = get_network_share_settings()
+        smb_user = ns_settings.get('NT_SHARE_USER')
+        smb_pass = ns_settings.get('NT_SHARE_PASS')
+        
+        tmp_path = retrieve_file_from_smb(
+            server=unc_info['server'],
+            share=unc_info['share'],
+            rel_path=unc_info['rel_path'],
+            smb_user=smb_user,
+            smb_pass=smb_pass
+        )
+        temp_files.append(tmp_path)
+        return tmp_path, None
+    except Exception as e:
+        return None, f"Failed to retrieve file from SMB share: {str(e)}"
+
+
 def map_host_to_container_path(path):
     if not path:
         return path
@@ -1685,15 +1763,23 @@ def map_host_to_container_path(path):
                 if path_norm_lower.startswith(host_prefix_norm_lower):
                     container_prefix = mappings[host_prefix]
                     rel = path_norm[len(host_prefix_norm):].lstrip('\\/')
-                    rel_unix = rel.replace('\\', '/')
-                    mapped = os.path.join(container_prefix, rel_unix).replace('\\', '/')
-                    print(f"Mapped host path '{path_norm}' -> container path '{mapped}'")
-                    return mapped
+                    # If mapped destination starts with \\ or //, it is a UNC path. We don't join it with Unix slashes.
+                    if container_prefix.startswith('\\\\') or container_prefix.startswith('//'):
+                        # UNC target mapping
+                        rel_unc = rel.replace('/', '\\')
+                        mapped = container_prefix + ('\\' if not container_prefix.endswith('\\') else '') + rel_unc
+                        print(f"Mapped host path '{path_norm}' -> UNC path '{mapped}'")
+                        return mapped
+                    else:
+                        rel_unix = rel.replace('\\', '/')
+                        mapped = os.path.join(container_prefix, rel_unix).replace('\\', '/')
+                        print(f"Mapped host path '{path_norm}' -> container path '{mapped}'")
+                        return mapped
     except Exception as e:
         print(f"Error mapping host to container path: {e}")
         
     # Dynamic drive letter fallback mapping:
-    # If path starts with a Windows drive letter (e.g. "D:\", "E:\"), map it dynamically to "/host/<drive_letter>/"
+    # If path starts with a Windows drive letter (e.g. "D:\", "E:\"), map it dynamically to "/host_mnt/<drive_letter>/"
     import re
     drive_match = re.match(r'^([A-Za-z]):\\', path_norm)
     if not drive_match:
@@ -1703,7 +1789,7 @@ def map_host_to_container_path(path):
         drive_letter = drive_match.group(1).lower()
         rel = path_norm[3:].lstrip('\\/')
         rel_unix = rel.replace('\\', '/')
-        mapped = f"/host/{drive_letter}/{rel_unix}"
+        mapped = f"/host_mnt/{drive_letter}/{rel_unix}"
         print(f"Dynamic mapped drive '{drive_letter}' path '{path_norm}' -> container path '{mapped}'")
         return mapped
 
@@ -1749,10 +1835,14 @@ def ApiPlayAudio(request, file_id=None):
             # Basic safety: require absolute or UNC path
             if not (os.path.isabs(candidate_path) or candidate_path.startswith('\\\\') or candidate_path.startswith('//')):
                 return JsonResponse({'error': 'file_path must be an absolute or UNC path'}, status=400)
-            if not os.path.exists(candidate_path):
-                return JsonResponse({'error': f'File not found at provided file_path: {candidate_path}'}, status=404)
+            
+            # Resolve and fetch UNC files if necessary
+            resolved_path, err = resolve_and_fetch_if_unc(candidate_path, temp_files)
+            if err:
+                status_code = 404 if "File not found" in err else 502
+                return JsonResponse({'error': err}, status=status_code)
 
-            target_path = candidate_path
+            target_path = resolved_path
             file_name = safe_name or os.path.basename(candidate_path)
             is_smb = False
         else:
@@ -1774,10 +1864,13 @@ def ApiPlayAudio(request, file_id=None):
             if not (os.path.isabs(mapped_source_path) or mapped_source_path.startswith('\\\\') or mapped_source_path.startswith('//') or mapped_source_path.startswith('\\')):
                 return JsonResponse({'error': 'Audio file path is not an absolute or UNC path. Please configure storage as a mounted path.'}, status=400)
 
-            if not os.path.exists(mapped_source_path):
-                return JsonResponse({'error': f'File not found at resolved database path: {mapped_source_path}'}, status=404)
+            # Resolve and fetch UNC files if necessary
+            resolved_path, err = resolve_and_fetch_if_unc(mapped_source_path, temp_files)
+            if err:
+                status_code = 404 if "File not found" in err else 502
+                return JsonResponse({'error': err}, status=status_code)
 
-            target_path = mapped_source_path
+            target_path = resolved_path
 
         download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
         original_ext = os.path.splitext(file_name)[1].lower()

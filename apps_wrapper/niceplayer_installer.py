@@ -480,7 +480,7 @@ class InstallerApp(tk.Tk):
         # ── Backend API ───────────────────────────────────────────────────────
         frm_backend = self._card("Backend Server")
         self._backend_url_var = tk.StringVar()
-        self._row(frm_backend, "Backend URL:",
+        self._row(frm_backend, "Backend API:",
                   lambda p: ttk.Entry(p, textvariable=self._backend_url_var, width=40))
 
         # ── Installation ──────────────────────────────────────────────────────
@@ -632,7 +632,7 @@ class InstallerApp(tk.Tk):
                     self.after(0, lambda: messagebox.showerror("Fetch Config", err))
                     return
             except urllib.error.HTTPError as e:
-                msg = f"✗ HTTP {e.code}: {e.reason}  (ตรวจสอบ Backend URL และ Installer Key)"
+                msg = f"✗ HTTP {e.code}: {e.reason}  (ตรวจสอบ Backend API และ Installer Key)"
                 self.after(0, lambda: self._append_log(msg))
                 self.after(0, lambda: messagebox.showerror("Fetch Config", msg))
                 return
