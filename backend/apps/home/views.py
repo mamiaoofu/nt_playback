@@ -1649,7 +1649,22 @@ class RangeFileResponse(FileResponse):
                     # Update kwargs for partial content
                     kwargs['status'] = 206
                     # We need to wrap the file to only return the requested range
-           
+            except Exception:
+                pass
+        
+        super().__init__(*args, **kwargs)
+
+    def close(self):
+        super().close()
+        # Cleanup any temporary files associated with this response
+        for path in self.temp_to_cleanup:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except Exception:
+                    pass
+
+
 def map_host_to_container_path(path):
     if not path:
         return path
