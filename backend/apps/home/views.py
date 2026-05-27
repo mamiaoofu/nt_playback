@@ -1649,21 +1649,34 @@ class RangeFileResponse(FileResponse):
                     # Update kwargs for partial content
                     kwargs['status'] = 206
                     # We need to wrap the file to only return the requested range
-                    # But for now, let's keep it simple and at least set headers
-            except Exception:
-                pass
+           
+def map_host_to_container_path(path):
+    if not path:
+        return path
+    from django.conf import settings
+    import os
+    
+    path_norm = os.path.normpath(path)
+    path_norm_lower = path_norm.lower()
+    
+    try:
+        mappings = getattr(settings, 'HOST_TO_CONTAINER_MAPPINGS', {}) or {}
+        if mappings:
+            for host_prefix in sorted(mappings.keys(), key=lambda x: -len(x)):
+                host_prefix_norm = os.path.normpath(str(host_prefix))
+                host_prefix_norm_lower = host_prefix_norm.lower()
+                
+                if path_norm_lower.startswith(host_prefix_norm_lower):
+                    container_prefix = mappings[host_prefix]
+                    rel = path_norm[len(host_prefix_norm):].lstrip('\\/')
+                    rel_unix = rel.replace('\\', '/')
+                    mapped = os.path.join(container_prefix, rel_unix).replace('\\', '/')
+                    print(f"Mapped host path '{path_norm}' -> container path '{mapped}'")
+                    return mapped
+    except Exception as e:
+        print(f"Error mapping host to container path: {e}")
         
-        super().__init__(*args, **kwargs)
-
-    def close(self):
-        super().close()
-        # Cleanup any temporary files associated with this response
-        for path in self.temp_to_cleanup:
-            if path and os.path.exists(path):
-                try:
-                    os.remove(path)
-                except Exception:
-                    pass
+    return path_norm
 
 @login_required(login_url='/login')
 @require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS)
@@ -1682,45 +1695,31 @@ def ApiPlayAudio(request, file_id=None):
         if file_path_param:
             # Normalize and sanitize incoming path
             fp = str(file_path_param)
-            fp_norm = os.path.normpath(fp)
             # allow client to suggest a filename for download; sanitize it
             file_name_param = request.GET.get('file_name') or request.POST.get('file_name')
             safe_name = os.path.basename(str(file_name_param)) if file_name_param else None
 
-            # If client provided a directory (exists or ends with a separator) and also provided file_name,
-            # join them into a candidate file path.
-            candidate_path = fp_norm
-            # If running in container, allow mapping from host Windows paths to container mount points.
-            try:
-                mappings = getattr(settings, 'HOST_TO_CONTAINER_MAPPINGS', {}) or {}
-                # Normalize keys for matching (use os.path.normcase on Windows-style keys)
-                if mappings and re.match(r'^[A-Za-z]:\\', fp_norm):
-                    # Prefer longest-prefix match
-                    for host_prefix in sorted(mappings.keys(), key=lambda x: -len(x)):
-                        host_prefix_norm = os.path.normpath(str(host_prefix))
-                        if fp_norm.startswith(host_prefix_norm):
-                            container_prefix = mappings[host_prefix]
-                            # derive the relative suffix and join with container prefix
-                            rel = fp_norm[len(host_prefix_norm):].lstrip('\\/')
-                            candidate_path = os.path.join(container_prefix, rel).replace('\\', '/')
-                            print(f"Mapped host path '{fp_norm}' -> container path '{candidate_path}'")
-                            break
-            except Exception:
-                pass
-            try:
-                if os.path.isdir(fp_norm) and safe_name:
-                    candidate_path = os.path.join(fp_norm, safe_name)
-                elif (fp_norm.endswith(os.sep) or fp_norm.endswith('/') or fp_norm.endswith('\\')) and safe_name:
-                    candidate_path = os.path.join(fp_norm, safe_name)
-            except Exception:
-                # os.path.isdir may raise on malformed paths; fall back to using fp_norm
-                candidate_path = fp_norm
+            # First construct the full path (host-side) before mapping
+            candidate_path = fp
+            if safe_name:
+                fp_clean = fp.replace('\\', '/').rstrip('/')
+                safe_name_clean = safe_name.replace('\\', '/').strip('/')
+                if not (fp_clean.endswith('/' + safe_name_clean) or fp_clean == safe_name_clean):
+                    if '\\' in fp or (':' in fp and '/' not in fp):
+                        # Windows style path
+                        candidate_path = fp + ('' if fp.endswith('\\') or fp.endswith('/') else '\\') + safe_name
+                    else:
+                        # POSIX/Generic style
+                        candidate_path = fp + ('' if fp.endswith('/') or fp.endswith('\\') else '/') + safe_name
+
+            # Map the candidate path if it is inside container
+            candidate_path = map_host_to_container_path(candidate_path)
 
             # Basic safety: require absolute or UNC path
             if not (os.path.isabs(candidate_path) or candidate_path.startswith('\\\\') or candidate_path.startswith('//')):
                 return JsonResponse({'error': 'file_path must be an absolute or UNC path'}, status=400)
             if not os.path.exists(candidate_path):
-                return JsonResponse({'error': 'File not found at provided file_path'}, status=404)
+                return JsonResponse({'error': f'File not found at provided file_path: {candidate_path}'}, status=404)
 
             target_path = candidate_path
             file_name = safe_name or os.path.basename(candidate_path)
@@ -1735,12 +1734,19 @@ def ApiPlayAudio(request, file_id=None):
 
             source_path = audio_file.file_path
             file_name = audio_file.file_name
+
+            # Map the database path if it is inside container
+            mapped_source_path = map_host_to_container_path(source_path)
+
             # Do not attempt SMB/remote retrieval here. Require an absolute filesystem path
             # (or UNC path) that the Django process can open directly.
-            if not (os.path.isabs(source_path) or source_path.startswith('\\') or source_path.startswith('//')):
+            if not (os.path.isabs(mapped_source_path) or mapped_source_path.startswith('\\\\') or mapped_source_path.startswith('//') or mapped_source_path.startswith('\\')):
                 return JsonResponse({'error': 'Audio file path is not an absolute or UNC path. Please configure storage as a mounted path.'}, status=400)
 
-            target_path = source_path
+            if not os.path.exists(mapped_source_path):
+                return JsonResponse({'error': f'File not found at resolved database path: {mapped_source_path}'}, status=404)
+
+            target_path = mapped_source_path
 
         download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
         original_ext = os.path.splitext(file_name)[1].lower()
