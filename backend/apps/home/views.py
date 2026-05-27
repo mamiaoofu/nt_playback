@@ -1690,6 +1690,23 @@ def ApiPlayAudio(request, file_id=None):
             # If client provided a directory (exists or ends with a separator) and also provided file_name,
             # join them into a candidate file path.
             candidate_path = fp_norm
+            # If running in container, allow mapping from host Windows paths to container mount points.
+            try:
+                mappings = getattr(settings, 'HOST_TO_CONTAINER_MAPPINGS', {}) or {}
+                # Normalize keys for matching (use os.path.normcase on Windows-style keys)
+                if mappings and re.match(r'^[A-Za-z]:\\', fp_norm):
+                    # Prefer longest-prefix match
+                    for host_prefix in sorted(mappings.keys(), key=lambda x: -len(x)):
+                        host_prefix_norm = os.path.normpath(str(host_prefix))
+                        if fp_norm.startswith(host_prefix_norm):
+                            container_prefix = mappings[host_prefix]
+                            # derive the relative suffix and join with container prefix
+                            rel = fp_norm[len(host_prefix_norm):].lstrip('\\/')
+                            candidate_path = os.path.join(container_prefix, rel).replace('\\', '/')
+                            print(f"Mapped host path '{fp_norm}' -> container path '{candidate_path}'")
+                            break
+            except Exception:
+                pass
             try:
                 if os.path.isdir(fp_norm) and safe_name:
                     candidate_path = os.path.join(fp_norm, safe_name)
