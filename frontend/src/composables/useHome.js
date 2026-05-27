@@ -1541,8 +1541,8 @@ export function useHome() {
         return
       }
 
-      // Pass only the filename — wrapper builds the full UNC path from its local config.json
-      const protocolLink = `niceplayer://?file=${encodeURIComponent(fileName)}`
+      // Pass file_name and file_path — wrapper parses them and launches niceplayer.exe
+      const protocolLink = `niceplayer://?file_name=${encodeURIComponent(fileName)}&file_path=${encodeURIComponent(row.file_path || '')}`
 
       try {
         window.location.href = protocolLink
