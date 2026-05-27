@@ -1,4 +1,4 @@
-﻿# niceplayer_wrapper.py
+# niceplayer_wrapper.py
 import sys
 import urllib.parse
 import subprocess
@@ -172,26 +172,15 @@ def kill_niceplayer():
 
 def validate_path(path, config):
     r"""
-    Reject paths that do not start with the allowed UNC root defined in
-    config.json (written by the installer, never contains a password).
-
-    config example:
-        {"server": "WIN-O72N8TLKRVU", "share": "Recordings"}
-
-    Allowed root: \\WIN-O72N8TLKRVU\Recordings
+    Validate that the path is a valid UNC path or drive letter path.
     """
-    server = config.get("server", "").strip()
-    share = config.get("share", "").strip()
-
-    if not server or not share:
-        log("WARNING: No server/share whitelist in config. Skipping path validation.")
+    path_lower = path.lower()
+    # Accept UNC paths (e.g., \\server\share) or drive letter paths (e.g., Z:\...)
+    if path_lower.startswith("\\\\") or (len(path_lower) >= 3 and path_lower[1] == ":" and path_lower[2] == "\\"):
         return True
 
-    allowed_root = f"\\\\{server}\\{share}".lower()
-    if not path.lower().startswith(allowed_root):
-        log(f"SECURITY: Rejected path '{path}' â€“ not under '{allowed_root}'")
-        return False
-    return True
+    log(f"SECURITY: Rejected path '{path}' – must be a UNC path or drive letter path.")
+    return False
 
 
 def resolve_unc_file_path(server, share, base_path, file_value):
@@ -370,8 +359,22 @@ def main():
     qs = urllib.parse.parse_qs(parsed.query)
     log(f"Parsed QS keys: {list(qs.keys())}")
 
-    # Support both ?file=filename (new) and ?path=full_unc_path (legacy)
-    if "file" in qs:
+    # Support both ?file_name=...&file_path=... (new) and legacy parameters (?file, ?path)
+    if "file_path" in qs and qs["file_path"][0].strip():
+        file_path_val = urllib.parse.unquote(qs["file_path"][0]).replace("/", "\\")
+        filename_val = urllib.parse.unquote(qs.get("file_name", [""])[0])
+        # Join filename if not already part of file_path
+        if filename_val:
+            fp_clean = file_path_val.lower().replace('/', '\\')
+            fn_clean = filename_val.lower().replace('/', '\\')
+            if not (fp_clean.endswith('\\' + fn_clean) or fp_clean == fn_clean):
+                path = os.path.join(file_path_val, filename_val)
+            else:
+                path = file_path_val
+        else:
+            path = file_path_val
+        log(f"Decoded file_path: {path}")
+    elif "file" in qs:
         filename = qs["file"][0]
         server   = _cfg.get("server", "").strip()
         share_n  = _cfg.get("share", "").strip()
@@ -385,7 +388,7 @@ def main():
         path = urllib.parse.unquote(qs["path"][0]).replace("/", "\\")
         log(f"Decoded path from URL: {path}")
     else:
-        log("ERROR: No 'file' or 'path' parameter in protocol URL.")
+        log("ERROR: No 'file_path', 'file' or 'path' parameter in protocol URL.")
         sys.exit(1)
 
     # â”€â”€ Path validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -393,14 +396,15 @@ def main():
         log("SECURITY: Path rejected by whitelist. Aborting.")
         sys.exit(1)
 
-    # â”€â”€ Derive the UNC share root  (\\SERVER\SHARE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    parts = path.split("\\")
-    # parts: ["", "", "SERVER", "SHARE", ...]
+    # ── Derive the UNC share root  (\\SERVER\SHARE) ───────────────────────
     share = None
-    if len(parts) > 3:
-        share = "\\".join(parts[:4])   # \\SERVER\SHARE
-    elif len(parts) > 2:
-        share = f"\\\\{parts[2]}\\IPC$"
+    if path.startswith("\\\\"):
+        parts = path.split("\\")
+        # parts: ["", "", "SERVER", "SHARE", ...]
+        if len(parts) > 3:
+            share = "\\".join(parts[:4])   # \\SERVER\SHARE
+        elif len(parts) > 2:
+            share = f"\\\\{parts[2]}\\IPC$"
 
     # ── Connect using credentials from config.json ────────────────────────
     if share:
