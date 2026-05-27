@@ -1158,7 +1158,8 @@ export function useHome() {
                 const fname = f.file_name || f.fileName || ''
                 if (!fname) continue
                 const fid = f.file_id || f.id || f.fileId
-                const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
+                // prefer direct file_path when available (backend will accept file_path)
+                const url = (f.file_path && f.file_path !== '') ? API_PLAY_AUDIO(f.file_path) : (fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname))
                 try {
                   const resp = await fetch(toDownloadUrl(url), downloadFetchOptions)
                   if (!resp.ok) {
@@ -1260,7 +1261,7 @@ export function useHome() {
           const fname = f.file_name || f.fileName || ''
           if (!fname) continue
           const fid = f.file_id || f.id || f.fileId
-          const url = fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname)
+          const url = (f.file_path && f.file_path !== '') ? API_PLAY_AUDIO({ file_path: f.file_path, file_name: fname }) : (fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname))
           try {
             const resp = await fetch(toDownloadUrl(url), downloadFetchOptions)
             if (!resp.ok) {
@@ -1474,8 +1475,10 @@ export function useHome() {
     if (['wav','mp3','ogg','flac','m4a','aac','gsm'].includes(ext)) {
       try {
         const fileId = row.file_id || row.id || row.fileId
-        if (!fileId) {
-          console.warn('No fileId found for row, falling back to proxy by name', row)
+        if (row.file_path && row.file_path !== '') {
+          audioSrc.value = API_PLAY_AUDIO({ file_path: row.file_path, file_name: fileName })
+        } else if (!fileId) {
+          console.warn('No fileId or file_path found for row, falling back to proxy by name', row)
           audioSrc.value = API_PROXY_AUDIO(fileName)
         } else {
           audioSrc.value = API_PLAY_AUDIO(fileId)
