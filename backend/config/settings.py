@@ -15,6 +15,7 @@ import os
 from datetime import timedelta
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+import json
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -235,6 +236,17 @@ STATIC_URL = 'static/'
 # Serve during development from /media/ and store files under <BASE_DIR>/media
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Optional mapping from host Windows paths to container mount points.
+# Set via environment variable `HOST_TO_CONTAINER_MAPPINGS` as a JSON object.
+# Example: HOST_TO_CONTAINER_MAPPINGS='{"C:\\Recordings\\Music":"/recordings"}'
+HOST_TO_CONTAINER_MAPPINGS = {}
+_htc_raw = os.environ.get('HOST_TO_CONTAINER_MAPPINGS', '')
+if _htc_raw:
+    try:
+        HOST_TO_CONTAINER_MAPPINGS = json.loads(_htc_raw)
+    except Exception:
+        HOST_TO_CONTAINER_MAPPINGS = {}
 
 # Network share (SMB) settings used for server-side proxying of audio files
 # Configure these in backend/.env

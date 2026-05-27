@@ -5,11 +5,17 @@ services:
     command: sh -c "echo 'Starting Daphne ASGI server' && python -m daphne -b 0.0.0.0 -p 8080 config.asgi:application"
     volumes:
       - ./backend:/app
+      # Mount host recordings directory into container for direct file access
+      # Update this path to the actual host folder containing audio files
+      - C:\\Recordings\\Music:/recordings:ro
     env_file:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
+      # Mapping from Windows host path -> container mount point (JSON string)
+      # Example: {"C:\\Recordings\\Music":"/recordings"}
+      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings"}
     ports:
       - "8080:8080"
     restart: always
