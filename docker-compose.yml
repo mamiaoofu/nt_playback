@@ -15,7 +15,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
       # Mapping from Windows host path -> container mount point
-      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings","Z:\\":"\\\\\\\\NICHETEL-DOMAIN\\\\Users\\\\Administrator\\\\Desktop\\\\"}
+      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings"}
     ports:
       - "8080:8080"
     restart: always
