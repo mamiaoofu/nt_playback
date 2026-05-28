@@ -194,7 +194,7 @@ def index(request):
             create_user_log(
                 user=user,
                 action="Login",
-                detail=f"Username: {user.username} login success",
+                detail=f"Username: {user.username}",
                 status="success",
                 request=request
             )
@@ -479,8 +479,33 @@ def api_logout(request):
                 pass
         except Exception:
             pass
+        
+        # ✅ บันทึก Log Logout สำเร็จ
+        try:
+            if req_user_authenticated:
+                create_user_log(
+                    user=getattr(request, 'user', None),
+                    action="Logout",
+                    detail=f"Username: {getattr(request.user, 'username', 'unknown')}",
+                    status="success",
+                    request=request
+                )
+        except Exception as e:
+            print(f"Error logging logout: {e}")
+        
         return resp
-    except Exception:
+    except Exception as e:
+        # ❌ บันทึก Log Logout Error
+        try:
+            create_user_log(
+                user=None,
+                action="Logout",
+                detail=f"Logout error: {str(e)}",
+                status="error",
+                request=request if 'request' in locals() else None
+            )
+        except Exception:
+            pass
         return JsonResponse({'detail': 'error'}, status=400)
 
 

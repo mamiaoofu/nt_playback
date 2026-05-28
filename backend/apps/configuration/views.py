@@ -215,7 +215,14 @@ def ApiSaveRole(request, role_id=None):
                     detail.status = is_active
                     detail.save()
 
-                create_user_log(user=request.user, action="Update Custom Role", detail=f"Updated role: {role_name}", status="success", request=request)
+                try:
+                    _rid = int(role_id)
+                except (ValueError, TypeError):
+                    _rid = None
+                if _rid is not None and 1 <= _rid <= 3:
+                    create_user_log(user=request.user, action="Edit Base Role", detail=f"Base Role Name : {role.name}", status="success", request=request)
+                else:
+                    create_user_log(user=request.user, action="Edit Custom Role", detail=f"Custom Role Name : {role.name}", status="success", request=request)
 
             return JsonResponse({'status': 'success', 'message': 'Role updated successfully.', 'role': {'id': role.id, 'name': role.name}})
 
@@ -250,7 +257,7 @@ def ApiSaveRole(request, role_id=None):
                 UserPermissionDetail.objects.bulk_create(new_details)
 
             # Log the action
-            create_user_log(user=request.user, action="Create Custom Role", detail=f"Created role: {role_name}", status="success", request=request)
+            create_user_log(user=request.user, action="Add Custom Role", detail=f"Custom Role Name : {role_name}", status="success", request=request)
 
         return JsonResponse({
             'status': 'success',
@@ -263,7 +270,7 @@ def ApiSaveRole(request, role_id=None):
         })
 
     except Exception as e:
-        create_user_log(user=request.user, action="Create/Update Custom Role", detail=f"Error creating/updating role: {str(e)}", status="error", request=request)
+        create_user_log(user=request.user, action="Create/Edit Base Role", detail=f"Error creating/updating role: {str(e)}", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @require_POST
@@ -289,7 +296,7 @@ def ApiDeleteRole(request, role_id=None):
             deleted_id = role.id
             deleted_name = role.name
             role.delete()
-            create_user_log(user=request.user, action="Delete Custom Role", detail=f"Deleted role: {deleted_name}", status="success", request=request)
+            create_user_log(user=request.user, action="Delete Custom Role", detail=f"Custome Role Name : {deleted_name}", status="success", request=request)
             return JsonResponse({'status': 'success', 'message': 'Role deleted successfully.', 'role': {'id': deleted_id, 'name': deleted_name}})
 
         return JsonResponse({'status': 'error', 'message': 'Role not found.'})
@@ -384,17 +391,17 @@ def ApiSaveGroup(request):
 
             existing_group = UserGroup.objects.filter(group_name__iexact=group_name).first()
             if existing_group:
-                create_user_log(user=request.user, action='Create Config Group', detail=f'Duplicate group : {group_name}', status='error', request=request)
+                create_user_log(user=request.user, action='Add Group', detail=f'Duplicate group : {group_name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This group name is already in the system.'})
 
             try:
                 with transaction.atomic():
                     new_group = UserGroup.objects.create(group_name=group_name, description=description, status=1)
-                    create_user_log(user=request.user, action='Create Config Group', detail=f'Created group : {group_name} | Description: {description}', status='success', request=request)
+                    create_user_log(user=request.user, action='Add Group', detail=f'Group Name : {group_name} | Description: {description}', status='success', request=request)
 
                 return JsonResponse({'status': 'success', 'group': {'id': new_group.id, 'group_name': new_group.group_name, 'description': new_group.description}})
             except IntegrityError as e:
-                create_user_log(user=request.user, action='Create Config Group', detail=f'Database error : {str(e)}', status='error', request=request)
+                create_user_log(user=request.user, action='Add Group', detail=f'Database error : {str(e)}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'เกิดข้อผิดพลาดกับฐานข้อมูล'})
 
         # UPDATE
@@ -411,7 +418,7 @@ def ApiSaveGroup(request):
                 return JsonResponse({'status': 'error', 'message': 'Group not found.'})
 
             if UserGroup.objects.filter(group_name__iexact=group_name).exclude(id=group_id).exists():
-                create_user_log(user=request.user, action='Update Config Group', detail=f'Duplicate group : {group_name}', status='error', request=request)
+                create_user_log(user=request.user, action='Edit Group', detail=f'Duplicate group : {group_name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This group name is already in the system.'})
 
             try:
@@ -419,11 +426,11 @@ def ApiSaveGroup(request):
                     group.group_name = group_name
                     group.description = description
                     group.save()
-                    create_user_log(user=request.user, action='Update Config Group', detail=f'Updated group : {group_name}', status='success', request=request)
+                    create_user_log(user=request.user, action='Edit Group', detail=f'Group Name : {group_name}', status='success', request=request)
 
                 return JsonResponse({'status': 'success', 'group': {'id': group.id, 'group_name': group.group_name, 'description': group.description}})
             except Exception as e:
-                create_user_log(user=request.user, action='Update Config Group', detail=f'Error: {str(e)}', status='error', request=request)
+                create_user_log(user=request.user, action='Edit Group', detail=f'Error: {str(e)}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': str(e)})
 
         # DELETE
@@ -436,7 +443,7 @@ def ApiSaveGroup(request):
             if group:
                 group_name = group.group_name
                 group.delete()
-                create_user_log(user=request.user, action='Delete Config Group', detail=f'Deleted group: {group_name}', status='success', request=request)
+                create_user_log(user=request.user, action='Delete Group', detail=f'Group Name : {group_name}', status='success', request=request)
                 return JsonResponse({'status': 'success', 'message': 'Group deleted successfully.'})
 
             return JsonResponse({'status': 'error', 'message': 'Group not found.'})
@@ -513,7 +520,7 @@ def ApiSaveTeam(request):
                 dup_qs = UserTeam.objects.filter(name__iexact=name)
 
             if dup_qs.exists():
-                create_user_log(user=request.user, action='Create Config Team', detail=f'Duplicate team : {name}', status='error', request=request)
+                create_user_log(user=request.user, action='Add Team', detail=f'Duplicate team : {name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This team name is already in the system.'})
 
             try:
@@ -528,11 +535,11 @@ def ApiSaveTeam(request):
                         maindatabase=maindatabase_str,
                         status=1
                     )
-                    create_user_log(user=request.user, action='Create Config Team', detail=f'Created team : {name}', status='success', request=request)
+                    create_user_log(user=request.user, action='Add Team', detail=f'Team Name : {name}', status='success', request=request)
 
                 return JsonResponse({'status': 'success', 'team': {'id': new_team.id, 'name': new_team.name, 'user_group_id': new_team.user_group_id}})
             except IntegrityError as e:
-                create_user_log(user=request.user, action='Create Config Team', detail=f'Database error : {str(e)}', status='error', request=request)
+                create_user_log(user=request.user, action='Add Team', detail=f'Database error : {str(e)}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'เกิดข้อผิดพลาดกับฐานข้อมูล'})
 
         # UPDATE
@@ -563,7 +570,7 @@ def ApiSaveTeam(request):
 
             dup_qs = UserTeam.objects.filter(name__iexact=name, user_group_id=check_gid).exclude(id=team_id)
             if dup_qs.exists():
-                create_user_log(user=request.user, action='Update Config Team', detail=f'Duplicate team : {name}', status='error', request=request)
+                create_user_log(user=request.user, action='Edit Team', detail=f'Duplicate team : {name}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': 'This team name is already in the system.'})
 
             # Handle user_group_id
@@ -591,11 +598,11 @@ def ApiSaveTeam(request):
                     team.name = name
                     team.maindatabase = maindatabase_str
                     team.save()
-                    create_user_log(user=request.user, action='Update Config Team', detail=f'Updated team : {name}', status='success', request=request)
+                    create_user_log(user=request.user, action='Edit Team', detail=f'Team Name : {name}', status='success', request=request)
 
                 return JsonResponse({'status': 'success', 'team': {'id': team.id, 'name': team.name}})
             except Exception as e:
-                create_user_log(user=request.user, action='Update Config Team', detail=f'Error: {str(e)}', status='error', request=request)
+                create_user_log(user=request.user, action='Edit Team', detail=f'Error: {str(e)}', status='error', request=request)
                 return JsonResponse({'status': 'error', 'message': str(e)})
 
         # DELETE
@@ -608,14 +615,14 @@ def ApiSaveTeam(request):
             if team:
                 team_name = team.name
                 team.delete()
-                create_user_log(user=request.user, action='Delete Config Team', detail=f'Deleted team: {team_name}', status='success', request=request)
+                create_user_log(user=request.user, action='Delete Team', detail=f'Team Name : {team_name}', status='success', request=request)
                 return JsonResponse({'status': 'success', 'message': 'Team deleted successfully.'})
 
             return JsonResponse({'status': 'error', 'message': 'Team not found.'})
 
     except IntegrityError as e:
-        create_user_log(user=request.user, action='ApiSaveTeam', detail=f'Database error : {str(e)}', status='error', request=request)
+        create_user_log(user=request.user, action='Delete Team', detail=f'Database error : {str(e)}', status='error', request=request)
         return JsonResponse({'status': 'error', 'message': 'An error occurred with the database.'})
     except Exception as e:
-        create_user_log(user=request.user, action='ApiSaveTeam', detail=f'Unexpected error: {str(e)}', status='error', request=request)
+        create_user_log(user=request.user, action='Delete Team', detail=f'Unexpected error: {str(e)}', status='error', request=request)
         return JsonResponse({'status': 'error', 'message': str(e)})

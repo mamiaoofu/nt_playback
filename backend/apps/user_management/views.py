@@ -610,7 +610,7 @@ def ApiChangeUserStatus(request, user_id):
         user.is_active = not user.is_active
         user.save()
         status_msg = 'Active' if user.is_active else 'Inactive'
-        create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user.username} to {status_msg}", status="success", request=request)
+        create_user_log(user=request.user, action="Change User Status", detail=f"User Name : {user.username} to {status_msg}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': f'User {user.username} is now {status_msg}.'})
     except User.DoesNotExist:
         create_user_log(user=request.user, action="Change User Status", detail=f"message : User not found", status="error", request=request)
@@ -843,7 +843,7 @@ def ApiDeleteUser(request, user_id):
             # 3. ลบ User ออกจากระบบ
             user_to_delete.delete()
 
-        create_user_log(user=request.user, action="Delete User", detail=f"Successfully deleted user: {username} (ID: {user_id})", status="success", request=request)
+        create_user_log(user=request.user, action="Delete User", detail=f"User Name : {username}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': 'User deleted successfully.', 'username': username})
     except User.DoesNotExist:
         create_user_log(user=request.user, action="Delete User", detail=f"Attempted to delete non-existent user with ID: {user_id}", status="error", request=request)
@@ -980,15 +980,15 @@ def ApiSaveUser(request, user_id=None):
                     ))
                 UserAuth.objects.bulk_create(user_auths)
 
-            create_user_log(user=request.user, action="Update User", detail=f"Updated user: {user_to_update.username}", status="success", request=request)
+            create_user_log(user=request.user, action="Edit User", detail=f"User Name : {user_to_update.username}", status="success", request=request)
             return JsonResponse({'status': 'success', 'message': 'User updated successfully.', 'username': user_to_update.username})
 
         except IntegrityError as e:
             error_message = str(e)
-            create_user_log(user=request.user, action="Update User", detail=f"IntegrityError: {error_message}", status="error", request=request)
+            create_user_log(user=request.user, action="Edit User", detail=f"IntegrityError: {error_message}", status="error", request=request)
             return JsonResponse({"status": "error", "message": "Error: " + error_message})
         except Exception as e:
-            create_user_log(user=request.user, action="Update User", detail=f"Error updating user: {str(e)}", status="error", request=request)
+            create_user_log(user=request.user, action="Edit User", detail=f"Error updating user: {str(e)}", status="error", request=request)
             return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
 
     # กรณีสร้างผู้ใช้
@@ -1046,19 +1046,19 @@ def ApiSaveUser(request, user_id=None):
 
             context = {
                 'status': "success",
-                'message': "User created successfully",
+                'message': "Add User successfully",
                 'username': username
             }
-            create_user_log(user=request.user, action="Created User", detail=f"User created successfully: {username}", status="success", request=request)
+            create_user_log(user=request.user, action="Add User", detail=f"User Name : {username}", status="success", request=request)
         return JsonResponse(context)
 
     except IntegrityError as e:
         error_message = str(e)
-        create_user_log(user=request.user, action="Created User",  detail=f"IntegrityError: {error_message}", status="error", request=request)
+        create_user_log(user=request.user, action="Add User",  detail=f"IntegrityError: {error_message}", status="error", request=request)
         return JsonResponse({"status": "error", "message": "Error: " + error_message})
 
     except Exception as e:
-        create_user_log(user=request.user, action="Created User", detail=f"Error: {str(e)}", status="error", request=request)
+        create_user_log(user=request.user, action="Add User", detail=f"Error: {str(e)}", status="error", request=request)
         return JsonResponse({"status": "error", "message": f"Error: {str(e)}"})
 
 @login_required
@@ -1106,13 +1106,13 @@ def ApiResetPassword(request, user_id):
         except Exception:
             pass
 
-        create_user_log(user=request.user, action="Reset Password", detail=f"Successfully reset password for user: {user.username} (ID: {user_id})", status="success", request=request)
+        create_user_log(user=request.user, action="Reset User Password", detail=f"User Name : {user.username}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': f'Password reset successful.'+'<br>'+ f'Password is: <b>{user.username}</b> (username)' })
     except User.DoesNotExist:
-        create_user_log(user=request.user, action="Reset Password", detail=f"Attempted to reset password for non-existent user with ID: {user_id}", status="error", request=request)
+        create_user_log(user=request.user, action="Reset User Password", detail=f"Attempted to reset password for non-existent user with ID: {user_id}", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': 'User not found.'})
     except Exception as e:
-        create_user_log(user=request.user, action="Reset Password", detail=f"Failed to reset password for user with ID: {user_id}", status="error", request=request, exception=e)
+        create_user_log(user=request.user, action="Reset User Password", detail=f"Failed to reset password for user with ID: {user_id}", status="error", request=request, exception=e)
         return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
 
 @login_required(login_url='/login')

@@ -642,11 +642,25 @@ class InstallerApp(tk.Tk):
                 self.after(0, lambda: messagebox.showerror("Fetch Config", msg))
                 return
 
-            smb_server   = data.get("host", "")
-            smb_share    = data.get("share", "")
-            smb_base     = data.get("base_path", "")
-            smb_username = data.get("smb_username", "")
+            smb_server   = data.get("host", "").strip()
+            smb_share    = data.get("share", "").strip()
+            smb_base     = data.get("base_path", "").strip()
+            smb_username = data.get("smb_username", "").strip()
             smb_password = data.get("smb_password", "")  # decrypted plaintext
+
+            # Clean host and extract share if it was embedded in host field (e.g. Host\Share or Host\User)
+            if "\\" in smb_server:
+                parts_srv = smb_server.split("\\", 1)
+                host_part = parts_srv[0].strip()
+                suffix_part = parts_srv[1].strip()
+                if suffix_part.lower() == smb_username.lower():
+                    # Suffix is the username, discard it from the server host
+                    smb_server = host_part
+                else:
+                    # Suffix is a share name, split it
+                    smb_server = host_part
+                    if not smb_share:
+                        smb_share = suffix_part
 
             self.after(0, lambda: self._append_log(
                 f"✓ ดึงค่าสำเร็จ"
@@ -709,6 +723,14 @@ class InstallerApp(tk.Tk):
                 write_config(smb_server, smb_share, smb_base, fields["niceplayer_exe"],
                              smb_username=smb_username, smb_password_plain=smb_password)
                 self.after(0, lambda: self._append_log(f"✓ Config written to {CONFIG_FILE}"))
+                # Grant Modify permissions to the Users group so standard users can write to log/config
+                try:
+                    subprocess.run(
+                        ["icacls", CONFIG_DIR, "/grant", "Users:(OI)(CI)M", "/T", "/C", "/Q"],
+                        check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5
+                    )
+                except Exception:
+                    pass
             except Exception as e:
                 errors.append(f"Write config: {e}")
                 self.after(0, lambda: self._append_log(f"✗ Write config failed: {e}"))
