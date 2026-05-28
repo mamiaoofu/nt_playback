@@ -888,10 +888,10 @@ def ApiSaveMyFavoriteSearch(request):
                 fav = FavoriteSearch.objects.get(id=favorite_id, user=user)
                 fav_name = fav.favorite_name
                 fav.delete()
-                create_user_log(user=request.user, action="Delete Favorite", detail=f"Deleted favorite: {fav_name}", status="success", request=request)
+                create_user_log(user=request.user, action="Delete My Favorite", detail=f"My Favorite Name : {fav_name}", status="success", request=request)
                 return JsonResponse({"status": "success", "message": "Deleted successfully", "id": favorite_id})
             except Exception as e:
-                create_user_log(user=request.user, action="Delete Favorite", detail=f"Error deleting favorite: {str(e)}", status="error", request=request)
+                create_user_log(user=request.user, action="Delete My Favorite", detail=f"My Favorite Name : {str(e)}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": str(e)})
 
         # Handle Create and Edit
@@ -917,7 +917,7 @@ def ApiSaveMyFavoriteSearch(request):
 
         if action == "create":
             if FavoriteSearch.objects.filter(user=user, favorite_name__iexact=favorite_name).exists():
-                create_user_log(user=request.user, action="Create Favorite", detail=f"Duplicate name: {favorite_name}", status="error", request=request)
+                create_user_log(user=request.user, action="Create My Favorite", detail=f"Duplicate name: {favorite_name}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": "This name is already in the system."})
 
             try:
@@ -927,7 +927,7 @@ def ApiSaveMyFavoriteSearch(request):
                     raw_data=raw_data,
                     description=description
                 )
-                create_user_log(user=request.user, action="Create Favorite", detail=f"Created favorite: {favorite_name}", status="success", request=request)
+                create_user_log(user=request.user, action="Create My Favorite", detail=f"My Favorite Name : {favorite_name}", status="success", request=request)
                 return JsonResponse({
                     "status": "success", 
                     "message": "Created successfully",
@@ -939,14 +939,14 @@ def ApiSaveMyFavoriteSearch(request):
                     }
                 })
             except Exception as e:
-                create_user_log(user=request.user, action="Create Favorite", detail=f"Error creating favorite: {str(e)}", status="error", request=request)
+                create_user_log(user=request.user, action="Create My Favorite", detail=f"My Favorite Name : {str(e)}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": str(e)})
 
         elif action == "edit":
             favorite_id = request.POST.get("favorite_id")
             
             if FavoriteSearch.objects.filter(user=user, favorite_name__iexact=favorite_name).exclude(id=favorite_id).exists():
-                create_user_log(user=request.user, action="Edit Favorite", detail=f"Duplicate name: {favorite_name}", status="error", request=request)
+                create_user_log(user=request.user, action="Edit My Favorite", detail=f"Duplicate name: {favorite_name}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": "This name is already in the system."})
 
             try:
@@ -955,7 +955,7 @@ def ApiSaveMyFavoriteSearch(request):
                 fav.raw_data = raw_data
                 fav.description = description
                 fav.save()
-                create_user_log(user=request.user, action="Edit Favorite", detail=f"Updated favorite: {favorite_name}", status="success", request=request)
+                create_user_log(user=request.user, action="Edit My Favorite", detail=f"My Favorite Name : {favorite_name}", status="success", request=request)
                 return JsonResponse({
                     "status": "success", 
                     "message": "Updated successfully",
@@ -967,9 +967,10 @@ def ApiSaveMyFavoriteSearch(request):
                     }
                 })
             except FavoriteSearch.DoesNotExist:
+                create_user_log(user=request.user, action="Edit My Favorite", detail=f"My Favorite Name : {favorite_name}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": "Favorite not found"})
             except Exception as e:
-                create_user_log(user=request.user, action="Edit Favorite", detail=f"Error updating favorite: {str(e)}", status="error", request=request)
+                create_user_log(user=request.user, action="Edit My Favorite", detail=f"My Favorite Name : {str(e)}", status="error", request=request)
                 return JsonResponse({"status": "error", "message": str(e)})
 
     return JsonResponse({"status": "error", "message": "Invalid request"})
@@ -1039,10 +1040,23 @@ def _is_download_intent(request):
 
 def _log_voice_download(request, file_name, status='success', error=None):
     try:
-        if status == 'success':
-            create_user_log(user=request.user, action="Download", detail=f"file: {file_name}", status="success", request=request)
+        file_share_param = request.GET.get('file_share') or request.POST.get('file_share')
+        is_ticket_param = request.GET.get('is_ticket') or request.POST.get('is_ticket')
+        
+        if file_share_param == 'true':
+            action = "Download Delegate File"
+            detail = f"File Name : {file_name}"
+        elif is_ticket_param == 'true':
+            action = "Download Ticket File"
+            detail = f"File Name : {file_name}"
         else:
-            create_user_log(user=request.user, action="Download", detail={"file": file_name, "error": str(error or '')}, status="error", request=request)
+            action = "Download Audio Records"
+            detail = f"file: {file_name}" if status == 'success' else {"file": file_name, "error": str(error or '')}
+
+        if status == 'success':
+            create_user_log(user=request.user, action=action, detail=detail, status="success", request=request)
+        else:
+            create_user_log(user=request.user, action=action, detail=detail, status="error", request=request)
     except Exception:
         pass
 
@@ -1064,6 +1078,7 @@ def ApiGetStorageConfig(request):
             'base_path': config.base_path or '',
         })
     except Exception as e:
+        create_user_log(user=request.user, action="Get Storage Config", detail={"error": str(e)}, status="error", request=request)
         return JsonResponse({'error': str(e)}, status=500)
 
 
@@ -1147,6 +1162,7 @@ def ApiProxyAudio(request):
         try:
             from smb.SMBConnection import SMBConnection
         except Exception as e:
+            create_user_log(user=request.user, action="Download Audio Records", detail={"error": f"pysmb library not available: {str(e)}"}, status="error", request=request)
             return JsonResponse({'error': 'pysmb not installed on server: ' + str(e)}, status=500)
 
         # Use a fixed or configurable client name instead of socket.gethostname()
@@ -1157,9 +1173,11 @@ def ApiProxyAudio(request):
         except Exception as e:
             tb = traceback.format_exc()
             err = f'Failed to establish SMB connection: {repr(e)}'
+            create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "host": smb_host, "file": base}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
         if not connected:
             err = 'Failed to connect to SMB host (connect returned False)'
+            create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "host": smb_host, "file": base}, status="error", request=request)
             return JsonResponse({'error': err}, status=502)
 
         bio = None
@@ -1195,6 +1213,7 @@ def ApiProxyAudio(request):
             
             if bio is None:
                 err = f'Failed to read remote file from any share. Attempts: {json.dumps([{"share": a["share"], "error": a["error"]} for a in attempts])}'
+                create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "file": base}, status="error", request=request)
                 return JsonResponse({'error': err, 'attempts': attempts}, status=502)
         finally:
             try: conn.close()
@@ -1248,11 +1267,11 @@ def ApiLogPlayAudio(request):
     """
     try:
         data = json.loads(request.body)
-        create_user_log(user=request.user, action="Play audio", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
+        create_user_log(user=request.user, action="Playback Audio Records", detail=data.get('detail', ''), status=data.get('status', ''), request=request)
 
         return JsonResponse({"message": "Log received"}, status=201)
     except Exception as e:
-        create_user_log(user=request.user, action="Play audio", detail={"error": str(e)}, status="error", request=request)
+        create_user_log(user=request.user, action="Playback Audio Records", detail={"error": str(e)}, status="error", request=request)
         
         return JsonResponse({"error": str(e)}, status=400)
 
@@ -1307,11 +1326,11 @@ def ApiLogDownload(request):
             except Exception:
                 file_name = ''
 
-        create_user_log(user=request.user, action="Download", detail=f"file: {file_name}", status="success", request=request)
+        create_user_log(user=request.user, action="Download Audio Records", detail=f"file: {file_name}", status="success", request=request)
         return JsonResponse({"status": "ok"}, status=201)
     except Exception as e:
         try:
-            create_user_log(user=request.user, action="Download", detail={"error": str(e)}, status="error", request=request)
+            create_user_log(user=request.user, action="Download Audio Records", detail={"error": str(e)}, status="error", request=request)
         except Exception:
             pass
         return JsonResponse({"error": str(e)}, status=400)
@@ -1482,19 +1501,19 @@ def ApiCreateFileShare(request):
                             'data': {'audio_ids': audio_ids}
                         })
                         try:
-                            create_user_log(user=request.user, action="Create File Share Notify", detail={"notified_user": u.username, "audio_ids": audio_ids}, status="info", request=request)
+                            create_user_log(user=request.user, action="Create Delegate", detail={"Delegate ID": u.username, "audio_ids": audio_ids}, status="info", request=request)
                         except Exception:
                             # don't break notification loop if logging fails
                             pass
             except Exception as e:
                 # don't fail request if notification cannot be sent
-                create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
+                create_user_log(user=request.user, action="Create Delegate", detail={"error": str(e)}, status="warning", request=request)
 
             if created_count == 0:
-                create_user_log(user=request.user, action="Create File Share", detail=f"Failed to create delegate: all targets missing {missing}", status="error", request=request)
+                create_user_log(user=request.user, action="Create Delegate", detail=f"Failed to create delegate: all targets missing {missing}", status="error", request=request)
                 return JsonResponse({'ok': False, 'message': f'User not found: {", ".join(missing)}'}, status=400)
 
-            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {targets} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+            create_user_log(user=request.user, action="Create Delegate", detail=f"Delegate ID: {code_val}", status="success", request=request)
 
             if missing:
                 return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'})
@@ -1584,16 +1603,16 @@ def ApiCreateFileShare(request):
                             'data': {'audio_ids': audio_ids}
                         })
                 except Exception as e:
-                    create_user_log(user=request.user, action="Create File Share Notify", detail={"error": str(e)}, status="warning", request=request)
+                    create_user_log(user=request.user, action="Create Ticket", detail={"error": str(e)}, status="warning", request=request)
 
-            create_user_log(user=request.user, action="Create File Share", detail=f"Create File Share successfully: {target} | Type={target_type} | start={start_raw} | exp={expire_raw}", status="success", request=request)
+            create_user_log(user=request.user, action="Create Ticket", detail=f"Ticket ID: {ticket_code}", status="success", request=request)
 
             return JsonResponse({'ok': True, 'message': 'Ticket created and file shared successfully.', 'ticketCode': ticket_code, 'password': password})
 
-        create_user_log(user=request.user, action="Create File Share", detail=f"Failed to create file share: Invalid targetType {target_type}", status="error", request=request)
+        create_user_log(user=request.user, action="Create Ticket", detail=f"Failed to create ticket: Invalid targetType {target_type}", status="error", request=request)
         return JsonResponse({'ok': False, 'message': 'targetType incorrect'}, status=400)
     except Exception as e:
-        create_user_log(user=request.user, action="Create File Share", detail=f"Error creating file share: {str(e)}", status="error", request=request)
+        create_user_log(user=request.user, action="Create Ticket", detail=f"Error creating ticket: {str(e)}", status="error", request=request)
         return JsonResponse({'ok': False, 'message': f'error: {str(e)}'}, status=500)
     
 def ApiCheckFileShare(request):
@@ -1840,6 +1859,7 @@ def ApiPlayAudio(request, file_id=None):
             resolved_path, err = resolve_and_fetch_if_unc(candidate_path, temp_files)
             if err:
                 status_code = 404 if "File not found" in err else 502
+                create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "path": str(file_path_param or '')}, status="error", request=request)
                 return JsonResponse({'error': err}, status=status_code)
 
             target_path = resolved_path
@@ -1868,6 +1888,7 @@ def ApiPlayAudio(request, file_id=None):
             resolved_path, err = resolve_and_fetch_if_unc(mapped_source_path, temp_files)
             if err:
                 status_code = 404 if "File not found" in err else 502
+                create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "file_id": str(file_id or ''), "file": str(file_name or '')}, status="error", request=request)
                 return JsonResponse({'error': err}, status=status_code)
 
             target_path = resolved_path

@@ -486,20 +486,22 @@ def ApiChangeFileShareStatus(request, user_id, type):
             user_file_share.status = not user_file_share.status
             user_file_share.save()
             status_msg = 'Active' if user.is_active else 'Inactive'
-            create_user_log(user=request.user, action="Change Ticket Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request)
+            create_user_log(user=request.user, action="Change Ticket Status", detail=f"Ticket ID : {user_file_share.code}", status="success", request=request)
         elif type == "delegate":
             user_file_share.status = not user_file_share.status
             user_file_share.save()
             status_msg = 'Active' if user_file_share.status else 'Inactive'
-            create_user_log(user=request.user, action="Change User Status", detail=f"Changed status of {user_file_share.code} to {status_msg}", status="success", request=request) 
+            create_user_log(user=request.user, action="Change Delegate Status", detail=f"Delegate ID : {user_file_share.code}", status="success", request=request) 
         
         
         return JsonResponse({'status': 'success', 'message': f'{type} ID {user_file_share.code} is now {status_msg}.'})
     except User.DoesNotExist:
-        create_user_log(user=request.user, action="Change User Status", detail=f"message : User not found", status="error", request=request)
+        action_name = "Change Delegate Status" if type == "delegate" else ("Change Ticket Status" if type == "ticket" else "Change User Status")
+        create_user_log(user=request.user, action=action_name, detail=f"message : User not found", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': 'User not found.'})
     except Exception as e:
-        create_user_log(user=request.user, action="Change User Status", detail=f"message : {str(e)}", status="error", request=request)
+        action_name = "Change Delegate Status" if type == "delegate" else ("Change Ticket Status" if type == "ticket" else "Change User Status")
+        create_user_log(user=request.user, action=action_name, detail=f"message : {str(e)}", status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required
@@ -530,7 +532,7 @@ def ApiGenFormTicket(request):
             'start_at': user_file_share.start_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'start_at', None) else '',
             'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'expire_at', None) else ''
         }
-        create_user_log(user=request.user, action="Gen Ticket", detail=f"Generated ticket {user_file_share.code} for user {user.username}", status="success", request=request)
+        create_user_log(user=request.user, action="Ticket Resent", detail=f"Ticket ID : {user_file_share.code}", status="success", request=request)
         return JsonResponse(result)
     except UserFileShare.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'UserFileShare not found'})

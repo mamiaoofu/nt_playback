@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER_ALL, API_GET_LOG_USER } from '../api/paths'
-import { exportTableToFormat } from '../assets/js/function-all'
+import { exportTableToFormat, logUserAction } from '../assets/js/function-all'
 
 export function useUserLog() {
     const route = useRoute()
@@ -356,6 +356,10 @@ export function useUserLog() {
                                         const name = res.fileName || `${cardTitle.value} ${timestampForName}.${ext}`
                                         zip.file(name, res.blob)
                                         try { markTaskDone(res.blob.size) } catch (e) {}
+
+                                        const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF')
+                                        const actionName = type.value === 'system' ? 'Save as System Log' : 'Save as Audit Log'
+                                        logUserAction(actionName, `File Name : ${name}, ${fmtLabel}`, 'success')
                                     } else {
                                         anyFailed = true
                                         try { markTaskDone() } catch (e) {}
@@ -407,6 +411,11 @@ export function useUserLog() {
                                 setTimeout(() => URL.revokeObjectURL(url), 3000)
                             } catch (e) { console.warn('trigger blob download failed', e) }
                             try { markTaskDone(res.blob.size) } catch (e) {}
+
+                            const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF')
+                            const actionName = type.value === 'system' ? 'Save as System Log' : 'Save as Audit Log'
+                            const filenameStr = res.fileName || `${cardTitle.value} ${timestampForName}`
+                            logUserAction(actionName, `File Name : ${filenameStr}, ${fmtLabel}`, 'success')
                         } else {
                             try { markTaskDone() } catch (e) {}
                         }

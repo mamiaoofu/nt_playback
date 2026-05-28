@@ -3,7 +3,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER_TICKET } from '../api/paths'
-import { exportTableToFormat } from '../assets/js/function-all'
+import { exportTableToFormat, logUserAction } from '../assets/js/function-all'
 
 export function useTicketHistory() {
     const authStore = useAuthStore()
@@ -366,6 +366,9 @@ export function useTicketHistory() {
                                     const name = res.fileName || `Ticket History ${timestampForName}.${ext}`
                                     zip.file(name, res.blob)
                                     try { markTaskDone(res.blob.size) } catch (e) {}
+
+                                    const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF')
+                                    logUserAction('Save as Ticket History', `File Name : ${name}, ${fmtLabel}`, 'success')
                                 } else { anyFailed = true; try { markTaskDone() } catch (e) {} }
                             } catch (e) { anyFailed = true; console.error('zip export failed', e); try { markTaskDone() } catch (er) {} }
                         }
@@ -406,6 +409,10 @@ export function useTicketHistory() {
                             setTimeout(() => URL.revokeObjectURL(url), 3000)
                         } catch (e) { console.warn('trigger blob download failed', e) }
                         try { markTaskDone(res.blob.size) } catch (e) {}
+
+                        const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF')
+                        const filenameStr = res.fileName || `Ticket History ${timestampForName}`
+                        logUserAction('Save as Ticket History', `File Name : ${filenameStr}, ${fmtLabel}`, 'success')
                     } else { try { markTaskDone() } catch (e) {} }
                 } catch (e) { console.error('export failed', fmt, e); try { if (typeof showToast === 'function') showToast(`Export ${fmt} failed`, 'error') } catch (er) {} }
             }

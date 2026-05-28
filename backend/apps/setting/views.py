@@ -48,6 +48,7 @@ def ApiSaveColumnAudioRecord(request):
                 create_user_log(user=user, action="Delete Column Audio Record", detail=f"Deleted: {name}", status="success", request=request)
                 return JsonResponse({'status': 'success', 'message': 'Deleted successfully'})
             except SetColumnAudioRecord.DoesNotExist:
+                create_user_log(user=user, action="Delete Column Audio Record", detail=f"Record not found for ID: {record_id}", status="error", request=request)
                 return JsonResponse({'status': 'error', 'message': 'Record not found'}, status=404)
 
         elif action == 'toggle':
@@ -57,17 +58,20 @@ def ApiSaveColumnAudioRecord(request):
             try:
                 record = SetColumnAudioRecord.objects.get(id=record_id, user=user)
             except SetColumnAudioRecord.DoesNotExist:
+                create_user_log(user=user, action="Toggle Column Audio Record", detail=f"Record not found for ID: {record_id}", status="error", request=request)
                 return JsonResponse({'status': 'error', 'message': 'Record not found'}, status=404)
             
             if use_status:
                 # Enable this one, disable others
                 SetColumnAudioRecord.objects.filter(user=user).update(use=False)
+                create_user_log(user=user, action="Enabled Column Audio Record", detail=f"Enabled: {record.name}", status="success", request=request)
                 record.use = True
             else:
+                create_user_log(user=user, action="Disabled Column Audio Record", detail=f"Disabled: {record.name}", status="success", request=request)
                 record.use = False
             
             record.save()
-            create_user_log(user=user, action="Toggle Column Audio Record", detail=f"Toggle use status: {record.name} -> {record.use}", status="success", request=request)
+            # create_user_log(user=user, action="Toggle Column Audio Record", detail=f"Toggle use status: {record.name} > {record.use}", status="success", request=request)
             return JsonResponse({'status': 'success', 'message': 'Status updated successfully'})
 
         # Common fields for create/update
@@ -76,6 +80,7 @@ def ApiSaveColumnAudioRecord(request):
         raw_data = data.get('raw_data', '')
 
         if not name:
+            create_user_log(user=user, action="Create Column Audio Record", detail="Name is required", status="error", request=request)
             return JsonResponse({'status': 'error', 'message': 'Name is required'}, status=400)
 
         if action == 'create':
@@ -116,7 +121,7 @@ def ApiSaveColumnAudioRecord(request):
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     except Exception as e:
-        create_user_log(user=request.user, action="Save Column Audio Record", detail=str(e), status="error", request=request)
+        create_user_log(user=request.user, action="Create Column Audio Record", detail=str(e), status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 

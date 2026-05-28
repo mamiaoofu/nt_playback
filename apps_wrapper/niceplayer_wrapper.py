@@ -30,12 +30,54 @@ last_log_pos = 0
 # Helpers
 # ---------------------------------------------------------------------------
 
+def resolve_host(server):
+    """
+    Resolve IP address to NetBIOS/DNS hostname if possible.
+    Windows SMB requires the hostname instead of IP address in some security environments.
+    """
+    server = server.strip()
+    import re
+    if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', server):
+        try:
+            import socket
+            hostname, _, _ = socket.gethostbyaddr(server)
+            if hostname:
+                log(f"Resolved server IP '{server}' to hostname '{hostname}'")
+                return hostname
+        except Exception as e:
+            log(f"Could not resolve server IP '{server}': {e}")
+    return server
+
+
 def load_config():
     """Load installer-written config.json.  Returns {} on any error."""
     try:
         if os.path.isfile(CONFIG_FILE):
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            # utf-8-sig silently strips the BOM that PowerShell adds when writing JSON
+            with open(CONFIG_FILE, "r", encoding="utf-8-sig") as f:
+                cfg = json.load(f)
+                # Clean host and extract share if it was embedded in host field (e.g. Host\Share or Host\User)
+                server = cfg.get("server", "").strip()
+                share = cfg.get("share", "").strip()
+                username = cfg.get("smb_username", "").strip()
+                if "\\" in server:
+                    parts = server.split("\\", 1)
+                    host = parts[0].strip()
+                    suffix = parts[1].strip()
+                    if suffix.lower() == username.lower():
+                        # Suffix is the username, discard it from the server host
+                        cfg["server"] = host
+                    else:
+                        # Suffix is a share name
+                        cfg["server"] = host
+                        if not share:
+                            cfg["share"] = suffix
+                else:
+                    cfg["server"] = server
+
+                # Resolve server IP to hostname to bypass Windows SMB IP security policy restrictions
+                cfg["server"] = resolve_host(cfg["server"])
+                return cfg
     except Exception as e:
         log(f"Could not read config file {CONFIG_FILE}: {e}")
     return {}
@@ -57,6 +99,12 @@ def log(msg):
             f.write(f"{line}\n")
     except Exception as e:
         print(f"LOG FAIL: {e} :: {msg}")
+        try:
+            temp_log = os.path.join(os.environ.get("TEMP", "C:\\Temp"), "niceplayer_wrapper.log")
+            with open(temp_log, "a", encoding="utf-8") as f:
+                f.write(f"{line}\n")
+        except Exception:
+            pass
 
 
 def run(cmd, timeout=10, mask_indices=None):
@@ -164,6 +212,66 @@ def kill_niceplayer():
                 log("Killed existing Nice Player process")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
+
+
+def translate_local_to_unc(path, config):
+    """
+    Translate a server-local absolute path to a UNC path accessible from this client.
+
+    Strategy (in order):
+    1. If already a UNC path  → just resolve any IP to hostname.
+    2. If the path is locally accessible  → use as-is.
+    3. If the path has a drive letter (X:\\...)  → use Windows admin share X$
+       e.g.  C:\\Users\\foo.nmf  →  \\\\SERVER\\C$\\Users\\foo.nmf
+             D:\\Recordings\\bar.nmf  →  \\\\SERVER\\D$\\Recordings\\bar.nmf
+       This works for any drive letter (C, D, E, …) automatically.
+    4. Fallback: use the configured share + base_path from config.json.
+    """
+    server = config.get("server", "").strip()
+    if not server:
+        return path
+
+    # ── 1. Already a UNC path ──────────────────────────────────────────────
+    if path.startswith("\\\\"):
+        parts = path.split("\\")
+        if len(parts) > 2:
+            host_part = parts[2]
+            resolved = resolve_host(host_part)
+            if resolved != host_part:
+                path = "\\\\" + resolved + "\\" + "\\".join(parts[3:])
+                log(f"Replaced UNC IP with resolved hostname: '{path}'")
+        return path
+
+    # ── 2. Already accessible locally ─────────────────────────────────────
+    if os.path.exists(path):
+        return path
+
+    # ── 3. Drive letter path → admin share (X$) ───────────────────────────
+    # Windows exposes every drive as a hidden admin share: C$, D$, E$, etc.
+    # We extract the drive letter and build the UNC path automatically.
+    if len(path) >= 3 and path[1] == ":" and path[2] == "\\":
+        drive_letter = path[0].upper()          # e.g. "C", "D", "E"
+        admin_share  = f"{drive_letter}$"       # e.g. "C$", "D$"
+        rel_path     = path[3:].lstrip("\\")    # everything after "X:\"
+        unc_path = f"\\\\{server}\\{admin_share}"
+        if rel_path:
+            unc_path = os.path.join(unc_path, rel_path)
+        log(f"Translated '{path}' → '{unc_path}' (admin share {admin_share})")
+        return unc_path
+
+    # ── 4. Fallback: use configured share from config.json ─────────────────
+    share     = config.get("share", "").strip()
+    base_path = config.get("base_path", "").strip().rstrip("\\")
+    if share:
+        unc_path = f"\\\\{server}\\{share}"
+        if base_path:
+            unc_path = os.path.join(unc_path, base_path)
+        if path:
+            unc_path = os.path.join(unc_path, path.lstrip("\\"))
+        log(f"Translated '{path}' → '{unc_path}' (configured share '{share}')")
+        return unc_path
+
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +499,8 @@ def main():
         log("ERROR: No 'file_path', 'file' or 'path' parameter in protocol URL.")
         sys.exit(1)
 
+    path = translate_local_to_unc(path, _cfg)
+
     # â”€â”€ Path validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if not validate_path(path, _cfg):
         log("SECURITY: Path rejected by whitelist. Aborting.")
@@ -405,12 +515,59 @@ def main():
             share = "\\".join(parts[:4])   # \\SERVER\SHARE
         elif len(parts) > 2:
             share = f"\\\\{parts[2]}\\IPC$"
+    else:
+        # Fallback to configured server/share to authenticate/wake up mapped drive
+        server_cfg = _cfg.get("server", "").strip()
+        share_cfg = _cfg.get("share", "").strip()
+        _smb_user, _smb_pass = get_smb_credentials()
+        if "\\" in server_cfg:
+            parts_srv = server_cfg.split("\\", 1)
+            server_cfg = parts_srv[0].strip()
+            if not share_cfg and len(parts_srv) > 1 and parts_srv[1].strip():
+                candidate = parts_srv[1].strip()
+                if candidate.lower() != _smb_user.lower():
+                    share_cfg = candidate
+        if server_cfg:
+            if share_cfg:
+                share = f"\\\\{server_cfg}\\{share_cfg}"
+            else:
+                share = f"\\\\{server_cfg}\\IPC$"
 
     # ── Connect using credentials from config.json ────────────────────────
+    if os.path.exists(path):
+        log(f"Path '{path}' is already accessible. Skipping netuse_connect.")
+        share = None
+
     if share:
         _smb_user, _smb_pass = get_smb_credentials()
         rc, out, err = netuse_connect(share, _smb_user, _smb_pass)
         log(f"netuse_connect '{share}': rc={rc}")
+
+    # If the path is a drive letter path (e.g. Z:\...) and is not accessible,
+    # attempt to map the drive automatically using configured server/share/base_path.
+    if len(path) >= 2 and path[1] == ":" and not os.path.exists(path):
+        drive_letter = path[:2].upper()
+        server_cfg = _cfg.get("server", "").strip()
+        share_cfg = _cfg.get("share", "").strip()
+        base_cfg = _cfg.get("base_path", "").strip()
+        _smb_user, _smb_pass = get_smb_credentials()
+        if "\\" in server_cfg:
+            parts_srv = server_cfg.split("\\", 1)
+            server_cfg = parts_srv[0].strip()
+            if not share_cfg and len(parts_srv) > 1 and parts_srv[1].strip():
+                candidate = parts_srv[1].strip()
+                if candidate.lower() != _smb_user.lower():
+                    share_cfg = candidate
+        if server_cfg and share_cfg:
+            unc_target = f"\\\\{server_cfg}\\{share_cfg}"
+            if base_cfg:
+                unc_target = os.path.join(unc_target, base_cfg)
+            log(f"Path '{path}' not found. Attempting to map {drive_letter} to {unc_target}...")
+            # Ensure connection is established
+            netuse_connect(unc_target, _smb_user, _smb_pass)
+            # Map the drive
+            m_rc, m_out, m_err = run(["net", "use", drive_letter, unc_target, "/persistent:no"])
+            log(f"Mapped {drive_letter} to {unc_target}: rc={m_rc}")
 
     time.sleep(0.2)
 
@@ -419,16 +576,18 @@ def main():
             log("Replacing old file: killing existing Nice Player")
             kill_niceplayer()
             time.sleep(0.2)
-            cmd = f'cmd /c start "" "{NICEPLAYER_EXE}" "{path}"'
         else:
             log("Nice Player already running; opening file in existing instance")
-            cmd = f'"{NICEPLAYER_EXE}" "{path}"'
-    else:
-        cmd = f'cmd /c start "" "{NICEPLAYER_EXE}" "{path}"'
 
-    log("Launching Nice Player")
-    run(cmd)
-    log("Launched successfully")
+    log(f"Launching Nice Player: {NICEPLAYER_EXE} {path}")
+    try:
+        wdir = os.path.dirname(path)
+        if not wdir or not os.path.isdir(wdir):
+            wdir = None
+        subprocess.Popen(f'"{NICEPLAYER_EXE}" "{path}"', cwd=wdir)
+        log("Launched successfully")
+    except Exception as e:
+        log(f"Failed to launch Nice Player: {e}")
     # NOTE: share is intentionally NOT disconnected — cmd /c start is non-blocking
     # and NicePlayer needs the share mounted to read the file.
 

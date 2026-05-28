@@ -721,6 +721,10 @@ export function useUserManagement() {
                                     const name = res.fileName || `${cardTitle.value} ${timestampForName}.${ext}`
                                     zip.file(name, res.blob)
                                     try { markTaskDone(res.blob.size) } catch (e) {}
+                                    try {
+                                        const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                                        logUserAction('Save as User Index', `File Name : ${name}, ${fmtLabel}`, 'success')
+                                    } catch (e) {}
                                 } else {
                                     anyFailed = true
                                     try { markTaskDone() } catch (e) {}
@@ -772,6 +776,10 @@ export function useUserManagement() {
                             setTimeout(() => URL.revokeObjectURL(url), 3000)
                         } catch (e) { console.warn('trigger blob download failed', e) }
                         try { markTaskDone(res.blob.size) } catch (e) {}
+                        try {
+                            const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                            logUserAction('Save as User Index', `File Name : ${res.fileName || cardTitle.value}, ${fmtLabel}`, 'success')
+                        } catch (e) {}
                     } else {
                         try { markTaskDone() } catch (e) {}
                     }

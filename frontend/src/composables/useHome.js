@@ -1,12 +1,33 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_PROXY_AUDIO, API_CHECK_FILE_SHARE, API_PLAY_AUDIO, API_GET_STORAGE_CONFIG } from '../api/paths'
+import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_PROXY_AUDIO, API_CHECK_FILE_SHARE, API_PLAY_AUDIO, API_GET_STORAGE_CONFIG, API_LOG_USER_ACTION } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/js/jspdf.umd.min.js'
 import '../assets/js/jspdf.plugin.autotable.min.js'
 import '../assets/js/jszip.min.js'
 import { exportTableToFormat, showToast } from '../assets/js/function-all'
+
+/**
+ * ส่ง log การกระทำ/ข้อผิดพลาดของ user ไปยัง backend (create_user_log)
+ * @param {string} action - ชื่อ action เช่น "Download", "Fetch Data"
+ * @param {string} detail - รายละเอียด
+ * @param {string} status - "success" | "error" | "warning"
+ */
+async function logUserAction(action, detail, status = 'error') {
+  try {
+    const csrfToken = getCsrfToken()
+    await fetch(API_LOG_USER_ACTION(), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+      body: JSON.stringify({ action, detail: String(detail || ''), status })
+    })
+  } catch (e) {
+    // ถ้าส่ง log ไม่ได้ ให้ print ออก console แทน เพื่อไม่ให้ระบบล่ม
+    console.warn('[logUserAction] Failed to send log:', e)
+  }
+}
 
 export function useHome() {
   const authStore = useAuthStore()
@@ -236,6 +257,7 @@ export function useHome() {
         favoriteSearchAll.value = json.favorite_search_all || []
       } catch (err) {
         console.error('fetchIndexHome error', err)
+        logUserAction('Fetch Home Index', `fetchIndexHome error: ${err?.message || err}`, 'error')
       }
     })()
     registerRequest(task)
@@ -528,6 +550,7 @@ export function useHome() {
       totalItems.value = json.recordsFiltered ?? json.recordsTotal ?? records.value.length
     } catch (e) {
       console.error('fetchData error', e)
+      logUserAction('Fetch Audio List', `fetchData error: ${e?.message || e}`, 'error')
     } finally {
       loading.value = false
     }
@@ -1089,7 +1112,13 @@ export function useHome() {
       // handle voice downloads (non-voice exports will be included in ZIP when possible)
       if (wantVoice) {
         const base = getApiBase().replace(/\/$/, '')
-        const toDownloadUrl = (url) => `${url}${url.includes('?') ? '&' : '?'}download=1`
+        const toDownloadUrl = (url) => {
+          let target = `${url}${url.includes('?') ? '&' : '?'}download=1`
+          if (filters.file_share === 'true') target += '&file_share=true'
+          if (filters.is_ticket === 'true') target += '&is_ticket=true'
+          return target
+        }
+        const downloadActionName = filters.file_share === 'true' ? 'Download Delegate File' : (filters.is_ticket === 'true' ? 'Download Ticket File' : 'Download')
         const downloadFetchOptions = { credentials: 'include', headers: { 'X-Download-Intent': '1' } }
 
         // helper to load external script (JSZip) when needed
@@ -1113,6 +1142,7 @@ export function useHome() {
           } catch (e) {
             console.error('Failed to load local JSZip', e)
             showToast('Failed to prepare ZIP download (library load error)', 'error')
+            logUserAction(downloadActionName, `Failed to load JSZip for ZIP download: ${e?.message || e}`, 'error')
           }
 
           if (window.JSZip) {
@@ -1134,6 +1164,10 @@ export function useHome() {
                     if (res && res.blob && res.fileName) {
                       zip.file(res.fileName, res.blob)
                       try { markTaskDone(res.blob.size) } catch (e) {}
+                      try {
+                        const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                        logUserAction('Save as Audio Index', `File Name : ${res.fileName}, ${fmtLabel}`, 'success')
+                      } catch (e) {}
                     } else {
                       // fallback: trigger normal download for this format
                       anyFailed = true
@@ -1165,6 +1199,7 @@ export function useHome() {
                   if (!resp.ok) {
                     anyFailed = true
                     console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
+                    logUserAction(downloadActionName, `Download failed (ZIP): file=${fname}, HTTP status=${resp.status} ${resp.statusText}`, 'error')
                     continue
                   }
                   const blob = await resp.blob()
@@ -1181,6 +1216,7 @@ export function useHome() {
                 } catch (err) {
                   anyFailed = true
                   console.error('voice fetch failed for zip', err)
+                  logUserAction(downloadActionName, `Download exception (ZIP): file=${fname}, error=${err?.message || err}`, 'error')
                   try { markTaskDone() } catch (er) {}
                 }
               }
@@ -1197,6 +1233,7 @@ export function useHome() {
             } catch (e) {
               console.error('ZIP creation failed', e)
               showToast('Failed to create ZIP', 'error')
+              logUserAction(downloadActionName, `ZIP creation failed: ${e?.message || e}`, 'error')
             }
             return
           }
@@ -1213,6 +1250,11 @@ export function useHome() {
                   fileNamePrefix: 'audio-records'
                 })
                 try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+                try {
+                  const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                  const fallbackName = res?.fileName || `audio-records.${({ excel: 'xls', csv: 'csv', pdf: 'pdf' })[fmt] || fmt}`
+                  logUserAction('Save as Audio Index', `File Name : ${fallbackName}, ${fmtLabel}`, 'success')
+                } catch (e) {}
               } catch (e) { console.error('nonVoice fallback export failed', e); try { markTaskDone() } catch (er) {} }
             }
           } catch (e) { console.error('nonVoice fallback loop failed', e) }
@@ -1245,6 +1287,10 @@ export function useHome() {
                     setTimeout(() => URL.revokeObjectURL(url), 3000)
                   } catch (e) { console.warn('trigger blob download failed for nonVoice in voice flow', e) }
                   try { markTaskDone(res.blob.size) } catch (e) {}
+                  try {
+                    const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                    logUserAction('Save as Audio Index', `File Name : ${res.fileName || 'audio-records'}, ${fmtLabel}`, 'success')
+                  } catch (e) {}
                 } else {
                   try { markTaskDone() } catch (e) {}
                 }
@@ -1267,6 +1313,7 @@ export function useHome() {
             if (!resp.ok) {
               console.error('voice download failed', { url, status: resp.status, statusText: resp.statusText })
               showToast(`Failed to download ${fname} (status ${resp.status})`, 'error')
+              logUserAction(downloadActionName, `Download failed: file=${fname}, HTTP status=${resp.status} ${resp.statusText}`, 'error')
               continue
             }
             const blob = await resp.blob()
@@ -1289,6 +1336,7 @@ export function useHome() {
           } catch (err) {
             console.error('voice download error', err)
             showToast(`Failed to download ${fname}`, 'error')
+            logUserAction(downloadActionName, `Download exception: file=${fname}, error=${err?.message || err}`, 'error')
             try { markTaskDone() } catch (er) {}
           }
         }
@@ -1321,6 +1369,10 @@ export function useHome() {
                       const name = res.fileName || `Audio record${timestampForName}.${ext}`
                       zip.file(name, res.blob)
                       try { markTaskDone(res.blob.size) } catch (e) {}
+                      try {
+                        const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                        logUserAction('Save as Audio Index', `File Name : ${name}, ${fmtLabel}`, 'success')
+                      } catch (e) {}
                     } else {
                       anyFailed = true
                       try { markTaskDone() } catch (e) {}
@@ -1346,6 +1398,7 @@ export function useHome() {
               }
             } catch (e) {
               console.error('ZIP creation for non-voice failed', e)
+              logUserAction('Download', `ZIP creation for export failed: ${e?.message || e}`, 'error')
             }
             // if JSZip not available or failed, fall through to individual downloads
           }
@@ -1360,14 +1413,21 @@ export function useHome() {
                 fileNamePrefix: 'audio-records'
               })
               try { if (res && res.blob) markTaskDone(res.blob.size); else markTaskDone() } catch (e) {}
+              try {
+                const fmtLabel = ({ excel: 'Excel', csv: 'CSV', pdf: 'PDF' })[fmt] || fmt
+                const exportedName = res?.fileName || `audio-records.${({ excel: 'xls', csv: 'csv', pdf: 'pdf' })[fmt] || fmt}`
+                logUserAction('Save as Audio Index', `File Name : ${exportedName}, ${fmtLabel}`, 'success')
+              } catch (e) {}
             } catch (e) {
               console.error('non-voice export failed', fmt, e)
               try { showToast(`Export ${fmt} failed`, 'error') } catch (er) {}
+              logUserAction('Download', `Export ${fmt} failed: ${e?.message || e}`, 'error')
             }
           }
         } catch (e) {
           console.error('handle non-voice exports failed', e)
           try { showToast('Export failed', 'error') } catch (er) {}
+          logUserAction('Download', `Export failed (outer): ${e?.message || e}`, 'error')
         }
         // finish progress for non-voice-only flows (ensure min display time)
         finishDownloading()
@@ -1376,6 +1436,7 @@ export function useHome() {
     } catch (err) {
       console.error('onExportFormat error', err)
       showToast('Export failed', 'error')
+      logUserAction('Download', `onExportFormat exception: ${err?.message || err}`, 'error')
     }
     finally {
       // ensure downloading is turned off after operations finish
@@ -1467,6 +1528,28 @@ export function useHome() {
     const fileName = row.file_name || row.fileName || ''
     if (!fileName) return
 
+    const sendLog = async (status, detail) => {
+      try {
+        const csrfToken = getCsrfToken()
+        fetch(API_LOG_PLAY_AUDIO(), {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
+          body: JSON.stringify({ status, detail })
+        }).catch(err => console.error('Failed to send log:', err))
+      } catch (e) { console.warn('sendLog failed', e) }
+    }
+
+    const recordPlayLog = (status, detail, errorMsg = '') => {
+      if (filters.file_share === 'true') {
+        logUserAction('Playback Delegate File', `File Name : ${fileName}${errorMsg ? `, error=${errorMsg}` : ''}`, status)
+      } else if (filters.is_ticket === 'true') {
+        logUserAction('Playback Ticket File', `File Name : ${fileName}${errorMsg ? `, error=${errorMsg}` : ''}`, status)
+      } else {
+        sendLog(status, detail)
+      }
+    }
+
     const ext = (fileName.split('.').pop() || '').toLowerCase()
 
     // The new API_PLAY_AUDIO endpoint handles transcoding for telephony codecs (G.711, etc.)
@@ -1499,31 +1582,15 @@ export function useHome() {
           audioMetadata.download = (v === true)
         }
         showAudioModal.value = true
-        const csrfToken = getCsrfToken()
-        fetch(API_LOG_PLAY_AUDIO(), {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
-          body: JSON.stringify({ status: 'success', detail: `Play audio file: ${audioMetadata.fileName}` })
-        }).catch(() => {})
+        recordPlayLog('success', `File Name: ${fileName}`)
       } catch (e) {
         console.error('Failed to initiate in-browser playback', e)
+        recordPlayLog('error', `Failed to initiate in-browser playback: file=${fileName}, error=${e?.message || e}`, e?.message || e)
       }
       return
     }
 
     const url_check_local_server = 'http://127.0.0.1:54321/check'
-    const url_log_playback = API_LOG_PLAY_AUDIO()
-
-    const sendLog = async (status, detail) => {
-      const csrfToken = getCsrfToken()
-      fetch(url_log_playback, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '' },
-        body: JSON.stringify({ status, detail })
-      }).catch(err => console.error('Failed to send log:', err))
-    }
 
     loading.value = true
 
@@ -1535,8 +1602,10 @@ export function useHome() {
       if (!checkData.installed) {
         try {
           showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
+          logUserAction('Download Player', `NICE Player not installed: file=${fileName}`, 'warning')
         } catch (e) {}
-        sendLog('error', `FAIL_NOT_INSTALLED | NICE Player executable not found. File: ${fileName}`)
+        recordPlayLog('error', `FAIL_NOT_INSTALLED | NICE Player executable not found. File: ${fileName}`, 'NICE Player executable not found')
+        logUserAction('Download Player', `NICE Player not installed (playback failed): file=${fileName}`, 'error')
         loading.value = false
         return
       }
@@ -1557,9 +1626,9 @@ export function useHome() {
             if (data.running || checkCount >= maxChecks) {
               clearInterval(pollInterval)
               loading.value = false
-              if (data.running) sendLog('success', `Play audio file: ${fileName}`)
+              if (data.running) recordPlayLog('success', `File Name: ${fileName}`)
               else {
-                sendLog('warning', `Playback initiated but process not detected: ${fileName}`)
+                recordPlayLog('warning', `File Name: ${fileName} | Playback initiated but process not detected`, 'process not detected')
                 try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (e) {}
               }
             }
@@ -1573,7 +1642,7 @@ export function useHome() {
       } catch (e) {
         console.error('Error launching protocol:', e)
         try { showToast('NICE Player cannot be opened. Some kind of error may have occurred.', 'warning') } catch (er) {}
-        sendLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${fileName}. Error: ${e.message}`)
+        recordPlayLog('error', `FAIL_PLAYER_ERROR | Error launching protocol for file: ${fileName}. Error: ${e.message}`, e.message)
         loading.value = false
       }
 
@@ -1582,7 +1651,7 @@ export function useHome() {
       try {
         showToast('The audio file cannot be played. Please contact support to install the software.', 'warning')
       } catch (e) {}
-      sendLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${fileName}`)
+      recordPlayLog('error', `FAIL_SeekTrack_Connect_RUNNING | Could not connect to local SeekTrack Connect or another error occurred: ${error.message}. File: ${fileName}`, error.message)
       loading.value = false
     }
   }
