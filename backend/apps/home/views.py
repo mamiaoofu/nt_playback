@@ -1046,9 +1046,13 @@ def _log_voice_download(request, file_name, status='success', error=None):
         if file_share_param == 'true':
             action = "Download Delegate File"
             detail = f"File Name : {file_name}"
+            if status != 'success' and error:
+                detail = f"File Name : {file_name}, error: {error}"
         elif is_ticket_param == 'true':
             action = "Download Ticket File"
             detail = f"File Name : {file_name}"
+            if status != 'success' and error:
+                detail = f"File Name : {file_name}, error: {error}"
         else:
             action = "Download Audio Records"
             detail = f"file: {file_name}" if status == 'success' else {"file": file_name, "error": str(error or '')}
@@ -1162,7 +1166,8 @@ def ApiProxyAudio(request):
         try:
             from smb.SMBConnection import SMBConnection
         except Exception as e:
-            create_user_log(user=request.user, action="Download Audio Records", detail={"error": f"pysmb library not available: {str(e)}"}, status="error", request=request)
+            if _is_download_intent(request):
+                _log_voice_download(request, base, status='error', error=f"pysmb library not available: {str(e)}")
             return JsonResponse({'error': 'pysmb not installed on server: ' + str(e)}, status=500)
 
         # Use a fixed or configurable client name instead of socket.gethostname()
@@ -1173,11 +1178,13 @@ def ApiProxyAudio(request):
         except Exception as e:
             tb = traceback.format_exc()
             err = f'Failed to establish SMB connection: {repr(e)}'
-            create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "host": smb_host, "file": base}, status="error", request=request)
+            if _is_download_intent(request):
+                _log_voice_download(request, base, status='error', error=err)
             return JsonResponse({'error': err}, status=502)
         if not connected:
             err = 'Failed to connect to SMB host (connect returned False)'
-            create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "host": smb_host, "file": base}, status="error", request=request)
+            if _is_download_intent(request):
+                _log_voice_download(request, base, status='error', error=err)
             return JsonResponse({'error': err}, status=502)
 
         bio = None
@@ -1213,7 +1220,8 @@ def ApiProxyAudio(request):
             
             if bio is None:
                 err = f'Failed to read remote file from any share. Attempts: {json.dumps([{"share": a["share"], "error": a["error"]} for a in attempts])}'
-                create_user_log(user=request.user, action="Download Audio Records", detail={"error": err, "file": base}, status="error", request=request)
+                if _is_download_intent(request):
+                    _log_voice_download(request, base, status='error', error=err)
                 return JsonResponse({'error': err, 'attempts': attempts}, status=502)
         finally:
             try: conn.close()
@@ -1326,11 +1334,11 @@ def ApiLogDownload(request):
             except Exception:
                 file_name = ''
 
-        create_user_log(user=request.user, action="Download Audio Records", detail=f"file: {file_name}", status="success", request=request)
+        _log_voice_download(request, file_name, status='success')
         return JsonResponse({"status": "ok"}, status=201)
     except Exception as e:
         try:
-            create_user_log(user=request.user, action="Download Audio Records", detail={"error": str(e)}, status="error", request=request)
+            _log_voice_download(request, file_name, status='error', error=e)
         except Exception:
             pass
         return JsonResponse({"error": str(e)}, status=400)
