@@ -482,11 +482,11 @@ def api_logout(request):
         
         # ✅ บันทึก Log Logout สำเร็จ
         try:
-            if req_user_authenticated:
+            if req_user_authenticated and user:
                 create_user_log(
-                    user=getattr(request, 'user', None),
+                    user=user,
                     action="Logout",
-                    detail=f"Username: {getattr(request.user, 'username', 'unknown')}",
+                    detail=f"User Name : {user.username}",
                     status="success",
                     request=request
                 )
