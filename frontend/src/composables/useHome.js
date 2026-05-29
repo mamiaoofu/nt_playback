@@ -1114,11 +1114,11 @@ export function useHome() {
         const base = getApiBase().replace(/\/$/, '')
         const toDownloadUrl = (url) => {
           let target = `${url}${url.includes('?') ? '&' : '?'}download=1`
-          if (filters.file_share === 'true') target += '&file_share=true'
-          if (filters.is_ticket === 'true') target += '&is_ticket=true'
+          if (filters.file_share === 'true' || filters.file_share === true) target += '&file_share=true'
+          if (filters.is_ticket === 'true' || filters.is_ticket === true) target += '&is_ticket=true'
           return target
         }
-        const downloadActionName = filters.file_share === 'true' ? 'Download Delegate File' : (filters.is_ticket === 'true' ? 'Download Ticket File' : 'Download')
+        const downloadActionName = (filters.file_share === 'true' || filters.file_share === true) ? 'Download Delegate File' : ((filters.is_ticket === 'true' || filters.is_ticket === true) ? 'Download Ticket File' : 'Download')
         const downloadFetchOptions = { credentials: 'include', headers: { 'X-Download-Intent': '1' } }
 
         // helper to load external script (JSZip) when needed

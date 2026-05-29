@@ -487,7 +487,15 @@ async function downloadAudio() {
   downloadSpeed.value = '0.0 MB/s'
   downloadRemaining.value = ''
   const startTime = Date.now()
-  const downloadUrl = `${src.value}${src.value.includes('?') ? '&' : '?'}download=1`
+  let downloadUrl = `${src.value}${src.value.includes('?') ? '&' : '?'}download=1`
+  if (filters.value) {
+    if (filters.value.file_share === 'true' || filters.value.file_share === true) {
+      downloadUrl += '&file_share=true'
+    }
+    if (filters.value.is_ticket === 'true' || filters.value.is_ticket === true) {
+      downloadUrl += '&is_ticket=true'
+    }
+  }
   const downloadFetchOptions = { credentials: 'include', headers: { 'X-Download-Intent': '1' } }
 
   try {
