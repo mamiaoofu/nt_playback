@@ -1,4 +1,6 @@
 import { reactive, ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+
+import { PERMISSIONS } from '../stores/permissions.constants'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_AUDIO_LIST, API_HOME_INDEX, API_LOG_PLAY_AUDIO, API_LOG_SAVE_FILE, API_GET_COLUMN_AUDIO_RECORD, getApiBase, API_PROXY_AUDIO, API_CHECK_FILE_SHARE, API_PLAY_AUDIO, API_GET_STORAGE_CONFIG, API_LOG_USER_ACTION } from '../api/paths'
@@ -458,7 +460,7 @@ export function useHome() {
     }
   }
 
-  const canExport = computed(() => authStore.hasPermission('Save As Index'))
+  const canExport = computed(() => authStore.hasPermission(PERMISSIONS.SAVE_AS_AUDIO_INDEX))
   const toggleExport = () => {
     if (!canExport.value) return
     exportOpen.value = !exportOpen.value
@@ -1193,7 +1195,7 @@ export function useHome() {
                 if (!fname) continue
                 const fid = f.file_id || f.id || f.fileId
                 // prefer direct file_path when available (backend will accept file_path)
-                const url = (f.file_path && f.file_path !== '') ? API_PLAY_AUDIO(f.file_path) : (fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname))
+                const url = (f.file_path && f.file_path !== '') ? API_PLAY_AUDIO({ file_path: f.file_path, file_name: fname }) : (fid ? API_PLAY_AUDIO(fid) : API_PROXY_AUDIO(fname))
                 try {
                   const resp = await fetch(toDownloadUrl(url), downloadFetchOptions)
                   if (!resp.ok) {
@@ -1519,7 +1521,7 @@ export function useHome() {
   }
 
   const onRowDblClick = async (row) => {
-    const canPlayback = authStore.hasPermission('Playback Audio Records') || authStore.hasPermission('Delegate Files')
+    const canPlayback = authStore.hasPermission(PERMISSIONS.PLAYBACK_AUDIO_RECORDS) || authStore.hasPermission(PERMISSIONS.DELEGATE_FILES)
     if (!canPlayback) {
       showToast('Access Denied', 'error')
       return
@@ -1696,7 +1698,7 @@ export function useHome() {
   onMounted(() => {
     fetchIndexHome()
     fetchActiveColumns()
-    if (!authStore.hasPermission('Audio Records') && authStore.hasPermission('Delegate Files')) {
+    if (!authStore.hasPermission(PERMISSIONS.AUDIO_RECORDS_ACCESS) && authStore.hasPermission(PERMISSIONS.DELEGATE_FILES)) {
       filters.file_share = 'true'
     }
     registerRequest(fetchData())

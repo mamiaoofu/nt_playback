@@ -8,12 +8,16 @@ def get_ad_settings():
         config = None
 
     if config:
+        try:
+            bind_password = config.get_password()
+        except Exception:
+            bind_password = getattr(settings, 'AD_BIND_PASSWORD', None)
         return {
             'AD_SERVER_URI': config.server_uri,
             'AD_DOMAIN': config.domain,
             'AD_BASE_DN': config.base_dn,
             'AD_BIND_USER': config.bind_user,
-            'AD_BIND_PASSWORD': config.get_password(),
+            'AD_BIND_PASSWORD': bind_password,
         }
     return {
         'AD_SERVER_URI': getattr(settings, 'AD_SERVER_URI', None),
@@ -30,11 +34,15 @@ def get_network_share_settings():
         config = None
 
     if config:
+        try:
+            nt_share_pass = config.get_password()
+        except Exception:
+            nt_share_pass = getattr(settings, 'NT_SHARE_PASS', None)
         return {
             'NT_SHARE_HOST': config.host,
             'NT_SHARE_SHARE': config.share,
             'NT_SHARE_USER': config.user,
-            'NT_SHARE_PASS': config.get_password(),
+            'NT_SHARE_PASS': nt_share_pass,
             'NT_SMB_CLIENT_NAME': config.client_name,
         }
     return {
@@ -52,12 +60,16 @@ def get_mail_settings():
         config = None
 
     if config:
+        try:
+            email_password = config.get_password()
+        except Exception:
+            email_password = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
         return {
             'EMAIL_BACKEND': config.backend,
             'DEFAULT_FROM_EMAIL': config.from_email,
             'EMAIL_USE_TLS': config.use_tls,
             'EMAIL_HOST_USER': config.host_user,
-            'EMAIL_HOST_PASSWORD': config.get_password(),
+            'EMAIL_HOST_PASSWORD': email_password,
             'EMAIL_HOST': config.host,
             'EMAIL_PORT': config.port,
         }

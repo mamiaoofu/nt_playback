@@ -64,9 +64,9 @@ def seed_permissions(apps, schema_editor):
         (20, 'Change User Status', 3),
         (21, 'Reset User Password', 3),
         (22, 'Save As User Index', 3),
-        (23, 'Create Delegate', 3),
+        (23, 'Create Delegate', 2),
         (24, 'Playback Delegate File', 3),
-        (25, 'Download Delegate File', 3),
+        (25, 'Download Delegate File', 2),
         (26, 'Change Delegate Status', 3),
         # Role & Permissions (27 to 30)
         (27, 'Edit Base Role', 4),

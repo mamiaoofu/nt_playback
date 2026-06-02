@@ -18,10 +18,11 @@
               <a class="nav-link" :class="{ active: activeTab === 'edit' }" href="#" @click.prevent="activeTab = 'edit'">Edit My Favorite</a>
             </li>
           </ul>
-          <div v-if="activeTab === 'list'" class="search-group" style="width: 260px; position: relative;">
+          <div v-if="activeTab === 'list'" class="search-group" style="width: 260px; position: relative; display: flex; align-items: center;">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
             <input type="text" v-model="searchTerm" class="form-control form-control-sm search-input"
-              placeholder="Search...">
+              placeholder="Search..." style="padding-right: 25px;">
+            <i v-if="searchTerm" class="fa-solid fa-times clear-icon" @click="searchTerm = ''" style="position: absolute; right: 10px; cursor: pointer; color: #999;"></i>
           </div>
         </div>
 

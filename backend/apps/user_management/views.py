@@ -151,8 +151,8 @@ def ApiGetUser(request):
     # If any token equals 'all' (case-insensitive) then skip filtering by create_by.
     create_by_param = (request.GET.get('create_by') or '').strip()
     if create_by_param:
-        # split on commas or whitespace to support inputs like 'all,svadmin,test' or 'svadmin test'
-        parts = [p.strip() for p in re.split(r'[,\s]+', create_by_param) if p.strip()]
+        # split on commas to support inputs like 'all,svadmin,test'
+        parts = [p.strip() for p in create_by_param.split(',') if p.strip()]
         # if 'all' present, do not apply any create_by filtering
         if any(p.lower() == 'all' for p in parts):
             pass
@@ -161,7 +161,7 @@ def ApiGetUser(request):
             combined_q = None
             for p in parts:
                 # if token looks like a full name (has internal space), try matching first/last
-                sub_tokens = [t for t in re.split(r'[\s]+', p) if t]
+                sub_tokens = [t for t in p.split() if t]
                 if len(sub_tokens) >= 2:
                     fn = sub_tokens[0]
                     ln = ' '.join(sub_tokens[1:])

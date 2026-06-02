@@ -81,10 +81,10 @@
                 </div>
 
                 <!-- Show Download label only when current selection type allows download based on permission -->
-                <label class="form-label" style="font-weight: 500;" v-if="(selectionType === 'user' && Store.hasPermission('Download Delegate File')) || (selectionType === 'ticket' && Store.hasPermission('Download Ticket File'))">Download</label>
+                <label class="form-label" style="font-weight: 500;" v-if="(selectionType === 'user' && Store.hasPermission(PERMISSIONS.DOWNLOAD_DELEGATE_FILE)) || (selectionType === 'ticket' && Store.hasPermission(PERMISSIONS.DOWNLOAD_TICKET_FILE))">Download</label>
 
 
-                <div class="d-flex align-items-center" style="gap:12px;" v-if="(selectionType === 'user' && Store.hasPermission('Download Delegate File')) || (selectionType === 'ticket' && Store.hasPermission('Download Ticket File'))">
+                <div class="d-flex align-items-center" style="gap:12px;" v-if="(selectionType === 'user' && Store.hasPermission(PERMISSIONS.DOWNLOAD_DELEGATE_FILE)) || (selectionType === 'ticket' && Store.hasPermission(PERMISSIONS.DOWNLOAD_TICKET_FILE))">
                     <div class="form-check">
                         <input class="form-check-input" type="radio" id="permissionsYesDownload" value="true" v-model="permissions">
                         <label class="form-check-label" for="permissionsYesDownload">Yes</label>
@@ -210,6 +210,7 @@ import { getCsrfToken } from '../api/csrf'
 import '../assets/css/modal-favorite.css'
 import { showToast, confirmDelete, notify } from '../assets/js/function-all'
 import { useAuthStore } from '../stores/auth.store'
+import { PERMISSIONS } from '../stores/permissions.constants'
 
 const Store = useAuthStore()
 
@@ -217,7 +218,7 @@ const props = defineProps({ modelValue: { type: Boolean, default: false }, files
 const emit = defineEmits(['update:modelValue', 'share'])
 
 const selectionType = ref(
-    (Store.hasPermission('Create Delegate File')) ? 'user' : (Store.hasPermission('Create Ticket')) ? 'ticket' : ''
+    (Store.hasPermission(PERMISSIONS.CREATE_DELEGATE)) ? 'user' : (Store.hasPermission(PERMISSIONS.CREATE_TICKET)) ? 'ticket' : ''
 )
 
 const shareUser = ref('')
@@ -240,8 +241,7 @@ const fetchUsers = async () => {
             if (!Store.user?.is_superuser && p.is_superuser) continue
             const u = p.user ? p.user : p
             const uname = u?.username || ''
-            const fullname = `${u?.first_name || ''} ${u?.last_name || ''}`.trim()
-            const label = fullname ? `${uname} (${fullname})` : uname
+            const label = uname
             opts.push({ label, value: uname })
         }
         userOptions.value = opts
@@ -320,7 +320,7 @@ function genPassword() {
 function close() { emit('update:modelValue', false) }
 
 function resetForm() {
-    selectionType.value = 'user'
+    selectionType.value = (Store.hasPermission(PERMISSIONS.CREATE_DELEGATE)) ? 'user' : (Store.hasPermission(PERMISSIONS.CREATE_TICKET)) ? 'ticket' : ''
     shareUser.value = ''
     emailTicket.value = ''
     descTicket.value = ''
@@ -507,7 +507,8 @@ async function sendResultByEmail() {
             await notify('Success!', 'Email sent successfully.', 'success')
             closeResult()
         } else {
-            await notify('Failed to send email', 'Email not found', 'error')
+            const errorMsg = j.message || j.error || (j.errors && j.errors.length ? j.errors.map(e => e.error).join(', ') : 'Email not found')
+            await notify('Failed to send email', errorMsg, 'error')
             closeResult()
         }
     } catch (e) {
@@ -566,7 +567,7 @@ watch(() => props.modelValue, async (open) => {
     descTicket.value = ''
     limitAccessTimes.value = null
     permissions.value = 'false'
-    selectionType.value = (Store.hasPermission('Create Delegate File')) ? 'user' : (Store.hasPermission('Create Ticket')) ? 'ticket' : ''
+    selectionType.value = (Store.hasPermission(PERMISSIONS.CREATE_DELEGATE)) ? 'user' : (Store.hasPermission(PERMISSIONS.CREATE_TICKET)) ? 'ticket' : ''
     start.value = ''
     expire.value = ''
     errors.start = false

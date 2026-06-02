@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
 import { API_GET_USER, API_GET_USER_ALL, API_USER_MANAGEMENT_CHANGE_STATUS, API_DELETE_USER, API_RESET_PASSWORD } from '../api/paths'
 import { showToast, confirmDelete, notify, logUserAction } from '../assets/js/function-all'
+import { PERMISSIONS } from '../stores/permissions.constants'
 import { getCsrfToken } from '../api/csrf'
 import { exportTableToFormat } from '../assets/js/function-all'
 import { useRoute } from 'vue-router'
@@ -51,8 +52,8 @@ export function useUserManagement() {
         { key: 'phone', label: 'Phone' },
         { key: 'create_by', label: 'Created By' },
         { key: 'create_at', label: 'Create Date'},
-        ...(authStore.hasPermission('Change User Status') ? [{ key: 'status', label: 'Status' }] : []),
-        ...(authStore.hasPermission('Edit User') || authStore.hasPermission('Delete User') || authStore.hasPermission('Reset User Password') ? [{ key: 'actions', label: 'Actions', isAction: true }] : [])
+        ...(authStore.hasPermission(PERMISSIONS.CHANGE_USER_STATUS) ? [{ key: 'status', label: 'Status' }] : []),
+        ...(authStore.hasPermission(PERMISSIONS.EDIT_USER) || authStore.hasPermission(PERMISSIONS.DELETE_USER) || authStore.hasPermission(PERMISSIONS.RESET_USER_PASSWORD) ? [{ key: 'actions', label: 'Actions', isAction: true }] : [])
     ]
 
     const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / perPage.value)))
@@ -108,10 +109,14 @@ export function useUserManagement() {
 
             // create_by filter: accept string or select value; skip 'all'
             try {
-                const cb = filters.createdBy
-                let cbVal = ''
-                if (cb && cb !== 'all') cbVal = (typeof cb === 'object') ? (cb.value ?? cb) : String(cb)
-                if (cbVal) params.set('create_by', cbVal)
+                let cbParam = ''
+                if (Array.isArray(filters.createdBy)) {
+                    cbParam = filters.createdBy.map(u => (u && typeof u === 'object' ? (u.value ?? u) : u)).filter(Boolean).join(',')
+                } else if (filters.createdBy && filters.createdBy !== 'all') {
+                    const cb = filters.createdBy
+                    cbParam = (typeof cb === 'object') ? (cb.value ?? cb) : String(cb)
+                }
+                if (cbParam) params.set('create_by', cbParam)
             } catch (e) { console.error('create_by param build error', e) }
 
             // start/end date: format to 'YYYY-MM-DD HH:MM'
@@ -307,7 +312,7 @@ export function useUserManagement() {
     const onRowEdit = (row, actionId) => {
         const id = actionId ?? (row && row.user && row.user.id)
         if (!id) return
-        if (!authStore.hasPermission('Edit User')) return router.push({ name: 'Denied' })
+        if (!authStore.hasPermission(PERMISSIONS.EDIT_USER)) return router.push({ name: 'Denied' })
         router.push(`/user-management/edit/${id}`)
     }
 
@@ -315,7 +320,7 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Delete User')) { logUserAction('Delete User', 'Access Denied: missing Delete User permission'); return showToast('Access Denied', 'error') }
+            if (!authStore.hasPermission(PERMISSIONS.DELETE_USER)) { logUserAction('Delete User', 'Access Denied: missing Delete User permission'); return showToast('Access Denied', 'error') }
 
             const confirmed = await confirmDelete('Are you sure?', "You won't be able to revert this!", 'Yes, delete')
             if (!confirmed) return
@@ -349,7 +354,7 @@ export function useUserManagement() {
         try {
             const userId = actionId ?? (row && row.user && row.user.id)
             if (!userId) return
-            if (!authStore.hasPermission('Reset User Password')) { logUserAction('Reset User Password', 'Access Denied: missing Reset User Password permission'); return showToast('Access Denied', 'error') }
+            if (!authStore.hasPermission(PERMISSIONS.RESET_USER_PASSWORD)) { logUserAction('Reset User Password', 'Access Denied: missing Reset User Password permission'); return showToast('Access Denied', 'error') }
 
             // show the target username in the confirmation message when available
             const uname = row && row.user ? (row.user.username || `${row.user.first_name || ''} ${row.user.last_name || ''}`.trim() || row.user.email || '') : (row && (row.username || ''))

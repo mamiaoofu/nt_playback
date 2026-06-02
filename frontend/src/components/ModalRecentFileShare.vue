@@ -95,15 +95,26 @@ function closeResult() {
 
 async function copyCardContent() {
     try {
-        const d = props.resultData || {}
-        const text = `Ticket Code: ${d.code || ''}\nPassword: ${d.password || ''}\nValid Start: ${d.start_at || ''}\nValid Expire: ${d.expire_at || ''}`
+        const card = document.querySelector('#fileShareResult .card-detail-to') || document.querySelector('.card-detail-to') || document.querySelector('#fileShareResult .card') || document.querySelector('.card')
+        if (!card) {
+            await notify('No content', 'No card content to copy', 'error')
+            return
+        }
+
+        const text = card.innerText.trim()
+        if (!text) {
+            await notify('No content', 'Card is empty', 'error')
+            return
+        }
+
         if (navigator.clipboard && navigator.clipboard.writeText) {
             await navigator.clipboard.writeText(text)
             showToast('Copied to clipboard', 'success')
         } else {
-            // fallback
             const ta = document.createElement('textarea')
             ta.value = text
+            ta.style.position = 'fixed'
+            ta.style.left = '-9999px'
             document.body.appendChild(ta)
             ta.select()
             document.execCommand('copy')
@@ -175,7 +186,8 @@ async function sendResultByEmail() {
             await notify('Success!', 'Email sent successfully.', 'success')
             closeResult()
         } else {
-            await notify('Failed to send email', json.message || 'Email not found', 'error')
+            const errorMsg = json.message || json.error || (json.errors && json.errors.length ? json.errors.map(e => e.error).join(', ') : 'Email not found')
+            await notify('Failed to send email', errorMsg, 'error')
             closeResult()
         }
     } catch (e) {
