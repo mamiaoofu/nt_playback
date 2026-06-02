@@ -165,34 +165,31 @@ def ApiGetTicketHistory(request,type):
                 if len(tok.strip()) < 3 and not tok.isdigit():
                     continue
 
+                base_tok_q = (
+                    Q(create_by__username__icontains=tok) |
+                    Q(create_by__first_name__icontains=tok) |
+                    Q(create_by__last_name__icontains=tok) |
+                    Q(code__icontains=tok) |
+                    Q(email__icontains=tok) |
+                    Q(description__icontains=tok) |
+                    Q(user__username__icontains=tok) |
+                    Q(user__first_name__icontains=tok) |
+                    Q(user__last_name__icontains=tok)
+                )
+
                 # priority special keyword matches
                 if re.match(r'^(exp|expired|expi|expir)', lower):
-                    q_tok = Q(status=False)
-                    q_parts.append(q_tok)
-                    continue
-                if re.match(r'^(act|act|active|actv)', lower):
-                    q_tok = Q(status=True)
-                    q_parts.append(q_tok)
-                    continue
-                if re.match(r'^(inc|inactive|inact)', lower):
-                    q_tok = Q(status=False)
-                    q_parts.append(q_tok)
-                    continue
+                    base_tok_q |= Q(status=False)
+                elif re.match(r'^(act|active|actv)', lower):
+                    base_tok_q |= Q(status=True)
+                elif re.match(r'^(inc|inactive|inact)', lower):
+                    base_tok_q |= Q(status=False)
 
                 # detect email-like token
                 if '@' in tok:
-                    q_tok = Q(email__icontains=tok)
-                    q_parts.append(q_tok)
-                    continue
+                    base_tok_q |= Q(email__icontains=tok)
 
-                # detect file-name-like token (has extension or underscores+digits)
-                file_like = False
-                if re.search(r'\.[a-z0-9]{1,6}$', lower) or ('_' in tok and re.search(r'\d', tok)):
-                    file_like = True
-
-                # Attempt to find matching AudioInfo for this token regardless
-                # of whether it looks 'file-like'. This ensures numeric chunks
-                # inside filenames (e.g., '140220') are matched.
+                # Attempt to find matching AudioInfo for this token
                 try:
                     ids = list(AudioInfo.objects.filter(audiofile__file_name__icontains=tok).distinct().values_list('audiofile__id', flat=True)[:100])
                 except Exception:
@@ -202,65 +199,43 @@ def ApiGetTicketHistory(request,type):
                     audio_q = Q()
                     for aid in ids:
                         audio_q |= Q(audiofile_id__icontains=f'"{aid}"')
-                    q_parts.append(audio_q)
-                    continue
+                    base_tok_q |= audio_q
 
-                if file_like:
-                    try:
-                        # search AudioInfo per-token, limited to avoid heavy queries
-                        ids = list(AudioInfo.objects.filter(audiofile__file_name__icontains=tok).distinct().values_list('audiofile__id', flat=True)[:100])
-                    except Exception:
-                        ids = []
-                    if ids:
-                        audio_q = Q()
-                        for aid in ids:
-                            audio_q |= Q(audiofile_id__icontains=f'"{aid}"')
-                        q_parts.append(audio_q)
-                    else:
-                        # fallback to matching raw token inside audiofile_id or code
-                        q_parts.append(Q(audiofile_id__icontains=tok) | Q(code__icontains=tok))
-                    continue
+                # detect file-name-like token
+                if re.search(r'\.[a-z0-9]{1,6}$', lower) or ('_' in tok and re.search(r'\d', tok)):
+                    if not ids:
+                        base_tok_q |= Q(audiofile_id__icontains=tok)
 
-                # if token is numeric or a date-like string, handle accordingly
-                # 1) full ISO date 'YYYY-MM-DD' -> match exact date on datetime fields
-                # 2) numeric tokens:
-                #    - 4-digit -> treat as year and match __year
-                #    - 1-2 digit -> match day (__day) and month (__month)
-                #    - always also attempt to match id/user_id exact and code contains
                 parsed_date = None
                 if re.match(r'^\d{4}-\d{2}-\d{2}$', tok):
-                    parsed_date = datetime.strptime(tok, '%Y-%m-%d').date()
-                else:
-                    parsed_date = None
+                    try:
+                        parsed_date = datetime.strptime(tok, '%Y-%m-%d').date()
+                    except Exception:
+                        pass
 
                 if parsed_date:
-                    q_parts.append(Q(start_at__date=parsed_date) |
-                                   Q(expire_at__date=parsed_date) |
-                                   Q(create_at__date=parsed_date) |
-                                   Q(code__icontains=tok))
-                    continue
+                    base_tok_q |= (
+                        Q(start_at__date=parsed_date) |
+                        Q(expire_at__date=parsed_date) |
+                        Q(create_at__date=parsed_date)
+                    )
 
-                # support year-month tokens like YYYY-MM (e.g., '2026-03')
                 try:
                     if re.match(r'^\d{4}-\d{2}$', tok):
                         y, m = tok.split('-')
                         y_i = int(y)
                         m_i = int(m)
-                        q_tok = (
+                        base_tok_q |= (
                             Q(start_at__year=y_i, start_at__month=m_i) |
                             Q(expire_at__year=y_i, expire_at__month=m_i) |
-                            Q(create_at__year=y_i, create_at__month=m_i) |
-                            Q(code__icontains=tok)
+                            Q(create_at__year=y_i, create_at__month=m_i)
                         )
-                        q_parts.append(q_tok)
-                        continue
                 except Exception:
                     pass
 
                 if tok.isdigit():
                     try:
                         n = int(tok)
-                        # build date-related Q depending on token length
                         if len(tok) == 4:
                             date_q = Q(start_at__year=n) | Q(expire_at__year=n) | Q(create_at__year=n)
                         else:
@@ -268,18 +243,14 @@ def ApiGetTicketHistory(request,type):
                                 Q(start_at__day=n) | Q(expire_at__day=n) | Q(create_at__day=n) |
                                 Q(start_at__month=n) | Q(expire_at__month=n) | Q(create_at__month=n)
                             )
-
-                        q_tok = (
+                        base_tok_q |= (
                             Q(user_id=n) |
                             Q(limit_access_time=n) |
                             Q(access_time=n) |
-                            date_q |
-                            Q(code__icontains=tok)
+                            date_q
                         )
                     except Exception:
-                        q_tok = Q(code__icontains=tok)
-                    q_parts.append(q_tok)
-                    continue
+                        pass
 
                 # support tokens containing slash (e.g., "9/10" or "10/10")
                 if '/' in tok:
@@ -293,9 +264,6 @@ def ApiGetTicketHistory(request,type):
                             try:
                                 a = int(nums[0])
                                 b = int(nums[1])
-                                # If both numbers are identical (e.g., "10/10"),
-                                # require both fields to match to avoid matching rows
-                                # like "9/10" where only one side equals 10.
                                 if a == b:
                                     q_slash = Q(limit_access_time=a, access_time=a)
                                 else:
@@ -311,22 +279,11 @@ def ApiGetTicketHistory(request,type):
                                 except Exception:
                                     pass
                         # include description match in the same OR group to avoid ANDing
-                        q_slash |= Q(description__icontains=tok_clean)
-                        q_parts.append(q_slash)
-                        continue
+                        base_tok_q |= q_slash
                     except Exception:
                         pass
 
-                # default: search username/name/code/email/description fields
-                q_tok = (
-                    Q(create_by__username__icontains=tok) |
-                    Q(create_by__first_name__icontains=tok) |
-                    Q(create_by__last_name__icontains=tok) |
-                    Q(code__icontains=tok) |
-                    Q(email__icontains=tok) |
-                    Q(description__icontains=tok)
-                )
-                q_parts.append(q_tok)
+                q_parts.append(base_tok_q)
 
             # combine parts with AND so all tokens must match somewhere in the row
             if q_parts:

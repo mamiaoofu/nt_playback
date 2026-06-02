@@ -74,7 +74,7 @@
 
       <!-- Menu List -->
       <ul class="menu-list">
-        <li class="menu-item" v-if="store.hasPermission('User Management') || store.hasPermission('Delegate Management') || store.hasPermission('Ticket Management')">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.USER_MANAGEMENT_ACCESS) || store.hasPermission(PERMISSIONS.DELEGATE_MANAGEMENT_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_MANAGEMENT_ACCESS)">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isManagementOpen }"
             @click.prevent="isManagementOpen = !isManagementOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-briefcase"></i>
@@ -83,27 +83,27 @@
           </a>
           <div v-show="isManagementOpen" id="collapseManagement">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission('User Management')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.USER_MANAGEMENT_ACCESS)">
                 <router-link to="/user-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> User</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Delegate Management')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.DELEGATE_MANAGEMENT_ACCESS)">
                 <router-link to="/delegate-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Delegate</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Ticket Management')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.TICKET_MANAGEMENT_ACCESS)">
                 <router-link to="/ticket-management" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket</router-link>
               </li>
             </ul>
           </div>
         </li>
 
-        <li class="menu-item" v-if="store.hasPermission('Add User')">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.ADD_USER)">
           <router-link to="/user-management/add" class="menu-link">
             <i class="fa-solid fa-user-plus"></i>
             <span data-translate="add_user">Add User</span>
           </router-link>
         </li>
 
-        <li class="menu-item" v-if="store.hasPermission('System Log') || store.hasPermission('Audit Log')">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS) || store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isLogsOpen }"
             @click.prevent="isLogsOpen = !isLogsOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-clock-rotate-left"></i>
@@ -112,13 +112,13 @@
           </a>
           <div v-show="isLogsOpen" id="collapseLogs">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission('System Log')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS)">
                 <router-link to="/logs/system" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> System log</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Audit Log')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS)">
                 <router-link to="/logs/audit" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Audit log</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Ticket History')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)">
                 <router-link to="/logs/ticket-history" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Ticket History</router-link>
               </li>
             </ul>
@@ -126,10 +126,10 @@
         </li>
       </ul>
 
-      <div class="menu-divider" v-if="store.hasPermission('User Management') || store.hasPermission('Add User') || store.hasPermission('System Log') || store.hasPermission('Audit Log')"></div>
+      <div class="menu-divider" v-if="store.hasPermission(PERMISSIONS.USER_MANAGEMENT_ACCESS) || store.hasPermission(PERMISSIONS.ADD_USER) || store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS) || store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)"></div>
 
       <ul class="menu-list">
-        <li class="menu-item" v-if="store.hasPermission('Role & Permissions') || store.hasPermission('Group & Team')">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.ROLE_PERMISSIONS_ACCESS) || store.hasPermission(PERMISSIONS.GROUP_TEAM_ACCESS)">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isConfigOpen }"
             @click.prevent="isConfigOpen = !isConfigOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-sliders"></i>
@@ -138,17 +138,17 @@
           </a>
           <div v-show="isConfigOpen" id="collapseConfig">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission('Role & Permissions')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.ROLE_PERMISSIONS_ACCESS)">
                 <router-link to="/configuration/role" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Role & Permissions</router-link>
               </li>
-              <li class="menu-item" v-if="store.hasPermission('Group & Team')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.GROUP_TEAM_ACCESS)">
                 <router-link to="/configuration/group" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Group & Team</router-link>
               </li>
             </ul>
           </div>
         </li>
 
-        <li class="menu-item" v-if="store.hasPermission('Set Column')">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SET_COLUMN)">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isSetColumnOpen }"
             @click.prevent="isSetColumnOpen = !isSetColumnOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-gear"></i>
@@ -157,7 +157,7 @@
           </a>
           <div v-show="isSetColumnOpen" id="collapseConfig">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission('Set Column')">
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SET_COLUMN)">
                 <router-link to="/setting/column/audio-record" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Set Column</router-link>
               </li>
             </ul>
@@ -165,7 +165,7 @@
         </li>
       </ul>
 
-      <div class="menu-divider" v-if="store.hasPermission('Role & Permissions') || store.hasPermission('Group & Team') || store.hasPermission('Set Column')"></div>
+      <div class="menu-divider" v-if="store.hasPermission(PERMISSIONS.ROLE_PERMISSIONS_ACCESS) || store.hasPermission(PERMISSIONS.GROUP_TEAM_ACCESS) || store.hasPermission(PERMISSIONS.SET_COLUMN)"></div>
 
       <button @click="handleLogout" class="logout-btn">
         <i class="fa-solid fa-right-from-bracket"></i>
@@ -190,6 +190,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { useAuthStore } from "../stores/auth.store";
 import "../assets/css/navbar.css";
 import { useRouter } from "vue-router";
+import { PERMISSIONS } from "../stores/permissions.constants";
 
 const store = useAuthStore();
 const router = useRouter();

@@ -621,9 +621,9 @@ const dependencyMap = {
     'Change User Status' : ['User Management'],
     'Reset User Password' : ['User Management'],
     'Save As User Index' : ['User Management'],
-    'Create Delegate' : ['Delegate Management'],
+    'Create Delegate' : ['Audio Records'],
     'Playback Delegate File' : ['Delegate Management'],
-    'Download Delegate File' : ['Delegate Management'],
+    'Assign Delegate Download' : ['Audio Records'],
     'Change Delegate Status' : ['Delegate Management'],
 
     // Role & Permissions
@@ -641,7 +641,7 @@ const dependencyMap = {
     'Delete Team' : ['Group & Team'],
 
     // Ticket
-    'Download Ticket File' : ['Ticket Management'],
+    'Assign Ticket Download' : ['Ticket Management'],
     'Change Ticket Status' : ['Ticket Management'],
     'Ticket Reset' : ['Ticket Management'],
 

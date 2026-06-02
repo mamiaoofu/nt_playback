@@ -16,8 +16,8 @@ class ActiveDirectorySetting(models.Model):
         if self.bind_password and is_encrypted(self.bind_password):
             try:
                 return decrypt_smb_password(self.bind_password)
-            except Exception:
-                return self.bind_password
+            except Exception as exc:
+                raise RuntimeError(f'Unable to decrypt stored AD bind password: {exc}') from exc
         return self.bind_password
 
     def set_password(self, raw_password):
@@ -45,8 +45,8 @@ class NetworkShareSetting(models.Model):
         if self.password and is_encrypted(self.password):
             try:
                 return decrypt_smb_password(self.password)
-            except Exception:
-                return self.password
+            except Exception as exc:
+                raise RuntimeError(f'Unable to decrypt stored network share password: {exc}') from exc
         return self.password
 
     def set_password(self, raw_password):
@@ -80,8 +80,8 @@ class MailSetting(models.Model):
         if self.host_password and is_encrypted(self.host_password):
             try:
                 return decrypt_smb_password(self.host_password)
-            except Exception:
-                return self.host_password
+            except Exception as exc:
+                raise RuntimeError(f'Unable to decrypt stored mail password: {exc}') from exc
         return self.host_password
 
     def set_password(self, raw_password):

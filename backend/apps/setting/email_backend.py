@@ -1,5 +1,8 @@
+import logging
 from django.core.mail.backends.smtp import EmailBackend as SmtpEmailBackend
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 class DbEmailBackend(SmtpEmailBackend):
     def __init__(self, host=None, port=None, username=None, password=None,
@@ -20,7 +23,14 @@ class DbEmailBackend(SmtpEmailBackend):
             if username is None:
                 username = config.host_user
             if password is None:
-                password = config.get_password()
+                try:
+                    password = config.get_password()
+                except Exception as exc:
+                    logger.warning(
+                        'DbEmailBackend could not decrypt mail password from DB; falling back to settings.EMAIL_HOST_PASSWORD: %s',
+                        exc
+                    )
+                    password = getattr(settings, 'EMAIL_HOST_PASSWORD', None)
             if use_tls is None:
                 use_tls = config.use_tls
         else:
