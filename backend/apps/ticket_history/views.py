@@ -171,11 +171,15 @@ def ApiGetTicketHistory(request,type):
                     Q(create_by__last_name__icontains=tok) |
                     Q(code__icontains=tok) |
                     Q(email__icontains=tok) |
-                    Q(description__icontains=tok) |
-                    Q(user__username__icontains=tok) |
-                    Q(user__first_name__icontains=tok) |
-                    Q(user__last_name__icontains=tok)
+                    Q(description__icontains=tok)
                 )
+
+                if type == 'delegate':
+                    base_tok_q |= (
+                        Q(user__username__icontains=tok) |
+                        Q(user__first_name__icontains=tok) |
+                        Q(user__last_name__icontains=tok)
+                    )
 
                 # priority special keyword matches
                 if re.match(r'^(exp|expired|expi|expir)', lower):
@@ -443,12 +447,12 @@ def ApiChangeFileShareStatus(request, user_id, type):
             user_file_share.status = not user_file_share.status
             user_file_share.save()
             status_msg = 'Active' if user.is_active else 'Inactive'
-            create_user_log(user=request.user, action="Change Ticket Status", detail=f"Ticket ID : {user_file_share.code}", status="success", request=request)
+            create_user_log(user=request.user, action="Change Ticket Status", detail=f"Ticket ID : {user_file_share.code} to {status_msg}", status="success", request=request)
         elif type == "delegate":
             user_file_share.status = not user_file_share.status
             user_file_share.save()
             status_msg = 'Active' if user_file_share.status else 'Inactive'
-            create_user_log(user=request.user, action="Change Delegate Status", detail=f"Delegate ID : {user_file_share.code}", status="success", request=request) 
+            create_user_log(user=request.user, action="Change Delegate Status", detail=f"Delegate ID : {user_file_share.code} to {status_msg}", status="success", request=request) 
         
         
         return JsonResponse({'status': 'success', 'message': f'{type} ID {user_file_share.code} is now {status_msg}.'})
@@ -487,7 +491,9 @@ def ApiGenFormTicket(request):
             'code': user_file_share.code,
             'password': temp_pw,
             'start_at': user_file_share.start_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'start_at', None) else '',
-            'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'expire_at', None) else ''
+            'expire_at': user_file_share.expire_at.strftime("%Y-%m-%d %H:%M:%S") if getattr(user_file_share, 'expire_at', None) else '',
+            'access_time': user_file_share.access_time,
+            'limit_access_time': user_file_share.limit_access_time
         }
         create_user_log(user=request.user, action="Ticket Resent", detail=f"Ticket ID : {user_file_share.code}", status="success", request=request)
         return JsonResponse(result)

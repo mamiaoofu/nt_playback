@@ -18,7 +18,7 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear Sir,</p>
+                        <p style="margin:0 0 8px 0">Dear Sir ({{ resultData.email || resultData.recipient || '-' }}),</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.code }}</span></div>
@@ -26,6 +26,7 @@
                             </div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Start:</strong> {{ resultData.start_at }}</div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Expire:</strong> {{ resultData.expire_at }}</div>
+                            <div class="detail-file-share" v-if="resultData.limit_access_time != null || resultData.access_time != null"><strong class="strong-title">Limit Access Time:</strong> <span style="color:#2563eb">{{ resultData.access_time != null ? resultData.access_time : 0 }} / {{ resultData.limit_access_time != null ? resultData.limit_access_time : 0 }}</span></div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
                         <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/login</a></div>
@@ -166,7 +167,7 @@ async function sendResultByEmail() {
         const payload = {
             recipient: recipients,
             subject: `Ticket ${d.code || ''}`,
-            body: `Ticket: ${d.code || ''}\nPassword: ${d.password || ''}\nValid: ${d.start_at || ''} - ${d.expire_at || ''}`
+            body: `Ticket: ${d.code || ''}\nPassword: ${d.password || ''}\nValid: ${d.start_at || ''} - ${d.expire_at || ''}${(d.access_time != null || d.limit_access_time != null) ? `\nLimit Access Time: ${d.access_time != null ? d.access_time : 0} / ${d.limit_access_time != null ? d.limit_access_time : 0}` : ''}`
         }
         // try include rendered card HTML
         try {

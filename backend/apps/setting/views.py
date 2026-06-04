@@ -45,10 +45,10 @@ def ApiSaveColumnAudioRecord(request):
                 record = SetColumnAudioRecord.objects.get(id=record_id, user=user)
                 name = record.name
                 record.delete()
-                create_user_log(user=user, action="Delete Column Audio Record", detail=f"Deleted: {name}", status="success", request=request)
+                create_user_log(user=user, action="Delete Column Audio Records", detail=f"Column Name : {name}", status="success", request=request)
                 return JsonResponse({'status': 'success', 'message': 'Deleted successfully'})
             except SetColumnAudioRecord.DoesNotExist:
-                create_user_log(user=user, action="Delete Column Audio Record", detail=f"Record not found for ID: {record_id}", status="error", request=request)
+                create_user_log(user=user, action="Delete Column Audio Records", detail=f"Record not found for ID: {record_id}", status="error", request=request)
                 return JsonResponse({'status': 'error', 'message': 'Record not found'}, status=404)
 
         elif action == 'toggle':
@@ -64,10 +64,10 @@ def ApiSaveColumnAudioRecord(request):
             if use_status:
                 # Enable this one, disable others
                 SetColumnAudioRecord.objects.filter(user=user).update(use=False)
-                create_user_log(user=user, action="Enabled Column Audio Record", detail=f"Enabled: {record.name}", status="success", request=request)
+                create_user_log(user=user, action="Enable Column Audio Records", detail=f"Column Name : {record.name} to Enable", status="success", request=request)
                 record.use = True
             else:
-                create_user_log(user=user, action="Disabled Column Audio Record", detail=f"Disabled: {record.name}", status="success", request=request)
+                create_user_log(user=user, action="Disable Column Audio Records", detail=f"Column Name : {record.name} to Disable", status="success", request=request)
                 record.use = False
             
             record.save()
@@ -80,7 +80,7 @@ def ApiSaveColumnAudioRecord(request):
         raw_data = data.get('raw_data', '')
 
         if not name:
-            create_user_log(user=user, action="Create Column Audio Record", detail="Name is required", status="error", request=request)
+            create_user_log(user=user, action="Add Column Audio Records", detail="Name is required", status="error", request=request)
             return JsonResponse({'status': 'error', 'message': 'Name is required'}, status=400)
 
         if action == 'create':
@@ -94,7 +94,7 @@ def ApiSaveColumnAudioRecord(request):
                 raw_data=raw_data,
                 status=1
             )
-            create_user_log(user=user, action="Create Column Audio Record", detail=f"Created: {name}", status="success", request=request)
+            create_user_log(user=user, action="Add Column Audio Records", detail=f"Column Name : {name}", status="success", request=request)
             return JsonResponse({'status': 'success', 'message': f'Created {name} successfully'})
 
         elif action == 'update':
@@ -112,7 +112,7 @@ def ApiSaveColumnAudioRecord(request):
             record.raw_data = raw_data
             record.save()
             
-            create_user_log(user=user, action="Update Column Audio Record", detail=f"Updated: {name}", status="success", request=request)
+            create_user_log(user=user, action="Edit Column Audio Records", detail=f"Column Name : {name}", status="success", request=request)
             return JsonResponse({'status': 'success', 'message': f'Updated {name} successfully'})
         
         else:
@@ -121,7 +121,7 @@ def ApiSaveColumnAudioRecord(request):
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     except Exception as e:
-        create_user_log(user=request.user, action="Create Column Audio Record", detail=str(e), status="error", request=request)
+        create_user_log(user=request.user, action="Add Column Audio Records", detail=str(e), status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
