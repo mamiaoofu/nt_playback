@@ -341,7 +341,13 @@ def ApiGetTicketHistory(request,type):
         # make sure fields are JSON-serializable
         creator = getattr(ticket_history, 'create_by', None)
         if hasattr(creator, 'username'):
-            creator_val = creator.username
+            fname = getattr(creator, 'first_name', '')
+            lname = getattr(creator, 'last_name', '')
+            name_part = f"({fname} {lname})".replace('()', '').replace('( ', '(').replace(' )', ')').strip()
+            if name_part:
+                creator_val = f"{creator.username} {name_part}"
+            else:
+                creator_val = creator.username
         else:
             creator_val = str(creator) if creator is not None else ''
 
@@ -406,6 +412,16 @@ def ApiGetTicketHistory(request,type):
                 ea = ea_val
             expire_date_str = ea.strftime("%Y-%m-%d %H:%M:%S")
 
+        user_val = ''
+        if getattr(ticket_history, 'user', None):
+            fname = getattr(ticket_history.user, 'first_name', '')
+            lname = getattr(ticket_history.user, 'last_name', '')
+            name_part = f"({fname} {lname})".replace('()', '').replace('( ', '(').replace(' )', ')').strip()
+            if name_part:
+                user_val = f"{ticket_history.user.username} {name_part}"
+            else:
+                user_val = ticket_history.user.username
+
         data.append({
             "id": ticket_history.id,
             "email": ticket_history.email,
@@ -419,7 +435,7 @@ def ApiGetTicketHistory(request,type):
             "status": ticket_history.status,
             "create_at": create_at_str,
             "user_id" : ticket_history.user_id,
-            'username': ticket_history.user.username,
+            'username': user_val,
             'description': ticket_history.description,
             'dowload': ticket_history.dowload,
         })
