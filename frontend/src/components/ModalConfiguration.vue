@@ -610,9 +610,10 @@ const dependencyMap = {
     'Playback Audio Records' : ['Audio Records'],
     'Download Audio Records' : ['Audio Records'],
     'Save as Audio Index' : ['Audio Records'],
-    'Delegate Files' : ['Audio Records'],
-    'Create Ticket' : ['Audio Records'],
-    'Playback Ticket File' : ['Audio Records'],
+    'Create Delegate' : ['Audio Records'],
+    'Assign Delegate Download' : ['Audio Records'],
+    'Create Ticket' : ['Audio Records'],    
+    'Assign Ticket Download' : ['Audio Records'],   
 
     // User Management
     'Add User' : ['User Management'],
@@ -620,18 +621,15 @@ const dependencyMap = {
     'Delete User' : ['User Management'],
     'Change User Status' : ['User Management'],
     'Reset User Password' : ['User Management'],
-    'Save As User Index' : ['User Management'],
-    'Create Delegate' : ['Audio Records'],
-    'Playback Delegate File' : ['Delegate Management'],
-    'Assign Delegate Download' : ['Audio Records'],
-    'Change Delegate Status' : ['Delegate Management'],
+    'Save as User Index' : ['User Management'],
+    'Create Delegate' : ['User Management'],
 
     // Role & Permissions
     'Edit Base Role' : ['Role & Permissions'],
     'Add Custom Role' : ['Role & Permissions'],
     'Edit Custom Role' : ['Role & Permissions'],
     'Delete Custom Role' : ['Role & Permissions'],
-
+    
     // Group & Team
     'Add Group' : ['Group & Team'],
     'Edit Group' : ['Group & Team'],
@@ -639,12 +637,12 @@ const dependencyMap = {
     'Add Team' : ['Group & Team'],
     'Edit Team' : ['Group & Team'],
     'Delete Team' : ['Group & Team'],
-
-    // Ticket
-    'Assign Ticket Download' : ['Ticket Management'],
+    
+    
+    // Ticket Management
     'Change Ticket Status' : ['Ticket Management'],
-    'Ticket Reset' : ['Ticket Management'],
-
+    'Ticket Resend' : ['Ticket Management'],
+    
     // Logs
     'Save As System Log' : ['System Log'],
     'Save As Audit Log' : ['Audit Log'],

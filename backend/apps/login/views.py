@@ -194,7 +194,7 @@ def index(request):
             create_user_log(
                 user=user,
                 action="Login",
-                detail=f"Username: {user.username}",
+                detail=f"User Name : {user.username}",
                 status="success",
                 request=request
             )
