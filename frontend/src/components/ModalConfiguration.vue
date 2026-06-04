@@ -621,8 +621,8 @@ const dependencyMap = {
     'Delete User' : ['User Management'],
     'Change User Status' : ['User Management'],
     'Reset User Password' : ['User Management'],
-    'Save as User Index' : ['User Management'],
-    'Create Delegate' : ['User Management'],
+    'Save As User Index' : ['User Management'],
+    // 'Create Delegate' : ['User Management'],
 
     // Role & Permissions
     'Edit Base Role' : ['Role & Permissions'],
