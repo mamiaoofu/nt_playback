@@ -195,6 +195,7 @@ export function useUserForm(props) {
     })
 
     function toggleOtherRoleDropdown() {
+        if (roleCardsDisabled.value) return
         otherRoleOpen.value = !otherRoleOpen.value
     }
 
@@ -208,6 +209,7 @@ export function useUserForm(props) {
     }
 
     function clearCustomRole() {
+        if (roleCardsDisabled.value) return
         selectedCustomRoleId.value = null
         otherRoleOpen.value = false
         clearSelectedPermissions()
@@ -278,6 +280,12 @@ export function useUserForm(props) {
     }
 
     function clearUserInfo() {
+        if (mode && mode.value === 'edit' && isDomainAccountMode.value) {
+            selectedGroupId.value = null
+            selectedTeamId.value = null
+            return
+        }
+
         isDomainAccountMode.value = false
         clearSelectedPermissions()
         selectedBaseRoleKey.value = null
@@ -316,6 +324,7 @@ export function useUserForm(props) {
     }
 
     function clearDatabaseScope() {
+        if (databaseSelectionDisabled.value) return
         selectedDatabaseIds.value = []
         selectedAllDatabases.value = false
     }
@@ -378,6 +387,14 @@ export function useUserForm(props) {
         }
 
         const fd = new FormData()
+
+        if (form.value.isSuperadmin) {
+            selectedBaseRoleKey.value = 'administrator'
+            selectedCustomRoleId.value = null
+            selectedAllDatabases.value = true
+            selectedDatabaseIds.value = databases.value.map(d => String(d.id))
+        }
+
         fd.append('username', form.value.username || '')
         if (form.value.password) fd.append('password', form.value.password)
         fd.append('first_name', form.value.firstName || '')
@@ -523,6 +540,7 @@ export function useUserForm(props) {
     const defaultDatabaseIds = ref([])
 
     function toggleDatabase(db) {
+        if (databaseSelectionDisabled.value) return
         const idStr = String(db.id)
         const idx = selectedDatabaseIds.value.indexOf(idStr)
         if (idx === -1) selectedDatabaseIds.value.push(idStr)
@@ -557,11 +575,13 @@ export function useUserForm(props) {
     })
 
     function resetDatabase() {
+        if (databaseSelectionDisabled.value) return
         selectedDatabaseIds.value = [...defaultDatabaseIds.value]
         selectedAllDatabases.value = databases.value.length > 0 && selectedDatabaseIds.value.length === databases.value.length
     }
 
     function toggleAllDatabases() {
+        if (databaseSelectionDisabled.value) return
         selectedAllDatabases.value = !selectedAllDatabases.value
         if (selectedAllDatabases.value) {
             selectedDatabaseIds.value = databases.value.map(d => String(d.id))
@@ -586,6 +606,7 @@ export function useUserForm(props) {
     }
 
     function selectBaseRole(roleKey) {
+        if (roleCardsDisabled.value) return
         if (!roleKey) return
         if (selectedBaseRoleKey.value === roleKey) {
             selectedBaseRoleKey.value = null

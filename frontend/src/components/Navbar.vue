@@ -37,7 +37,7 @@
     <div class="sidebar-team-menu" id="sidebarTeamMenu" ref="sidebarMenu" :style="{ display: menuOpen ? 'block' : 'none' }">
       <!-- Header -->
         <div class="menu-header">
-        <div class="user-info-group" :class="{ 'disabled-profile': store.isTicket && store.isTicket() }" @click="goToProfile">
+        <div class="user-info-group" :class="{ 'disabled-profile': (store.isTicket && store.isTicket()) || !store.hasPermission(PERMISSIONS.USER_PROFILE_ACCESS) }" @click="goToProfile">
           <div class="menu-avatar">
             {{ initials }}
           </div>
@@ -245,6 +245,7 @@ const handleLogout = () => {
 
 function goToProfile() {
   if (store.isTicket && store.isTicket()) return;
+  if (!store.hasPermission(PERMISSIONS.USER_PROFILE_ACCESS)) return;
   menuOpen.value = false;
   try { router.push('/profile') } catch (e) { console.error('Navigate to profile failed', e) }
 }
