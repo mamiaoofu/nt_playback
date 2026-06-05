@@ -443,6 +443,13 @@ export function useFileShareManagement() {
                 console.error('resendTicket failed', json)
                 return
             }
+            
+            const rec = records.value.find(r => String(r.id) === String(user_file_id))
+            if (rec) {
+                if (rec.start_date) json.start_at = rec.start_date
+                if (rec.exprie_date) json.expire_at = rec.exprie_date
+            }
+
             // expected: { code, password, start_at, expire_at }
             recentResultData.value = json
             recentResultType.value = 'ticket'
