@@ -287,6 +287,10 @@ export function useUserForm(props) {
         }
 
         isDomainAccountMode.value = false
+        clearSelectedPermissions()
+        selectedBaseRoleKey.value = null
+        selectedCustomRoleId.value = null
+        otherRoleOpen.value = false
 
         passwordVisible.value = false
         confirmPasswordVisible.value = false
@@ -823,18 +827,8 @@ export function useUserForm(props) {
         errors.phone = digits.length > 0 ? false : 'Phone must contain only numbers'
     })
 
-    const preSuperAdminState = ref(null)
-
     watch(() => form.value.isSuperadmin, (val) => {
         if (val) {
-            preSuperAdminState.value = {
-                roleKey: selectedBaseRoleKey.value,
-                customRoleId: selectedCustomRoleId.value,
-                allDatabases: selectedAllDatabases.value,
-                databaseIds: [...selectedDatabaseIds.value],
-                permissions: { ...selectedPermissions.value }
-            }
-
             // When super admin is checked, force Administrator role and All Databases
             selectedBaseRoleKey.value = 'administrator'
             applyBaseRolePermissions('administrator')
@@ -852,16 +846,6 @@ export function useUserForm(props) {
             // When super admin is unchecked, enable role and database selection
             roleCardsDisabled.value = false
             databaseSelectionDisabled.value = false
-
-            if (preSuperAdminState.value) {
-                selectedBaseRoleKey.value = preSuperAdminState.value.roleKey
-                selectedCustomRoleId.value = preSuperAdminState.value.customRoleId
-                selectedPermissions.value = { ...preSuperAdminState.value.permissions }
-
-                selectedAllDatabases.value = preSuperAdminState.value.allDatabases
-                selectedDatabaseIds.value = [...preSuperAdminState.value.databaseIds]
-                preSuperAdminState.value = null
-            }
         }
     })
 
