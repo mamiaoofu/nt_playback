@@ -22,7 +22,7 @@
                                             <button v-if="mode !== 'edit' && showDomainAccountBtn" class="customize-btn" type="button" @click="toggleDomainAccountMode" style="position:relative; height: 38px;">
                                                 <i class="fas fa-network-wired" style="margin-right: 6px;"></i> Domain account
                                             </button>
-                                            <button v-if="!(mode === 'edit' && isDomainAccountMode)" class="customize-btn" type="button" id="clearUserInfoBtn"
+                                            <button class="customize-btn" type="button" id="clearUserInfoBtn"
                                                 @click="clearUserInfo" style="position:relative; height: 38px;">
                                                 <i class="fas fa-eraser" style="margin-right: 6px;"></i> Clear
                                             </button>
@@ -137,7 +137,7 @@
                                 </div>
 
                                 <div class="custom-role-row" style="display: flex; gap: 12px; align-items: stretch;">
-                                    <div class="custom-dropdown" id="otherRoleDropdown" :class="{ open: otherRoleOpen, selected: selectedCustomRoleId }" style="flex: 1;">
+                                    <div class="custom-dropdown" id="otherRoleDropdown" :class="{ open: otherRoleOpen, selected: selectedCustomRoleId, disabled: roleCardsDisabled }" style="flex: 1;">
                                         <div class="dropdown-selected" @click="toggleOtherRoleDropdown">
                                             <span class="dropdown-text">
                                                 <i v-if="selectedCustomRoleId" class="fas fa-user" style="margin-right: 8px;"></i>
@@ -159,8 +159,8 @@
                                         </div>
                                         <input type="hidden" name="otherRole" id="otherRoleInput" :value="selectedCustomRoleId || ''">
                                     </div>
-                                    <button class="customize-btn" type="button" @click="clearCustomRole"
-                                        style="display: flex; align-items: center; justify-content: center; margin: 0;">
+                                    <button class="customize-btn" type="button" @click="clearCustomRole" :disabled="roleCardsDisabled"
+                                        style="display: flex; align-items: center; justify-content: center; margin: 0;" :class="{ 'select-disabled': roleCardsDisabled }">
                                         <i class="fas fa-eraser" style="margin-right: 6px;"></i> Clear
                                     </button>
                                 </div>
@@ -180,24 +180,24 @@
                                         <h5 class="card-title mb-2 mt-1">Select Database Server</h5>
                                     </div>
                                     <div class="d-flex align-items-center">
-                                        <button type="button" class="btn-role btn-secondary" @click="resetDatabase"
+                                        <button type="button" class="btn-role btn-secondary" @click="resetDatabase" :disabled="databaseSelectionDisabled"
                                             style="margin-right: 6px">
                                             <i class="fas fa-undo"></i>
                                             Reset to Default
                                         </button>
-                                        <button class="customize-btn" type="button" @click="clearDatabaseScope">
+                                        <button class="customize-btn" type="button" @click="clearDatabaseScope" :disabled="databaseSelectionDisabled" :class="{ 'select-disabled': databaseSelectionDisabled }">
                                             <i class="fas fa-eraser" style="margin-right: 6px;"></i> Clear
                                         </button>
                                     </div>
                                 </div>
 
                                 <div class="database-grid">
-                                    <label class="db-card">
+                                    <label class="db-card" :class="{ disabled: databaseSelectionDisabled }">
                                         <input type="checkbox" value="all" :checked="selectedAllDatabases" @change="toggleAllDatabases" :disabled="databaseSelectionDisabled">
                                         <span class="db-checkbox"></span>
                                         <span class="db-name">All Databases</span>
                                     </label>
-                                    <label class="db-card" v-for="db in databases" :key="db.id">
+                                    <label class="db-card" v-for="db in databases" :key="db.id" :class="{ disabled: databaseSelectionDisabled }">
                                         <input type="checkbox" :value="db.id" :checked="selectedDatabaseIds.includes(String(db.id))" @change="() => toggleDatabase(db)" :disabled="databaseSelectionDisabled">
                                         <span class="db-checkbox"></span>
                                         <span class="db-name">{{ db.database_name }}</span>

@@ -27,7 +27,7 @@
     </div>
 
     <ul class="icons-list" :class="{ 'expanded-list': isExpanded }">
-      <li class="icon-item" :class="{ 'expanded-item': isExpanded }">
+      <li class="icon-item" :class="{ 'expanded-item': isExpanded }" v-if="authStore.user?.is_superuser">
       <router-link to="/system-tool/dashboard" class="icon-link">
           <i class="fa-solid fa-chart-line icon-part"></i>
           <span v-if="isExpanded" class="text-part">Dashboard</span>
@@ -69,7 +69,9 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
+import { useAuthStore } from '../stores/auth.store';
 
+const authStore = useAuthStore();
 const route = useRoute();
 const emit = defineEmits(['toggle']);
 const isExpanded = ref(true);
