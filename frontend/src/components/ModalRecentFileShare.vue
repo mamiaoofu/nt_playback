@@ -18,7 +18,7 @@
                     </div>
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
-                        <p style="margin:0 0 8px 0">Dear Sir ({{ resultData.email || resultData.recipient || '-' }}),</p>
+                        <p style="margin:0 0 8px 0">Dear Sir : {{ formatRecipient(resultData) }}</p>
                         <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.code }}</span></div>
@@ -92,6 +92,25 @@ const emit = defineEmits(['update:modelValue'])
 
 function closeResult() {
     emit('update:modelValue', false)
+}
+
+function formatRecipient(d) {
+    const src = d && (d.recipient || d.email) ? (d.recipient || d.email) : ''
+    if (!src) return '-'
+    if (Array.isArray(src)) return src.join(', ')
+    if (typeof src === 'object') {
+        try {
+            const s = JSON.stringify(src)
+            const m = s.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g)
+            if (m) return m.join(', ')
+        } catch (e) {}
+        try {
+            const vals = Object.values(src).map(v => String(v)).filter(Boolean)
+            if (vals.length) return vals.join(', ')
+        } catch (e) {}
+        return String(src)
+    }
+    return String(src).replace(/^[\{\[]+|[\}\]]+$/g, '').replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '')
 }
 
 async function copyCardContent() {
