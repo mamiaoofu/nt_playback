@@ -19,7 +19,7 @@
 
                     <div class="card card-detail-to" style="padding:16px; border:1px solid #e6eef8;">
                         <p style="margin:0 0 8px 0">Dear Sir : {{ formatRecipient(resultData) }}</p>
-                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on SeekTrack.</p>
+                        <p style="margin:0 0 12px 0">An access ticket has been created for you to listen to specific audio records on&nbsp;SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
                             <div class="detail-file-share"><strong class="strong-title">Ticket Code:</strong> <span style="color:#2563eb">{{ resultData.code }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Password:</strong> <code style="background:#f3f4f6; padding:4px 8px; border-radius:4px">{{ resultData.password }}</code>
@@ -29,7 +29,7 @@
                             <div class="detail-file-share" v-if="resultData.limit_access_time != null || resultData.access_time != null"><strong class="strong-title">Limit Access Time:</strong> <span style="color:#2563eb">{{ resultData.access_time != null ? resultData.access_time : 0 }} / {{ resultData.limit_access_time != null ? resultData.limit_access_time : 0 }}</span></div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/login</a></div>
+                        <div style="margin-bottom:12px;"><a href="/login">&lt;url&gt;/login</a></div>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
@@ -40,17 +40,17 @@
                 <div v-else>
                     <div style="text-align:center; margin-bottom:12px;">
                         <i class="fa-regular fa-check-circle" style="color:#10b981;margin-bottom: 15px;font-size: 45px;"></i>
-                        <p style="margin:0">User <strong style="color:#2563eb">{{ resultData.recipient }}</strong> created successfully!</p>
+                        <p style="margin:0">User : <strong style="color:#2563eb">{{ formatRecipient(resultData) }}</strong> created successfully!</p>
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
                         <p>Dear Sir,</p>
-                        <p>Files are shared so you can listen to specific audio records on <br> SeekTrack.</p>
+                        <p>Files are shared so you can listen to specific audio records on&nbsp;SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
-                            <div><strong>Valid Start:</strong> {{ resultData.validStart }}</div>
-                            <div><strong>Valid Expire:</strong> {{ resultData.validExpire }}</div>
+                            <div class="detail-file-share"><strong class="strong-title">Delegate ID:</strong> <span style="color:#2563eb">{{ formatRecipient(resultData) }}</span></div>
+                            <div class="detail-file-share"><strong class="strong-title">Valid Start:</strong> {{ resultData.validStart }}</div>
+                            <div class="detail-file-share"><strong class="strong-title">Valid Expire:</strong> {{ resultData.validExpire }}</div>
                         </div>
-                        <p>You can find it in the ticket menu.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">https://192.168.1.95/ticket</a></div>
+                        <p>You can find it in the Delegate File menu.</p>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
