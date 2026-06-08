@@ -642,6 +642,9 @@ const dependencyMap = {
     // Ticket Management
     'Change Ticket Status' : ['Ticket Management'],
     'Ticket Resend' : ['Ticket Management'],
+
+    // Delegate Management
+    'Change Delegate Status' : ['Delegate Management'],
     
     // Logs
     'Save As System Log' : ['System Log'],
