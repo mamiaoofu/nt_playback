@@ -2,7 +2,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } 
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.store'
 import { registerRequest } from '../utils/pageLoad'
-import { API_GET_USER_ALL, API_GET_LOG_USER } from '../api/paths'
+import { API_GET_USER_ALL, API_GET_LOG_USER, API_GET_LOG_USER_ACTIONS } from '../api/paths'
 import { exportTableToFormat, logUserAction } from '../assets/js/function-all'
 
 export function useUserLog() {
@@ -23,29 +23,7 @@ export function useUserLog() {
     const filters = reactive({ name: '', action: '', start_date: '', end_date: '' })
     const userOptions = ref([])
     const actionOptions = ref([
-        { label: 'All Actions', value: 'all' },
-        { label: 'Change User Status', value: 'Change User Status' },
-        { label: 'Create Columns', value: 'Create Columns' },
-        { label: 'Create Config Group', value: 'Create Config Group' },
-        { label: 'Create Config Team', value: 'Create Config Team' },
-        { label: 'Create Custom Role', value: 'Create Custom Role' },
-        { label: 'Create Favorite', value: 'Create Favorite' },
-        { label: 'Created User', value: 'Created User' },
-        { label: 'Delete Config Group', value: 'Delete Config Group' },
-        { label: 'Delete Config Team', value: 'Delete Config Team' },
-        { label: 'Delete Custom Role', value: 'Delete Custom Role' },
-        { label: 'Delete Favorite', value: 'Delete Favorite' },
-        { label: 'Delete User', value: 'Delete User' },
-        { label: 'Download', value: 'Download' },
-        { label: 'Edit Favorite', value: 'Edit Favorite' },
-        { label: 'Login', value: 'Login' },
-        { label: 'Play audio', value: 'Play audio' },
-        { label: 'Save file', value: 'Save file' },
-        { label: 'Update Config Group', value: 'Update Config Group' },
-        { label: 'Update Config Team', value: 'Update Config Team' },
-        { label: 'Update Custom Role', value: 'Update Custom Role' },
-        { label: 'Update Favorite Search', value: 'Update Favorite Search' },
-        { label: 'Update User', value: 'Update User' },
+        { label: 'All Actions', value: 'all' }
     ])
 
     const startInput = ref(null)
@@ -189,6 +167,23 @@ export function useUserLog() {
             userOptions.value = opts
         } catch (e) {
             console.error('fetchUsers error', e)
+        }
+    }
+
+    const fetchActions = async () => {
+        try {
+            const res = await fetch(API_GET_LOG_USER_ACTIONS(), { credentials: 'include' })
+            if (!res.ok) throw new Error('Failed to fetch actions')
+            const json = await res.json()
+            if (json.status && json.actions) {
+                const opts = [{ label: 'All Actions', value: 'all' }]
+                json.actions.forEach(a => {
+                    opts.push({ label: a, value: a })
+                })
+                actionOptions.value = opts
+            }
+        } catch (e) {
+            console.error('fetchActions error', e)
         }
     }
 
@@ -449,6 +444,7 @@ export function useUserLog() {
     onMounted(() => {
         registerRequest(fetchData())
         fetchUsers()
+        fetchActions()
         document.addEventListener('click', onDocClick)
     })
 
@@ -538,6 +534,7 @@ export function useUserLog() {
         onExportFormat,
         fetchData,
         fetchUsers,
+        fetchActions,
         confirmExport,
         cancelExport,
         onSortChange,

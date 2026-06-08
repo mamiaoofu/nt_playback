@@ -72,6 +72,7 @@ export const API_RESET_PASSWORD = (id) => `${getApiBase()}/api/user-management/r
 
 // หน้า log user
 export const API_GET_LOG_USER = (type) => `${getApiBase()}/api/log-user/get-log/${type}/`
+export const API_GET_LOG_USER_ACTIONS = () => `${getApiBase()}/api/log-user/actions/`
 
 // หน้า Add User
 export const API_GET_ALL_ROLES_PERMISSIONS = () => `${getApiBase()}/api/add-user/get-all-roles-permissions/`

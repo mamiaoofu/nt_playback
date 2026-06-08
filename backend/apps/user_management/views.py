@@ -87,7 +87,7 @@ def sync_ad_accounts():
         print(f"sync_ad_accounts failed: {e}")
 
 @login_required(login_url='/login')
-@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS)
+@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS, PermissionIDs.TICKET_HISTORY_ACCESS, PermissionIDs.DELEGATE_MANAGEMENT_ACCESS, PermissionIDs.DELEGATE_FILES)
 def ApiGetUserAll(request, type):
     try:
         if type == 'user':
@@ -103,7 +103,7 @@ def ApiGetUserAll(request, type):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 @login_required(login_url='/login')
-@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS)
+@require_action(PermissionIDs.USER_MANAGEMENT_ACCESS, PermissionIDs.AUDIT_LOG_ACCESS, PermissionIDs.SYSTEM_LOG_ACCESS, PermissionIDs.AUDIO_RECORDS_ACCESS, PermissionIDs.TICKET_HISTORY_ACCESS, PermissionIDs.DELEGATE_MANAGEMENT_ACCESS, PermissionIDs.DELEGATE_FILES)
 def ApiGetUser(request):
     try:
         sync_ad_accounts()

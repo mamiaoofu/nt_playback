@@ -225,3 +225,20 @@ def ApiGetUserLogs(request,type):
         "recordsFiltered": records_filtered,
         "data": data
     })
+
+def ApiGetActionOptions(request):
+    try:
+        # Fetch distinct actions from UserLog, explicitly ordering by 'action' to override Meta ordering (e.g. '-timestamp') which breaks distinct()
+        actions_qs = UserLog.objects.values_list('action', flat=True).order_by('action').distinct()
+        
+        # Use a set to remove any duplicates that might have different leading/trailing whitespaces
+        unique_actions = set()
+        for a in actions_qs:
+            if a:
+                unique_actions.add(a.strip())
+                
+        actions = list(unique_actions)
+        actions.sort()
+        return JsonResponse({'status': True, 'actions': actions})
+    except Exception as e:
+        return JsonResponse({'status': False, 'message': str(e)}, status=500)
