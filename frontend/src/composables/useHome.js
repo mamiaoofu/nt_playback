@@ -1521,7 +1521,18 @@ export function useHome() {
   }
 
   const onRowDblClick = async (row) => {
-    const canPlayback = authStore.hasPermission(PERMISSIONS.PLAYBACK_AUDIO_RECORDS) || authStore.hasPermission(PERMISSIONS.DELEGATE_FILES)
+    let canPlayback = false
+    if (filters.file_share === 'true' || filters.file_share === true) {
+      canPlayback = authStore.hasPermission(PERMISSIONS.PLAYBACK_AUDIO_RECORDS) || 
+                    authStore.hasPermission(PERMISSIONS.DELEGATE_FILES) || 
+                    authStore.hasPermission(PERMISSIONS.PLAYBACK_DELEGATE_FILE)
+    } else if (filters.is_ticket === 'true' || filters.is_ticket === true) {
+      canPlayback = authStore.hasPermission(PERMISSIONS.PLAYBACK_AUDIO_RECORDS) || 
+                    authStore.hasPermission(PERMISSIONS.PLAYBACK_TICKET_FILE)
+    } else {
+      canPlayback = authStore.hasPermission(PERMISSIONS.PLAYBACK_AUDIO_RECORDS)
+    }
+
     if (!canPlayback) {
       showToast('Access Denied', 'error')
       return

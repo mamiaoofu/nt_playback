@@ -621,7 +621,7 @@ const dependencyMap = {
     'Delete User' : ['User Management'],
     'Change User Status' : ['User Management'],
     'Reset User Password' : ['User Management'],
-    'Save As User Index' : ['User Management'],
+    'Save as User Index' : ['User Management'],
     // 'Create Delegate' : ['User Management'],
 
     // Role & Permissions
@@ -647,9 +647,9 @@ const dependencyMap = {
     'Change Delegate Status' : ['Delegate Management'],
     
     // Logs
-    'Save As System Log' : ['System Log'],
-    'Save As Audit Log' : ['Audit Log'],
-    'Save As Ticket History' : ['Ticket History'],
+    'Save as System Log' : ['System Log'],
+    'Save as Audit Log' : ['Audit Log'],
+    'Save as Ticket History' : ['Ticket History'],
 
     // Setting
     'Set Column' : ['Setting'],
@@ -703,9 +703,9 @@ watch(() => rolePermissions.value.slice(), (newArr, oldArr) => {
 
             try {
                 const specialMap = {
-                    'Save As Audit Log': 'Audit Log',
-                    'Save As System Log': 'System Log',
-                    'Save As Ticket History': 'Ticket History'
+                    'Save as Audit Log': 'Audit Log',
+                    'Save as System Log': 'System Log',
+                    'Save as Ticket History': 'Ticket History'
                 }
                 const s = String(perm.name).trim()
                 if (specialMap[s]) {
