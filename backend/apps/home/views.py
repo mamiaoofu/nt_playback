@@ -1055,7 +1055,7 @@ def _log_voice_download(request, file_name, status='success', error=None):
                 detail = f"File Name : {file_name}, error: {error}"
         else:
             action = "Download Audio Records"
-            detail = f"file: {file_name}" if status == 'success' else {"file": file_name, "error": str(error or '')}
+            detail = f"File Name : {file_name}" if status == 'success' else {"file": file_name, "error": str(error or '')}
 
         if status == 'success':
             create_user_log(user=request.user, action=action, detail=detail, status="success", request=request)
@@ -1462,6 +1462,7 @@ def ApiCreateFileShare(request):
 
             missing = []
             created_count = 0
+            code_val = ''
 
             def _generate_unique_code():
                 while True:
@@ -1524,9 +1525,9 @@ def ApiCreateFileShare(request):
             create_user_log(user=request.user, action="Create Delegate", detail=f"Delegate ID: {code_val}", status="success", request=request)
 
             if missing:
-                return JsonResponse({'ok': True, 'message': f'Created {created_count} shares; missing users: {missing}'})
+                return JsonResponse({'ok': True, 'code': code_val, 'message': f'Created {created_count} shares; missing users: {missing}'})
 
-            return JsonResponse({'ok': True, 'message': 'The file has been successfully shared with the users.'})
+            return JsonResponse({'ok': True, 'code': code_val, 'message': 'The file has been successfully shared with the users.'})
 
         if target_type == 'ticket':
             ticket_code = data.get('ticketCode') or data.get('code')

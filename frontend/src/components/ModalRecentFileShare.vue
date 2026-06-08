@@ -43,18 +43,18 @@
                         <p style="margin:0">User : <strong style="color:#2563eb">{{ formatRecipient(resultData) }}</strong> created successfully!</p>
                     </div>
                     <div class="card" style="padding:16px; border:1px solid #e6eef8;">
-                        <p>Dear Sir,</p>
+                        <!-- <p>Dear Sir,</p> -->
                         <p>Files are shared so you can listen to specific audio records on&nbsp;SeekTrack.</p>
                         <div style="border:1px dashed #e6eef8; padding:12px; margin-bottom:12px;">
-                            <div class="detail-file-share"><strong class="strong-title">Delegate ID:</strong> <span style="color:#2563eb">{{ formatRecipient(resultData) }}</span></div>
+                            <div class="detail-file-share"><strong class="strong-title">Delegate ID:</strong> <span style="color:#2563eb">{{ resultData.code }}</span></div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Start:</strong> {{ resultData.validStart }}</div>
                             <div class="detail-file-share"><strong class="strong-title">Valid Expire:</strong> {{ resultData.validExpire }}</div>
                         </div>
                         <p>You can find it in the Delegate File menu.</p>
-                        <div>
+                        <!-- <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
             </div>
