@@ -7,6 +7,7 @@ services:
       - ./backend:/app
       # Mount host recordings directory into container for direct file access
       - C:\\Recordings\\Music:/recordings:ro
+      #docker Desktop ฝั่ง Windows จะยอมให้ Map เฉพาะไดรฟ์ที่มีอยู่จริงๆ ในเครื่องเท่านั้น 
       - Z:\\:/host_mnt/z:ro
       # Mount the entire WSL2 /mnt folder to access all local and network drives dynamically
       - /mnt:/host_mnt:ro
