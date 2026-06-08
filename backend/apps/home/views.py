@@ -1823,7 +1823,7 @@ def map_host_to_container_path(path):
     return path_norm
 
 @login_required(login_url='/login')
-@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS)
+@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS, PermissionIDs.DELEGATE_FILES, PermissionIDs.PLAYBACK_TICKET_FILE)
 def ApiPlayAudio(request, file_id=None):
     """
     API endpoint to play audio files with on-the-fly transcoding for legacy codecs.
