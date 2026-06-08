@@ -10,7 +10,7 @@ services:
       #docker Desktop ฝั่ง Windows จะยอมให้ Map เฉพาะไดรฟ์ที่มีอยู่จริงๆ ในเครื่องเท่านั้น 
       #คำสั่งที่ 1: สร้างโฟลเดอร์สำหรับรองรับไดรฟ์ Z ใน Linux : wsl -d docker-desktop -u root mkdir -p /mnt/z
       #คำสั่งที่ 2: เชื่อม (Mount) ไดรฟ์ Z: ของ Windows เข้าไปที่โฟลเดอร์นั้น wsl -d docker-desktop -u root mount -t drvfs Z: /mnt/z
-      - Z:\\:/host_mnt/z:ro
+      # - Z:\\:/host_mnt/z:ro
       # Mount the entire WSL2 /mnt folder to access all local and network drives dynamically
       - /mnt:/host_mnt:ro
     env_file:
