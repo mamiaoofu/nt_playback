@@ -153,7 +153,7 @@
                             <div class="detail-file-share"><strong class="strong-title">Limit Access Times:</strong> {{ resultData.limitAccessTimes }}</div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">&lt;url&gt;/login</a></div>
+                        <div style="margin-bottom:12px;"><a :href="`${currentOrigin}/login`">{{ currentOrigin }}/login</a></div>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
@@ -213,6 +213,8 @@ import { useAuthStore } from '../stores/auth.store'
 import { PERMISSIONS } from '../stores/permissions.constants'
 
 const Store = useAuthStore()
+
+const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 
 const props = defineProps({ modelValue: { type: Boolean, default: false }, files: { type: Array, default: () => [] } })
 const emit = defineEmits(['update:modelValue', 'share'])

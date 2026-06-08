@@ -29,7 +29,7 @@
                             <div class="detail-file-share" v-if="resultData.limit_access_time != null || resultData.access_time != null"><strong class="strong-title">Limit Access Time:</strong> <span style="color:#2563eb">{{ resultData.access_time != null ? resultData.access_time : 0 }} / {{ resultData.limit_access_time != null ? resultData.limit_access_time : 0 }}</span></div>
                         </div>
                         <p style="margin:0 0 8px 0">Please visit our portal to login using the credentials above.</p>
-                        <div style="margin-bottom:12px;"><a href="/login">&lt;url&gt;/login</a></div>
+                        <div style="margin-bottom:12px;"><a :href="`${currentOrigin}/login`">{{ currentOrigin }}/login</a></div>
                         <div>
                             Best regards,<br>
                             <b>SeekTrack Team</b>
@@ -82,6 +82,8 @@ import { API_SEND_EMAIL } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/css/modal-favorite.css'
 import { showToast, notify } from '../assets/js/function-all'
+
+const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
 
 const props = defineProps({
     modelValue: { type: Boolean, default: false },
