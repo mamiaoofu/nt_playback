@@ -535,17 +535,52 @@ def main():
 
     # ── Connect using credentials from config.json ────────────────────────
     if os.path.exists(path):
-        log(f"Path '{path}' is already accessible. Skipping netuse_connect.")
+        log(f"Path '{path}' is already accessible locally.")
         share = None
 
     if share:
         _smb_user, _smb_pass = get_smb_credentials()
+        # Ensure connection is established
         rc, out, err = netuse_connect(share, _smb_user, _smb_pass)
         log(f"netuse_connect '{share}': rc={rc}")
 
-    # If the path is a drive letter path (e.g. Z:\...) and is not accessible,
+    # ── NICE Player does NOT support UNC paths, so we must map to a Drive Letter ──
+    if path.startswith("\\\\"):
+        parts = path.split("\\")
+        if len(parts) >= 4:
+            unc_share = "\\".join(parts[:4])
+            rel_path = "\\".join(parts[4:])
+            
+            # Find an available drive letter (Z down to G)
+            import string
+            import ctypes
+            drives_bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+            unused_drive = None
+            for letter in reversed(string.ascii_uppercase):
+                if letter in ['A', 'B', 'C', 'D', 'E', 'F']: continue
+                bit = ord(letter) - ord('A')
+                if not (drives_bitmask & (1 << bit)):
+                    unused_drive = letter + ":"
+                    break
+            
+            if unused_drive:
+                log(f"Mapping UNC share {unc_share} to temporary drive {unused_drive}")
+                _smb_user, _smb_pass = get_smb_credentials()
+                
+                # Check if it's already mapped to this exact UNC share by looking at 'net use' output
+                # Or just directly map it.
+                m_rc, m_out, m_err = run(["net", "use", unused_drive, unc_share, "/persistent:no"])
+                if m_rc == 0:
+                    path = f"{unused_drive}\\{rel_path}"
+                    log(f"Path converted to mapped drive: {path}")
+                else:
+                    log(f"Failed to map drive {unused_drive}: rc={m_rc}, err={m_err}")
+            else:
+                log("No available drive letter found. Passing UNC path to NicePlayer (may fail).")
+
+    # If the path was manually given as a drive letter path (e.g. Z:\...) and is not accessible,
     # attempt to map the drive automatically using configured server/share/base_path.
-    if len(path) >= 2 and path[1] == ":" and not os.path.exists(path):
+    elif len(path) >= 2 and path[1] == ":" and not os.path.exists(path):
         drive_letter = path[:2].upper()
         server_cfg = _cfg.get("server", "").strip()
         share_cfg = _cfg.get("share", "").strip()

@@ -160,6 +160,9 @@
               <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SET_COLUMN)">
                 <router-link to="/setting/column/audio-record" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Set Column</router-link>
               </li>
+              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SET_COLUMN)">
+                <router-link to="/setting/download-player" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Download Player</router-link>
+              </li>
             </ul>
           </div>
         </li>

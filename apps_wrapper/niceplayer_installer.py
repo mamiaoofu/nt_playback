@@ -722,7 +722,8 @@ class InstallerApp(tk.Tk):
             try:
                 write_config(smb_server, smb_share, smb_base, fields["niceplayer_exe"],
                              smb_username=smb_username, smb_password_plain=smb_password)
-                self.after(0, lambda: self._append_log(f"✓ Config written to {CONFIG_FILE}"))
+                self.after(0, lambda: self._append_log(f"✓ Config written to Success"))
+                # C:\ProgramData\niceplayer_wrapper\config.json
                 # Grant Modify permissions to the Users group so standard users can write to log/config
                 try:
                     subprocess.run(
