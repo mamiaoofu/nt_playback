@@ -27,6 +27,10 @@ class AudioInfo(models.Model):
     end_datetime = models.DateTimeField(auto_now=True, verbose_name='End DateTime')
     note = models.TextField(blank=True, verbose_name='Note', null=True)
     custom_field_1 = models.CharField(max_length=255, blank=True, verbose_name='Custom Field 1', null=True)
+    status = models.BooleanField(default=True, verbose_name='Status')
+    retention_date = models.DateTimeField(null=True, blank=True, verbose_name='Retention Date')
+    retention_task = models.ForeignKey('retention.RetentionTask', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Retention Task')
+    delete_option = models.CharField(max_length=50, null=True, blank=True, verbose_name='Delete Option')
     
     
     class Meta:

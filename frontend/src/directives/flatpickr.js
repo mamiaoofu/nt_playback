@@ -433,6 +433,12 @@ export default {
             try { applied = false } catch (e) {}
           }
         } catch (e) {}
+        try {
+          el._flatpickrSyncValue = (v) => {
+            lastAppliedValue = v
+            applied = true
+          }
+        } catch (e) {}
 
         const onActionClick = (ev) => {
           ev && ev.stopPropagation()
@@ -911,6 +917,19 @@ export default {
             try { clearStateFn() } catch (e) {}
           }
         }
+      } else {
+        const instance = el._flatpickrInstance
+        if (instance && String(newVal) !== String(el.value)) {
+          try {
+            instance.setDate(newVal, false)
+          } catch (e) {}
+          if (typeof el._flatpickrSyncValue === 'function') {
+            try { el._flatpickrSyncValue(newVal) } catch (e) {}
+          }
+          try {
+            el.parentNode && el.parentNode.classList.add('has-value')
+          } catch (e) {}
+        }
       }
     } catch (e) {}
   },
@@ -924,6 +943,7 @@ export default {
     delete el._flatpickr
     delete el._flatpickrDoClear
     try { delete el._flatpickrClearState } catch(e){}
+    try { delete el._flatpickrSyncValue } catch(e){}
     try { delete el._flatpickrActionCleanup } catch(e){}
     // If we replaced the element's `value` property, remove it so prototype
     // behaviour is restored.

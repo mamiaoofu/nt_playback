@@ -102,7 +102,8 @@ INSTALLED_APPS = [
     'apps.log_user',
     'apps.setting',
     'apps.ticket_history',
-    
+    'apps.retention',
+    'django_apscheduler',
 ]
 
 MIDDLEWARE = [

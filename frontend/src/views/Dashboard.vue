@@ -80,7 +80,7 @@
                   </div>
                 </div>
                 <div style="font-size: 14px; color: #334155; line-height: 1.6;">
-                  <div><strong>Driver:</strong> {{ stats.disk_info?.driver }}</div>
+                  <!-- <div><strong>Driver:</strong> {{ stats.disk_info?.driver }}</div> -->
                   <div><strong>Total:</strong> {{ stats.disk_info?.total }}</div>
                   <div><strong>Used:</strong> {{ stats.disk_info?.used }}</div>
                   <div><strong>Free:</strong> <span class="text-success fw-bold">{{ stats.disk_info?.free }}</span></div>

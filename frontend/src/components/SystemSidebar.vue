@@ -55,11 +55,40 @@
               <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Mail settings</span>
             </router-link>
           </li>
+          <li>
+            <router-link to="/system-tool/retention" class="sub-link">
+              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Retention</span>
+            </router-link>
+          </li>
           <!-- <li>
             <router-link to="/system-tool/nice-player" class="sub-link">
               <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Nice player</span>
             </router-link>
           </li> -->
+        </ul>
+      </li>
+      <li class="icon-item config-item" :class="{ 'expanded-item': isExpanded }">
+        <div class="icon-link" :class="{ 'router-link-active': isRetentionActive }" @click="toggleRetentionMenu" style="cursor: pointer;">
+          <i class="fa-solid fa-database icon-part"></i>
+          <span v-if="isExpanded" class="text-part">Data Retention</span>
+          <i v-if="isExpanded" class="fa-solid fa-chevron-down toggle-icon" :class="{ 'rotated': isRetentionExpanded }"></i>
+        </div>
+        <ul v-if="isExpanded && isRetentionExpanded" class="sub-menu">
+          <li>
+            <router-link to="/system-tool/data-retention/create" class="sub-link">
+              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Data Retention</span>
+            </router-link>
+          </li>
+          <!-- <li>
+            <router-link to="/system-tool/data-retention/create?scroll=tasks" class="sub-link">
+              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Task List</span>
+            </router-link>
+          </li> -->
+          <li>
+            <router-link to="/system-tool/data-retention/logs" class="sub-link">
+              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Log Retention</span>
+            </router-link>
+          </li>
         </ul>
       </li>
     </ul>
@@ -81,17 +110,27 @@ const isConfigActive = computed(() => {
     '/system-tool/active-directory',
     '/system-tool/network-share',
     '/system-tool/mail-settings',
-    '/system-tool/nice-player'
+    '/system-tool/nice-player',
+    '/system-tool/retention'
   ];
   return activePaths.includes(route.path);
 });
 
 const isConfigExpanded = ref(isConfigActive.value);
 
+const isRetentionActive = computed(() => {
+  return route.path.startsWith('/system-tool/data-retention');
+});
+
+const isRetentionExpanded = ref(isRetentionActive.value);
+
 import { watch } from 'vue';
 watch(route, () => {
   if (isConfigActive.value && isExpanded.value) {
     isConfigExpanded.value = true;
+  }
+  if (isRetentionActive.value && isExpanded.value) {
+    isRetentionExpanded.value = true;
   }
 });
 
@@ -99,6 +138,7 @@ const toggleSidebar = () => {
   isExpanded.value = !isExpanded.value;
   if (!isExpanded.value) {
     isConfigExpanded.value = false;
+    isRetentionExpanded.value = false;
   }
   emit('toggle', isExpanded.value);
 };
@@ -110,6 +150,16 @@ const toggleConfigMenu = () => {
     isConfigExpanded.value = true;
   } else {
     isConfigExpanded.value = !isConfigExpanded.value;
+  }
+};
+
+const toggleRetentionMenu = () => {
+  if (!isExpanded.value) {
+    isExpanded.value = true;
+    emit('toggle', true);
+    isRetentionExpanded.value = true;
+  } else {
+    isRetentionExpanded.value = !isRetentionExpanded.value;
   }
 };
 </script>

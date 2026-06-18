@@ -41,6 +41,7 @@ urlpatterns = [
     path('', include('apps.log_user.urls')),
     path('', include('apps.setting.urls')),
     path('', include('apps.ticket_history.urls')),
+    path('api/v1/retention/', include('apps.retention.urls')),
     
 ]
 

@@ -26,7 +26,11 @@ const routes = [
 	{ path: '/system-tool/active-directory', name: 'ActiveDirectoryConfig', component: () => import('../views/ActiveDirectoryConfig.vue') },
 	{ path: '/system-tool/network-share', name: 'NetworkShareConfig', component: () => import('../views/NetworkShareConfig.vue') },
 	{ path: '/system-tool/mail-settings', name: 'MailSettingsConfig', component: () => import('../views/MailSettingsConfig.vue') },
+	{ path: '/system-tool/retention', name: 'RetentionConfig', component: () => import('../views/RetentionConfig.vue') },
 	// { path: '/system-tool/nice-player', name: 'NicePlayerConfig', component: () => import('../views/NicePlayerConfig.vue') },
+	{ path: '/system-tool/data-retention/create', name: 'CreateRetention', component: () => import('../views/DataRetention/CreateRetention.vue') },
+	{ path: '/system-tool/data-retention/tasks', redirect: '/system-tool/data-retention/create' },
+	{ path: '/system-tool/data-retention/logs', name: 'LogRetention', component: () => import('../views/DataRetention/LogRetention.vue') },
     { path: '/denied', name: 'Denied', component: () => import('../views/Denied.vue') },
 	{ path: '/:pathMatch(.*)*', name: 'NotFound', component: () => import('../views/NotFound.vue') },
 ]
