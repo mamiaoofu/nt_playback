@@ -927,11 +927,14 @@ label {
 .col-type {
   width: 12%;
   flex-shrink: 0;
+  font-size: 11px;
 }
 
 .col-count {
   width: 10%;
   flex-shrink: 0;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .col-time {
@@ -942,11 +945,15 @@ label {
 .col-user {
   width: 11%;
   flex-shrink: 0;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .col-date {
   width: 15%;
   flex-shrink: 0;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .col-status {
