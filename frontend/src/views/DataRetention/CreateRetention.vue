@@ -835,7 +835,7 @@ label {
   border-bottom: 2px solid #e2e8f0;
   font-weight: 600;
   color: #64748b;
-  font-size: 11px;
+  font-size: 16px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 8px;
@@ -913,49 +913,49 @@ label {
 .col-no {
   width: 4%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-id {
   width: 12%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-type {
   width: 12%;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 14px !important;
 }
 
 .col-count {
   width: 10%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-time {
   width: 18%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-user {
   width: 11%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-date {
   width: 15%;
   flex-shrink: 0;
-  font-family: monospace;
-  font-size: 11px;
+  
+  font-size: 14px !important;
 }
 
 .col-status {
@@ -963,6 +963,7 @@ label {
   flex-shrink: 0;
   display: flex;
   justify-content: flex-start;
+  font-size: 14px !important;
 }
 
 .col-action {
@@ -970,6 +971,7 @@ label {
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
+  font-size: 14px !important;
 }
 
 .empty-state {
