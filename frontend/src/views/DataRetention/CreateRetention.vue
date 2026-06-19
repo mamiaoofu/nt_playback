@@ -940,6 +940,8 @@ label {
 .col-time {
   width: 18%;
   flex-shrink: 0;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .col-user {
