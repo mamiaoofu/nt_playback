@@ -333,12 +333,12 @@
                         <i class="fas fa-undo" style="font-size: 10px;"></i>
                       </button>
                       
-                      <template v-if="config && config.is_active && row.task_type === 'AUTO_EXECUTION'">
+                      <template v-if="row.task_type === 'AUTO_EXECUTION'">
                         <button v-if="row.status === 'STOPPED'"
                           type="button" class="group-send-btn" @click.stop="startTask(row.id)">
                           <i class="fas fa-play" style="font-size: 10px;"></i>
                         </button>
-                        <button v-if="row.status === 'READY'"
+                        <button v-if="row.status === 'READY' || row.status === 'RUNNING'"
                           type="button" class="group-delete-btn" @click.stop="stopTask(row.id)">
                           <i class="fas fa-stop" style="font-size: 10px;"></i>
                         </button>
