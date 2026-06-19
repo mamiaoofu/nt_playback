@@ -761,6 +761,10 @@ const stopTask = async (taskId) => {
 @import "../../assets/css/user-form.css";
 @import "../../assets/css/user-management.css";
 
+label {
+  font-size: 13px !important;
+}
+
 .role-badge.ready { background: #e0f2fe; color: #0369a1; }
 .role-badge.running { background: #dbeafe; color: #1e40af; }
 .role-badge.stopped { background: #f1f5f9; color: #475569; }
@@ -909,15 +913,15 @@ const stopTask = async (taskId) => {
 .col-no {
   width: 4%;
   flex-shrink: 0;
-  font-weight: 600;
-  color: #64748b;
+  font-family: monospace;
+  font-size: 11px;
 }
 
 .col-id {
   width: 12%;
   flex-shrink: 0;
   font-family: monospace;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .col-type {
