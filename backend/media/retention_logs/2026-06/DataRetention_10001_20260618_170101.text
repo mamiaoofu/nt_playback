@@ -2,24 +2,3 @@
 
 # Source Storage: Nice Engage 6.15
 test.mp3
-
-
-อยากให้แก้ไขคอลั่มที่แสดงบน task list ดังนี้
-
-Retention ID	{เลข ID ของ Retention}
-Index Count	{จำนวน index ที่ทำ }
-Retention Period	{over xx days/months/years หรือ start date & time - end date & time}
-Runing Date	{Date & Time ที่จะ run ถ้าเป็น schedule หลัง run เสร็จ ก็จะแทนที่ด้วยวันที่จะ run ในรอบถัดไป }
-Status	ตามเดิม
-Action	ตามเดิม
-
-
-เช่น 
-
-สมมติตั้ง Run on a Schedule : วันนี้ 19/06/2025
-How often : Monthly
-What day : 1
-What time : 17:00
-
-ถ้าตั้ง schedule แปลว่า Runing Date คือ  20/06/2025 17:00 แล้วถ้าผู้ใช้ เลือก Recurrence แปลว่าถ้าครบรอบ schedule ก็ให้มันอัพเดทไปเรื่อยๆ
-
