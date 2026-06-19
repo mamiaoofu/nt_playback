@@ -292,11 +292,9 @@
           <div class="retention-header-row">
             <div class="col-no">No.</div>
             <div class="col-id">Retention ID</div>
-            <div class="col-type">Type</div>
-            <div class="col-count">Index count</div>
-            <div class="col-time">Time</div>
-            <div class="col-user">User create</div>
-            <div class="col-date">Date update</div>
+            <div class="col-count">Index Count</div>
+            <div class="col-time">Retention Period</div>
+            <div class="col-date">Running Date</div>
             <div class="col-status">Status</div>
             <div class="col-action">Action</div>
           </div>
@@ -309,16 +307,12 @@
             </div>
             <template v-else>
               <div v-if="filteredTasks.length" class="retention-list-wrapper">
-                <div v-for="(row, idx) in filteredTasks" :key="row.id" class="custom-role-item">
+                <div v-for="(row, idx) in filteredTasks" :key="row.id" class="custom-role-item" @click="showTaskDetails(row)">
                   <div class="col-no">{{ idx + 1 }}</div>
                   <div class="col-id text-truncate" :title="row.id">{{ row.id }}</div>
-                  <div class="col-type">
-                    {{ row.task_type === 'AUTO_EXECUTION' ? 'Schedule' : row.task_type === 'MANUAL' ? 'Immediately' : row.task_type }}
-                  </div>
                   <div class="col-count">{{ row.index_count }}</div>
-                  <div class="col-time text-truncate" :title="row.time_period">{{ row.time_period }}</div>
-                  <div class="col-user text-truncate" :title="row.user_create">{{ row.user_create }}</div>
-                  <div class="col-date">{{ formatDate(row.updated_at) }}</div>
+                  <div class="col-time text-truncate" :title="row.time_period">{{ formatRetentionPeriod(row.time_period) }}</div>
+                  <div class="col-date text-truncate" :title="getRunningDate(row)">{{ getRunningDate(row) }}</div>
                   <div class="col-status">
                     <span class="role-badge" :class="row.status.toLowerCase()">
                       {{ row.status === 'SUCCESS' ? 'Permanent Delete' : row.status }}
@@ -389,6 +383,95 @@
       </div>
     </div>
 
+    <!-- Task Detail Modal -->
+    <div v-if="showDetailModal && selectedTask" class="modal-backdrop" @click.self="showDetailModal = false" style="z-index: 2000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center;">
+      <div class="modal-box" style="max-width: 500px; width: 100%;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div class="blue-icon" style="width: 35px; height: 35px; background-color: #D9E2F6; border-radius: 10px !important; display: flex; align-items: center; justify-content: center;">
+              <i class="fa-solid fa-circle-info" style="color: #2b6cb0;"></i>
+            </div>
+            <h3 class="modal-title ad" style="font-size: 16px; font-weight: 600; margin: 0;">Task Detail</h3>
+          </div>
+          <button type="button" class="btn-close" @click="showDetailModal = false" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 24px; max-height: 70vh; overflow-y: auto;">
+          <div class="detail-grid" style="display: flex; flex-direction: column; gap: 14px;">
+            
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Retention ID</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ selectedTask.id }}</div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Action</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ selectedTask.delete_option === 'INDEX_ONLY' ? 'Only Indexs' : selectedTask.delete_option === 'VOICE_AND_INDEX' ? 'Indexs & Voice Files' : selectedTask.delete_option }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Retention Type</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ selectedTask.task_type === 'AUTO_EXECUTION' ? 'Schedule' : selectedTask.task_type === 'MANUAL' ? 'Immediately' : selectedTask.task_type }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; align-items: center;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Status</div>
+              <div class="detail-value">
+                <span class="role-badge" :class="selectedTask.status.toLowerCase()">
+                  {{ selectedTask.status === 'SUCCESS' ? 'Permanent Delete' : selectedTask.status }}
+                </span>
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Retention Period</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ formatRetentionPeriod(selectedTask.time_period) }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Times</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ selectedTask.task_type === 'MANUAL' ? 'Once' : (config && config.is_once ? 'Once' : 'Recurrence') }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Index Count</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ selectedTask.index_count }}</div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Running Date</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ getRunningDate(selectedTask) }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Created By</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ selectedTask.user_create }}</div>
+            </div>
+
+            <div class="detail-row" style="display: flex; padding-bottom: 4px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Created Date</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ formatDate(selectedTask.created_at) }}</div>
+            </div>
+
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 12px 24px; border-top: 1px solid rgba(0,0,0,0.06); display: flex; justify-content: flex-end;">
+          <button class="btn btn-secondary btn-sm" style="border-radius: 20px; padding: 6px 16px; font-size: 12px; margin-top: 0;" @click="showDetailModal = false">
+            <i class="fas fa-times"></i> Close
+          </button>
+        </div>
+      </div>
+    </div>
+
 
   </MainLayout>
 </template>
@@ -436,6 +519,124 @@ const passwordAction = ref('');
 const isConfigRunning = ref(false);
 
 const taskToRestore = ref(null);
+
+const showDetailModal = ref(false);
+const selectedTask = ref(null);
+
+const showTaskDetails = (task) => {
+  selectedTask.value = task;
+  showDetailModal.value = true;
+};
+
+const formatRetentionPeriod = (timePeriod) => {
+  if (!timePeriod) return '-';
+  if (timePeriod.startsWith('Older than ')) {
+    return timePeriod.replace('Older than ', 'over ');
+  }
+  return timePeriod;
+};
+
+const calculateNextRun = (task, configVal) => {
+  if (!task || task.task_type === 'MANUAL') {
+    return '-';
+  }
+  if (task.status === 'STOPPED') {
+    return 'Stopped';
+  }
+  if (!configVal) {
+    return 'Loading...';
+  }
+  if (!configVal.is_active) {
+    return 'Stopped';
+  }
+  
+  const timeStr = configVal.execution_time || '01:00:00';
+  const [execHour, execMinute] = timeStr.split(':').map(Number);
+  
+  const now = new Date();
+  
+  let lastExecutedToday = false;
+  if (task.executed_at) {
+    const execDate = new Date(task.executed_at);
+    if (execDate.getFullYear() === now.getFullYear() &&
+        execDate.getMonth() === now.getMonth() &&
+        execDate.getDate() === now.getDate()) {
+      lastExecutedToday = true;
+    }
+  }
+  
+  let candidate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), execHour, execMinute, 0, 0);
+  
+  if (candidate <= now || lastExecutedToday) {
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  
+  const howOften = configVal.how_often || 'daily';
+  const whatDay = configVal.what_day;
+  
+  for (let i = 0; i < 400; i++) {
+    const year = candidate.getFullYear();
+    const month = candidate.getMonth();
+    const day = candidate.getDate();
+    const dayOfWeekName = candidate.toLocaleDateString('en-US', { weekday: 'long' });
+    
+    let matches = false;
+    
+    if (howOften === 'daily') {
+      matches = true;
+    } else if (howOften === 'weekly') {
+      if (whatDay && dayOfWeekName.toLowerCase() === whatDay.toLowerCase()) {
+        matches = true;
+      }
+    } else if (howOften === 'monthly') {
+      if (whatDay) {
+        if (/^\d+$/.test(whatDay)) {
+          const targetDay = parseInt(whatDay, 10);
+          const lastDayInMonth = new Date(year, month + 1, 0).getDate();
+          const effectiveTarget = Math.min(targetDay, lastDayInMonth);
+          if (day === effectiveTarget) {
+            matches = true;
+          }
+        } else {
+          if (dayOfWeekName.toLowerCase() === whatDay.toLowerCase() && day <= 7) {
+            matches = true;
+          }
+        }
+      }
+    } else if (howOften === 'yearly') {
+      if (month === 0 && whatDay) {
+        if (/^\d+$/.test(whatDay)) {
+          const targetDay = parseInt(whatDay, 10);
+          const lastDayInMonth = new Date(year, 1, 0).getDate();
+          const effectiveTarget = Math.min(targetDay, lastDayInMonth);
+          if (day === effectiveTarget) {
+            matches = true;
+          }
+        } else {
+          if (dayOfWeekName.toLowerCase() === whatDay.toLowerCase() && day <= 7) {
+            matches = true;
+          }
+        }
+      }
+    }
+    
+    if (matches) {
+      return formatDate(candidate);
+    }
+    
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  
+  return '-';
+};
+
+const getRunningDate = (task) => {
+  if (!task) return '-';
+  if (task.task_type === 'MANUAL') {
+    return formatDate(task.created_at);
+  }
+  return calculateNextRun(task, config.value);
+};
 
 const howOftenOptions = [
   { label: 'Daily', value: 'daily' },
@@ -901,7 +1102,7 @@ label {
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   transition: all 0.2s;
-  cursor: default;
+  cursor: pointer;
 }
 
 .custom-role-item:hover {
@@ -913,53 +1114,35 @@ label {
 .col-no {
   width: 4%;
   flex-shrink: 0;
-  
   font-size: 14px !important;
 }
 
 .col-id {
-  width: 12%;
-  flex-shrink: 0;
-  
-  font-size: 14px !important;
-}
-
-.col-type {
-  width: 12%;
+  width: 15%;
   flex-shrink: 0;
   font-size: 14px !important;
 }
 
 .col-count {
-  width: 10%;
+  width: 12%;
   flex-shrink: 0;
-  
   font-size: 14px !important;
 }
 
 .col-time {
-  width: 18%;
+  width: 23%;
   flex-shrink: 0;
-  
-  font-size: 14px !important;
-}
-
-.col-user {
-  width: 11%;
-  flex-shrink: 0;
-  
   font-size: 14px !important;
 }
 
 .col-date {
-  width: 15%;
+  width: 18%;
   flex-shrink: 0;
-  
   font-size: 14px !important;
 }
 
 .col-status {
-  width: 8%;
+  width: 13%;
   flex-shrink: 0;
   display: flex;
   justify-content: flex-start;
@@ -967,7 +1150,7 @@ label {
 }
 
 .col-action {
-  width: 10%;
+  width: 15%;
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
