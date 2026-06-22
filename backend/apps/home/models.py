@@ -56,17 +56,39 @@ class SetColumnAudioRecord(models.Model):
 class FileStorageConfig(models.Model):
     name = models.CharField( max_length=255,verbose_name='type',null=False,blank=False)
     protocol = models.CharField( max_length=255,verbose_name='key_username',null=False,blank=False)
-    host = models.CharField( max_length=255,verbose_name='key_password',null=False,blank=False)
-    share_name = models.CharField( max_length=255,verbose_name='secret_key',null=True,blank=True) 
-    base_path = models.CharField( max_length=255,verbose_name='base_path',null=True,blank=True)
+    network_path = models.CharField(max_length=512, verbose_name='Network Path', null=True, blank=True)
     is_active = models.IntegerField(verbose_name='is_active',null=True,blank=True)
     smb_username = models.CharField(max_length=255, verbose_name='smb_username', null=True, blank=True)
     # Password stored as SHA-256 hex digest (64 chars). Never stored as plaintext.
     smb_password = models.CharField(max_length=255, verbose_name='smb_password', null=True, blank=True)
+    main_db = models.ForeignKey(
+        'authorize.MainDatabase', 
+        on_delete=models.CASCADE, 
+        db_column='maindatabase_id', 
+        null=True, 
+        blank=True, 
+        verbose_name='Main Database'
+    )
 
     class Meta:
         db_table = 'file_storage_config'
         verbose_name = 'File Storage Config'
+
+    def get_password(self):
+        from apps.core.utils.smb_crypto import decrypt_smb_password, is_encrypted
+        if self.smb_password and is_encrypted(self.smb_password):
+            try:
+                return decrypt_smb_password(self.smb_password)
+            except Exception as exc:
+                raise RuntimeError(f'Unable to decrypt stored smb password: {exc}') from exc
+        return self.smb_password
+
+    def set_password(self, raw_password):
+        from apps.core.utils.smb_crypto import encrypt_smb_password
+        if raw_password:
+            self.smb_password = encrypt_smb_password(raw_password)
+        else:
+            self.smb_password = None
 
 # class PlaybackLog(models.Model):
 #     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='User')

@@ -1175,10 +1175,10 @@ def ApiChangePassword(request):
         except Exception:
             pass
 
-        create_user_log(user=request.user, action="Change Password", detail=f"Successfully changed password for user: {user.username}", status="success", request=request)
+        create_user_log(user=request.user, action="User Change Password", detail=f"User Profile Name : {user.username}", status="success", request=request)
         return JsonResponse({'status': 'success', 'message': 'Password changed successfully.'})
     except Exception as e:
-        create_user_log(user=request.user, action="Change Password", detail=f"Failed to change password for user: {user.username}", status="error", request=request, exception=e)
+        create_user_log(user=request.user, action="User Change Password", detail=f"Failed to User Change Password for user: {user.username}", status="error", request=request, exception=e)
         return JsonResponse({'status': 'error', 'message': f'An error occurred: {str(e)}'})
 
 @login_required(login_url='/login')

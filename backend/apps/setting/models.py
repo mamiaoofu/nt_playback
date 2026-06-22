@@ -30,33 +30,6 @@ class ActiveDirectorySetting(models.Model):
         return f"AD Config: {self.domain}"
 
 
-class NetworkShareSetting(models.Model):
-    host = models.CharField(max_length=255, default='192.168.1.90', verbose_name='SMB Share Host')
-    share = models.CharField(max_length=255, default='Users', verbose_name='SMB Share Name')
-    user = models.CharField(max_length=255, default='Administrator', verbose_name='SMB Share User')
-    password = models.CharField(max_length=255, blank=True, null=True, verbose_name='SMB Share Password (Encrypted)')
-    client_name = models.CharField(max_length=255, default='nt_playback', verbose_name='SMB Client Name')
-
-    class Meta:
-        db_table = 'tb_setting_network_share'
-        verbose_name = 'Network Share Setting'
-
-    def get_password(self):
-        if self.password and is_encrypted(self.password):
-            try:
-                return decrypt_smb_password(self.password)
-            except Exception as exc:
-                raise RuntimeError(f'Unable to decrypt stored network share password: {exc}') from exc
-        return self.password
-
-    def set_password(self, raw_password):
-        if raw_password:
-            self.password = encrypt_smb_password(raw_password)
-        else:
-            self.password = None
-
-    def __str__(self):
-        return f"Network Share Config: {self.host}"
 
 
 class MailSetting(models.Model):

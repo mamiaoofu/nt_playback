@@ -175,45 +175,111 @@ def ApiActiveDirectorySetting(request):
 @require_action(PermissionIDs.SETTING_ACCESS)
 def ApiNetworkShareSetting(request):
     try:
-        from apps.setting.models import NetworkShareSetting
-        config = NetworkShareSetting.objects.first()
-        if not config:
-            config = NetworkShareSetting()
+        from apps.home.models import FileStorageConfig
+        from apps.core.model.authorize.models import MainDatabase
+        from django.db.models import Q
 
         if request.method == 'GET':
+            search_query = request.GET.get('search', '').strip()
+            
+            # Fetch all storage configs
+            configs_query = FileStorageConfig.objects.all().select_related('main_db')
+            if search_query:
+                configs_query = configs_query.filter(
+                    Q(network_path__icontains=search_query) |
+                    Q(smb_username__icontains=search_query) |
+                    Q(main_db__database_name__icontains=search_query)
+                )
+                
+            data_list = []
+            for config in configs_query:
+                data_list.append({
+                    'id': config.id,
+                    'networkPath': config.network_path or '',
+                    'username': config.smb_username or '',
+                    'password': '******' if config.smb_password else '',
+                    'isActive': bool(config.is_active),
+                    'mainDbId': config.main_db_id,
+                    'mainDbName': config.main_db.database_name if config.main_db else 'Default / Unassigned'
+                })
+                
+            # Fetch all main databases for the dropdown
+            db_list = list(MainDatabase.objects.filter(status=True).values('id', 'database_name'))
+            
             return JsonResponse({
                 'status': 'success',
-                'data': {
-                    'host': config.host,
-                    'shareName': config.share,
-                    'username': config.user,
-                    'password': '******' if config.password else '',
-                    'clientName': config.client_name
-                }
+                'data': data_list,
+                'databases': db_list
             })
 
         elif request.method == 'POST':
             data = json.loads(request.body)
-            with transaction.atomic():
-                db_config, created = NetworkShareSetting.objects.get_or_create(id=1)
-                db_config.host = data.get('host', '').strip()
-                db_config.share = data.get('shareName', '').strip()
-                db_config.user = data.get('username', '').strip()
-                db_config.client_name = data.get('clientName', 'nt_playback').strip() or 'nt_playback'
+            action = data.get('action', '').strip()
+            
+            if action == 'delete':
+                record_id = data.get('id')
+                config = FileStorageConfig.objects.filter(id=record_id).first()
+                if config:
+                    path = config.network_path
+                    config.delete()
+                    create_user_log(user=request.user, action="Delete Network Share", detail=f"Deleted storage config: {path}", status="success", request=request)
+                    return JsonResponse({'status': 'success', 'message': 'Network share configuration deleted successfully.'})
+                return JsonResponse({'status': 'error', 'message': 'Configuration not found.'}, status=404)
                 
+            elif action == 'toggle_active':
+                record_id = data.get('id')
+                config = FileStorageConfig.objects.filter(id=record_id).first()
+                if config:
+                    config.is_active = 1 if not config.is_active else 0
+                    config.save()
+                    create_user_log(user=request.user, action="Toggle Network Share Active State", detail=f"Toggled active state of storage config: {config.network_path} to {config.is_active}", status="success", request=request)
+                    return JsonResponse({'status': 'success', 'message': 'Network share status updated successfully.'})
+                return JsonResponse({'status': 'error', 'message': 'Configuration not found.'}, status=404)
+                
+            elif action in ('create', 'update'):
+                record_id = data.get('id')
+                network_path = data.get('networkPath', '').strip()
+                username = data.get('username', '').strip()
                 password = data.get('password', '')
-                if password and password != '******':
-                    db_config.set_password(password)
-                elif not password:
-                    db_config.password = None
+                main_db_id = data.get('mainDbId')
+                is_active = data.get('isActive', True)
                 
-                db_config.save()
-
-            create_user_log(user=request.user, action="Update Network Share Config", detail="Updated Network Share settings in DB", status="success", request=request)
-            return JsonResponse({'status': 'success', 'message': 'Network share settings updated successfully.'})
+                if not network_path:
+                    return JsonResponse({'status': 'error', 'message': 'Network Path is required.'}, status=400)
+                
+                with transaction.atomic():
+                    if action == 'create':
+                        config = FileStorageConfig(name='smb_config', protocol='smb')
+                    else:
+                        config = FileStorageConfig.objects.filter(id=record_id).first()
+                        if not config:
+                            return JsonResponse({'status': 'error', 'message': 'Configuration not found.'}, status=404)
+                            
+                    config.network_path = network_path
+                    config.smb_username = username
+                    config.is_active = 1 if is_active else 0
+                    
+                    if main_db_id:
+                        config.main_db_id = main_db_id
+                    else:
+                        config.main_db_id = None
+                        
+                    if password and password != '******':
+                        config.set_password(password)
+                    elif not password:
+                        config.smb_password = None
+                        
+                    config.save()
+                    
+                log_detail = f"{'Created' if action == 'create' else 'Updated'} Network Share settings: {network_path}"
+                create_user_log(user=request.user, action="Save Network Share Config", detail=log_detail, status="success", request=request)
+                return JsonResponse({'status': 'success', 'message': 'Network share settings saved successfully.'})
+                
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Invalid action.'}, status=400)
 
     except Exception as e:
-        create_user_log(user=request.user, action="Update Network Share Config", detail=str(e), status="error", request=request)
+        create_user_log(user=request.user, action="Network Share Config Error", detail=str(e), status="error", request=request)
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 

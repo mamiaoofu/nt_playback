@@ -173,6 +173,10 @@ def ApiSendShareEmail(request):
         if errors:
             return JsonResponse({'ok': False, 'errors': errors}, status=500)
 
+        ticket_code = data.get('ticketCode') or data.get('ticket_code')
+        if ticket_code:
+            create_user_log(user=request.user, action="Ticket Send Mail", detail=f"Ticket ID : {ticket_code}", status="success", request=request)
+
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
@@ -1067,6 +1071,247 @@ def _log_voice_download(request, file_name, status='success', error=None):
         pass
 
 
+def parse_network_path(network_path):
+    if not network_path:
+        return {'host': '', 'share': '', 'base_path': ''}
+    # Normalize slashes
+    path = network_path.replace('/', '\\')
+    if not path.startswith('\\\\'):
+        return {'host': '', 'share': '', 'base_path': ''}
+    parts = [p for p in path[2:].split('\\') if p]
+    if len(parts) == 0:
+        return {'host': '', 'share': '', 'base_path': ''}
+    elif len(parts) == 1:
+        return {'host': parts[0], 'share': '', 'base_path': ''}
+    else:
+        return {
+            'host': parts[0],
+            'share': parts[1],
+            'base_path': '/'.join(parts[2:])
+        }
+
+
+def parse_unc_path(unc_path):
+    if not unc_path:
+        return None
+    path = unc_path.replace('/', '\\')
+    if not path.startswith('\\\\'):
+        return None
+    
+    parts = [p for p in path[2:].split('\\') if p]
+    if len(parts) < 2:
+        return None
+        
+    server = parts[0]
+    share = parts[1]
+    rel_path = '/'.join(parts[2:])
+    return {
+        'server': server,
+        'share': share,
+        'rel_path': rel_path
+    }
+
+
+def retrieve_file_from_smb(server, share, rel_path, smb_user, smb_pass):
+    import tempfile
+    import os
+    from smb.SMBConnection import SMBConnection
+    
+    client_name = 'nt_playback_client'
+    conn = SMBConnection(smb_user, smb_pass, client_name, server, use_ntlm_v2=True, is_direct_tcp=True)
+    connected = conn.connect(server, 445, timeout=10)
+    if not connected:
+        raise Exception(f"Failed to connect to SMB server {server}")
+        
+    try:
+        tmp_fd, tmp_path = tempfile.mkstemp(suffix='_' + os.path.basename(rel_path))
+        os.close(tmp_fd)
+        with open(tmp_path, 'wb') as f:
+            conn.retrieveFile(share, rel_path.lstrip('/\\'), f)
+        return tmp_path
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def get_smb_relative_path(file_path, base_path):
+    import re
+    path = file_path.replace('\\', '/')
+    if path.startswith('//'):
+        parts = [p for p in path[2:].split('/') if p]
+        if len(parts) >= 2:
+            rel = '/'.join(parts[2:])
+            return rel
+            
+    drive_match = re.match(r'^([A-Za-z]):/', path)
+    if drive_match:
+        rel = path[3:]
+    else:
+        rel = path.lstrip('/')
+        
+    if base_path:
+        base_clean = base_path.replace('\\', '/').strip('/')
+        rel_clean = rel.strip('/')
+        if base_clean:
+            if not rel_clean.startswith(base_clean):
+                rel = base_clean + '/' + rel_clean
+            else:
+                rel = rel_clean
+    return rel
+
+
+def retrieve_audio_file_via_smb(main_db_id, file_path, temp_files):
+    from apps.home.models import FileStorageConfig
+    
+    config = None
+    if main_db_id:
+        config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
+        if not config:
+            config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+            
+    if not config:
+        config = FileStorageConfig.objects.filter(is_active=1).first()
+        if not config:
+            config = FileStorageConfig.objects.first()
+            
+    if not config:
+        return None, "No storage configuration found in FileStorageConfig table."
+        
+    parsed = parse_network_path(config.network_path)
+    server = parsed['host']
+    share = parsed['share']
+    base_path = parsed['base_path']
+    smb_user = config.smb_username
+    smb_pass = config.get_password()
+    
+    rel_path = get_smb_relative_path(file_path, base_path)
+    
+    try:
+        tmp_path = retrieve_file_from_smb(
+            server=server,
+            share=share,
+            rel_path=rel_path,
+            smb_user=smb_user,
+            smb_pass=smb_pass
+        )
+        temp_files.append(tmp_path)
+        return tmp_path, None
+    except Exception as e:
+        return None, f"Failed to retrieve file from SMB share ({server}/{share}/{rel_path}): {str(e)}"
+
+
+def resolve_and_fetch_if_unc(path, temp_files):
+    if not path:
+        return path, None
+    import os
+    is_unc = path.startswith('\\\\') or path.startswith('//')
+    if not is_unc:
+        if not os.path.exists(path):
+            return None, f"File not found at provided path: {path}"
+        return path, None
+        
+    unc_info = parse_unc_path(path)
+    if not unc_info:
+        return None, f"Malformed UNC path: {path}"
+        
+    from apps.core.model.audio.models import AudioFile, AudioInfo
+    from apps.home.models import FileStorageConfig
+    
+    main_db_id = None
+    audio_file = AudioFile.objects.filter(file_path=path).first()
+    if not audio_file:
+        base_name = os.path.basename(path)
+        audio_file = AudioFile.objects.filter(file_name=base_name).first()
+        
+    if audio_file:
+        audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
+        if audio_info:
+            main_db_id = audio_info.main_db_id
+            
+    config = None
+    if main_db_id:
+        config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
+        if not config:
+            config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+            
+    if not config:
+        config = FileStorageConfig.objects.filter(is_active=1).first()
+        if not config:
+            config = FileStorageConfig.objects.first()
+            
+    if not config:
+        return None, "No storage configuration found in FileStorageConfig."
+        
+    smb_user = config.smb_username
+    smb_pass = config.get_password()
+    
+    try:
+        tmp_path = retrieve_file_from_smb(
+            server=unc_info['server'],
+            share=unc_info['share'],
+            rel_path=unc_info['rel_path'],
+            smb_user=smb_user,
+            smb_pass=smb_pass
+        )
+        temp_files.append(tmp_path)
+        return tmp_path, None
+    except Exception as e:
+        return None, f"Failed to retrieve file from SMB share: {str(e)}"
+
+
+def map_host_to_container_path(path):
+    if not path:
+        return path
+    from django.conf import settings
+    import os
+    
+    path_norm = os.path.normpath(path)
+    path_norm_lower = path_norm.lower()
+    
+    try:
+        mappings = getattr(settings, 'HOST_TO_CONTAINER_MAPPINGS', {}) or {}
+        if mappings:
+            for host_prefix in sorted(mappings.keys(), key=lambda x: -len(x)):
+                host_prefix_norm = os.path.normpath(str(host_prefix))
+                host_prefix_norm_lower = host_prefix_norm.lower()
+                
+                if path_norm_lower.startswith(host_prefix_norm_lower):
+                    container_prefix = mappings[host_prefix]
+                    rel = path_norm[len(host_prefix_norm):].lstrip('\\/')
+                    if container_prefix.startswith('\\\\') or container_prefix.startswith('//'):
+                        rel_unc = rel.replace('/', '\\')
+                        mapped = container_prefix + ('\\' if not container_prefix.endswith('\\') else '') + rel_unc
+                        print(f"Mapped host path '{path_norm}' -> UNC path '{mapped}'")
+                        return mapped
+                    else:
+                        rel_unix = rel.replace('\\', '/')
+                        mapped = os.path.join(container_prefix, rel_unix).replace('\\', '/')
+                        print(f"Mapped host path '{path_norm}' -> container path '{mapped}'")
+                        return mapped
+    except Exception as e:
+        print(f"Error mapping host to container path: {e}")
+        
+    import re
+    drive_match = re.match(r'^([A-Za-z]):\\', path_norm)
+    if not drive_match:
+        drive_match = re.match(r'^([A-Za-z]):/', path_norm)
+
+    if drive_match:
+        drive_letter = drive_match.group(1).lower()
+        rel = path_norm[3:].lstrip('\\/')
+        rel_unix = rel.replace('\\', '/')
+        if os.path.exists('/host_mnt/host'):
+            mapped = f"/host_mnt/host/{drive_letter}/{rel_unix}"
+        else:
+            mapped = f"/host_mnt/{drive_letter}/{rel_unix}"
+        print(f"Dynamic mapped drive '{drive_letter}' path '{path_norm}' -> container path '{mapped}'")
+        return mapped
+
+    return path_norm
+
+
 @login_required(login_url='/login')
 def ApiGetStorageConfig(request):
     """
@@ -1078,10 +1323,12 @@ def ApiGetStorageConfig(request):
         config = FileStorageConfig.objects.filter(is_active=1).first()
         if not config:
             return JsonResponse({'error': 'No active storage configuration found.'}, status=404)
+        
+        parsed = parse_network_path(config.network_path)
         return JsonResponse({
-            'host': config.host,
-            'share': config.share_name,
-            'base_path': config.base_path or '',
+            'host': parsed['host'],
+            'share': parsed['share'],
+            'base_path': parsed['base_path'],
         })
     except Exception as e:
         create_user_log(user=request.user, action="Get Storage Config", detail={"error": str(e)}, status="error", request=request)
@@ -1093,16 +1340,8 @@ def ApiGetStorageConfig(request):
 def ApiInstallerConfig(request):
     """
     Return full SMB config (including credentials) for the NicePlayer installer.
-    Protected by a pre-shared secret key sent in the X-Installer-Key header
-    (configured via INSTALLER_SECRET_KEY in Django settings / environment).
-
-    The smb_password in the DB is stored AES-256-GCM encrypted.  This view
-    decrypts it server-side and returns the plaintext over HTTPS so the
-    installer can store it in Windows Credential Manager for net use auth.
-    End users never see this value.
     """
     from django.conf import settings as dj_settings
-    from apps.core.utils.smb_crypto import decrypt_smb_password, is_encrypted
     token = request.headers.get('X-Installer-Key', '')
     expected = getattr(dj_settings, 'INSTALLER_SECRET_KEY', '')
     if not expected or token != expected:
@@ -1113,20 +1352,13 @@ def ApiInstallerConfig(request):
         if not config:
             return JsonResponse({'error': 'No active storage configuration found.'}, status=404)
 
-        raw_password = config.smb_password or ''
-        if is_encrypted(raw_password):
-            try:
-                plaintext_password = decrypt_smb_password(raw_password)
-            except Exception as dec_err:
-                return JsonResponse({'error': f'Failed to decrypt SMB password: {dec_err}'}, status=500)
-        else:
-            # fallback: not yet encrypted (e.g. migration not run yet)
-            plaintext_password = raw_password
+        plaintext_password = config.get_password() or ''
+        parsed = parse_network_path(config.network_path)
 
         return JsonResponse({
-            'host':         config.host,
-            'share':        config.share_name,
-            'base_path':    config.base_path or '',
+            'host':         parsed['host'],
+            'share':        parsed['share'],
+            'base_path':    parsed['base_path'],
             'smb_username': config.smb_username or '',
             'smb_password': plaintext_password,
         })
@@ -1146,23 +1378,50 @@ def ApiProxyAudio(request):
         if not fname:
             return JsonResponse({'error': 'file parameter required'}, status=400)
 
-        # sanitize filename (no path traversal)
         base = os.path.basename(str(fname))
         if base != fname and ('..' in fname or '/' in fname or '\\' in fname):
-            # ensure we only allow simple file names
             base = os.path.basename(base)
 
-        from apps.setting.helpers import get_network_share_settings
-        ns_settings = get_network_share_settings()
-        smb_host = ns_settings.get('NT_SHARE_HOST')
-        smb_share = ns_settings.get('NT_SHARE_SHARE')
-        smb_user = ns_settings.get('NT_SHARE_USER')
-        smb_pass = ns_settings.get('NT_SHARE_PASS')
+        from apps.core.model.audio.models import AudioFile, AudioInfo
+        from apps.home.models import FileStorageConfig
+        
+        main_db_id = None
+        audio_file = AudioFile.objects.filter(file_name=base).first()
+        if audio_file:
+            audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
+            if audio_info:
+                main_db_id = audio_info.main_db_id
+
+        config = None
+        if main_db_id:
+            config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
+            if not config:
+                config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+                
+        if not config:
+            config = FileStorageConfig.objects.filter(is_active=1).first()
+            if not config:
+                config = FileStorageConfig.objects.first()
+                
+        if not config:
+            return JsonResponse({'error': 'No storage configuration found in FileStorageConfig.'}, status=502)
+
+        parsed = parse_network_path(config.network_path)
+        smb_host = parsed['host']
+        smb_share = parsed['share']
+        base_path = parsed['base_path']
+        smb_user = config.smb_username
+        smb_pass = config.get_password()
 
         print(f"Proxying audio file: {base} from SMB share {smb_host}/{smb_share} as user {smb_user}")
 
-        # remote path within the share (no leading slash)
-        remote_path = f"Administrator/Desktop/Music/{base}"
+        if audio_file and audio_file.file_path:
+            remote_path = get_smb_relative_path(audio_file.file_path, base_path)
+        else:
+            remote_path = f"Administrator/Desktop/Music/{base}"
+            if base_path:
+                remote_path = base_path.replace('\\', '/').strip('/') + '/' + remote_path.lstrip('/')
+                
         print(f"Constructed remote path: {remote_path}")
 
         try:
@@ -1172,8 +1431,7 @@ def ApiProxyAudio(request):
                 _log_voice_download(request, base, status='error', error=f"pysmb library not available: {str(e)}")
             return JsonResponse({'error': 'pysmb not installed on server: ' + str(e)}, status=500)
 
-        # Use a fixed or configurable client name instead of socket.gethostname()
-        client_name = ns_settings.get('NT_SMB_CLIENT_NAME', 'nt_playback')
+        client_name = 'nt_playback'
         try:
             conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
             connected = conn.connect(smb_host, 445, timeout=10)
@@ -1192,7 +1450,6 @@ def ApiProxyAudio(request):
         bio = None
         attempts = []
         try:
-            # Try the configured share first, then fall back to admin C$ share
             shares_to_try = []
             if smb_share:
                 shares_to_try.append(smb_share)
@@ -1202,8 +1459,6 @@ def ApiProxyAudio(request):
             for share in shares_to_try:
                 try:
                     tmp = io.BytesIO()
-                    # retrieveFile expects path within share without leading slashes
-                    # When connecting to the admin C$ share we must include the top-level folder (e.g. Users/Administrator/...)
                     if str(share).upper() == 'C$':
                         rp = remote_path.lstrip('/\\')
                         if not rp.lower().startswith('users/'):
@@ -1266,6 +1521,114 @@ def ApiProxyAudio(request):
         if _is_download_intent(request):
             fname = request.GET.get('file') or request.POST.get('file') or ''
             _log_voice_download(request, os.path.basename(str(fname)) if fname else '', status='error', error=e)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required(login_url='/login')
+@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS, PermissionIDs.DELEGATE_FILES, PermissionIDs.PLAYBACK_TICKET_FILE)
+def ApiPlayAudio(request, file_id=None):
+    """
+    API endpoint to play audio files with on-the-fly transcoding for legacy codecs.
+    Always uses SMB retrieved from FileStorageConfig based on database association.
+    """
+    temp_files = []
+    try:
+        file_path_param = request.GET.get('file_path') or request.POST.get('file_path')
+        audio_file = None
+        main_db_id = None
+        source_path = None
+        file_name = None
+
+        if file_path_param:
+            fp = str(file_path_param)
+            file_name_param = request.GET.get('file_name') or request.POST.get('file_name')
+            safe_name = os.path.basename(str(file_name_param)) if file_name_param else None
+
+            from apps.core.model.audio.models import AudioFile, AudioInfo
+            audio_file = AudioFile.objects.filter(file_path=fp).first()
+            if not audio_file and safe_name:
+                audio_file = AudioFile.objects.filter(file_name=safe_name).first()
+            if not audio_file:
+                base_name = os.path.basename(fp)
+                audio_file = AudioFile.objects.filter(file_name=base_name).first()
+
+            if audio_file:
+                source_path = audio_file.file_path
+                file_name = audio_file.file_name
+                audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
+                if audio_info:
+                    main_db_id = audio_info.main_db_id
+            else:
+                source_path = fp
+                file_name = safe_name or os.path.basename(fp)
+        else:
+            from apps.core.model.audio.models import AudioFile, AudioInfo
+            if file_id is None:
+                return JsonResponse({'error': 'file_id or file_path required'}, status=400)
+            audio_file = AudioFile.objects.filter(id=file_id).first()
+            if not audio_file:
+                return JsonResponse({'error': 'Audio file not found'}, status=404)
+
+            source_path = audio_file.file_path
+            file_name = audio_file.file_name
+            audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
+            if audio_info:
+                main_db_id = audio_info.main_db_id
+
+        # Retrieve file via SMB using credentials associated with database ID
+        resolved_path, err = retrieve_audio_file_via_smb(main_db_id, source_path, temp_files)
+        if err:
+            status_code = 404 if "File not found" in err else 502
+            create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "file_id": str(file_id or ''), "file": str(file_name or '')}, status="error", request=request)
+            return JsonResponse({'error': err}, status=status_code)
+
+        target_path = resolved_path
+
+        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
+        original_ext = os.path.splitext(file_name)[1].lower()
+        is_wav_download = _is_download_intent(request) and original_ext in download_exts
+        download_name = file_name
+
+        if not (_is_download_intent(request) and file_name.lower().endswith('.nmf')):
+            if is_wav_download and original_ext != '.wav':
+                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+                if err:
+                    pass
+                else:
+                    target_path = transcoded_path
+                    temp_files.append(transcoded_path)
+                    download_name = f"{os.path.splitext(file_name)[0]}.wav"
+            elif not AudioTranscoder.is_browser_compatible(target_path):
+                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+                if err:
+                    pass
+                else:
+                    target_path = transcoded_path
+                    temp_files.append(transcoded_path)
+                    if is_wav_download:
+                        download_name = f"{os.path.splitext(file_name)[0]}.wav"
+
+        if is_wav_download and original_ext == '.wav':
+            download_name = f"{os.path.splitext(file_name)[0]}.wav"
+
+        response = RangeFileResponse(
+            request,
+            open(target_path, 'rb'), 
+            content_type='audio/wav' if is_wav_download else mimetypes.guess_type(target_path)[0] or 'audio/wav',
+            temp_to_cleanup=temp_files
+        )
+        disposition = 'attachment' if _is_download_intent(request) else 'inline'
+        response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
+        response['Accept-Ranges'] = 'bytes'
+        if _is_download_intent(request):
+            _log_voice_download(request, download_name, status='success')
+        return response
+
+    except Exception as e:
+        for f in temp_files:
+            if os.path.exists(f): os.remove(f)
+        if _is_download_intent(request):
+            _log_voice_download(request, f"file_id:{file_id}", status='error', error=e)
         return JsonResponse({'error': str(e)}, status=500)
     
 @login_required

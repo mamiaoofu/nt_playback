@@ -1,5 +1,25 @@
-from apps.setting.models import ActiveDirectorySetting, NetworkShareSetting, MailSetting
+from apps.setting.models import ActiveDirectorySetting, MailSetting
+from apps.home.models import FileStorageConfig
 from django.conf import settings
+
+def parse_network_path(network_path):
+    if not network_path:
+        return {'host': '', 'share': '', 'base_path': ''}
+    # Normalize slashes
+    path = network_path.replace('/', '\\')
+    if not path.startswith('\\\\'):
+        return {'host': '', 'share': '', 'base_path': ''}
+    parts = [p for p in path[2:].split('\\') if p]
+    if len(parts) == 0:
+        return {'host': '', 'share': '', 'base_path': ''}
+    elif len(parts) == 1:
+        return {'host': parts[0], 'share': '', 'base_path': ''}
+    else:
+        return {
+            'host': parts[0],
+            'share': parts[1],
+            'base_path': '/'.join(parts[2:])
+        }
 
 def get_ad_settings():
     try:
@@ -29,7 +49,9 @@ def get_ad_settings():
 
 def get_network_share_settings():
     try:
-        config = NetworkShareSetting.objects.first()
+        config = FileStorageConfig.objects.filter(is_active=1).first()
+        if not config:
+            config = FileStorageConfig.objects.first()
     except Exception:
         config = None
 
@@ -38,12 +60,14 @@ def get_network_share_settings():
             nt_share_pass = config.get_password()
         except Exception:
             nt_share_pass = getattr(settings, 'NT_SHARE_PASS', None)
+        
+        parsed = parse_network_path(config.network_path)
         return {
-            'NT_SHARE_HOST': config.host,
-            'NT_SHARE_SHARE': config.share,
-            'NT_SHARE_USER': config.user,
+            'NT_SHARE_HOST': parsed['host'],
+            'NT_SHARE_SHARE': parsed['share'],
+            'NT_SHARE_USER': config.smb_username,
             'NT_SHARE_PASS': nt_share_pass,
-            'NT_SMB_CLIENT_NAME': config.client_name,
+            'NT_SMB_CLIENT_NAME': 'nt_playback',
         }
     return {
         'NT_SHARE_HOST': getattr(settings, 'NT_SHARE_HOST', None),
