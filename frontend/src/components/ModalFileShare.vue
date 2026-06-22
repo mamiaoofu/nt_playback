@@ -208,7 +208,7 @@ import CustomSelect from './CustomSelect.vue'
 import { API_GET_USER_ALL, API_CREATE_FILE_SHARE } from '../api/paths'
 import { getCsrfToken } from '../api/csrf'
 import '../assets/css/modal-favorite.css'
-import { showToast, confirmDelete, notify } from '../assets/js/function-all'
+import { showToast, confirmDelete, notify, logUserAction } from '../assets/js/function-all'
 import { useAuthStore } from '../stores/auth.store'
 import { PERMISSIONS } from '../stores/permissions.constants'
 
@@ -491,7 +491,8 @@ async function sendResultByEmail() {
         const payload = {
             recipient: recipients,
             subject: resultType.value === 'ticket' ? `Ticket ${resultData.value.ticketCode}` : 'Files shared with you',
-            body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`
+            body: `Ticket: ${resultData.value.ticketCode || ''}\nPassword: ${resultData.value.password || ''}\nValid: ${resultData.value.validStart || ''} - ${resultData.value.validExpire || ''}\n\nFiles: ${(props.files || []).map(f => f.file_name || f.fileName || f.file || '').join(', ')}`,
+            ticketCode: resultData.value.ticketCode || ''
         }
             // prefer HTML content from the rendered card if present
             try {
@@ -550,6 +551,9 @@ async function copyCardContent() {
         }
 
         await notify('Copied', 'Form copied to clipboard', 'success')
+        if (resultType.value === 'ticket' && resultData.value && resultData.value.ticketCode) {
+            logUserAction('Ticket Copy Form', `Ticket ID : ${resultData.value.ticketCode}`, 'success')
+        }
     } catch (e) {
         console.error('copyCardContent error', e)
         await notify('Failed to copy', e.message || String(e), 'error')

@@ -397,12 +397,12 @@ def ApiSaveGroup(request):
             try:
                 with transaction.atomic():
                     new_group = UserGroup.objects.create(group_name=group_name, description=description, status=1)
-                    create_user_log(user=request.user, action='Add Group', detail=f'Group Name : {group_name} | Description: {description}', status='success', request=request)
+                    create_user_log(user=request.user, action='Add Group', detail=f'Group Name : {group_name}', status='success', request=request)
 
                 return JsonResponse({'status': 'success', 'group': {'id': new_group.id, 'group_name': new_group.group_name, 'description': new_group.description}})
             except IntegrityError as e:
                 create_user_log(user=request.user, action='Add Group', detail=f'Database error : {str(e)}', status='error', request=request)
-                return JsonResponse({'status': 'error', 'message': 'เกิดข้อผิดพลาดกับฐานข้อมูล'})
+                return JsonResponse({'status': 'error', 'message': 'An error occurred with the database.'})
 
         # UPDATE
         if action == 'update':
@@ -540,7 +540,7 @@ def ApiSaveTeam(request):
                 return JsonResponse({'status': 'success', 'team': {'id': new_team.id, 'name': new_team.name, 'user_group_id': new_team.user_group_id}})
             except IntegrityError as e:
                 create_user_log(user=request.user, action='Add Team', detail=f'Database error : {str(e)}', status='error', request=request)
-                return JsonResponse({'status': 'error', 'message': 'เกิดข้อผิดพลาดกับฐานข้อมูล'})
+                return JsonResponse({'status': 'error', 'message': 'An error occurred with the database.'})
 
         # UPDATE
         if action == 'update':

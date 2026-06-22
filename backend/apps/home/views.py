@@ -173,6 +173,10 @@ def ApiSendShareEmail(request):
         if errors:
             return JsonResponse({'ok': False, 'errors': errors}, status=500)
 
+        ticket_code = data.get('ticketCode') or data.get('ticket_code')
+        if ticket_code:
+            create_user_log(user=request.user, action="Ticket Send Mail", detail=f"Ticket ID : {ticket_code}", status="success", request=request)
+
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=500)
