@@ -32,7 +32,7 @@
                 <template v-else-if="col.tooltip">
                   <div class="file-name-cell" :class="{ 'is-active': tooltipIndex === idx }"
                     @mouseenter="onTooltipEnter($event, idx, r[col.key])" @mouseleave="onTooltipLeave">
-                    <span class="truncated">{{ col.labelKey ? (r[col.labelKey] || '') : truncate(r[col.key], 50) }}</span>
+                    <span class="truncated">{{ col.labelKey ? (r[col.labelKey] || '') : truncate(r[col.key], 100) }}</span>
                   </div>
                 </template>
                 <template v-else-if="callDirectionKey && col.key === callDirectionKey">
@@ -494,7 +494,7 @@ const getSortIcon = (key) => {
 
 .truncated {
   display: inline-block;
-  max-width: 220px;
+  /* max-width: 360px; */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
