@@ -420,7 +420,7 @@ def main():
         NICEPLAYER_EXE = _cfg['niceplayer_exe']
         log(f'NICEPLAYER_EXE overridden from config: {NICEPLAYER_EXE}')
 
-    # â”€â”€ Server mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Server mode
     if len(sys.argv) > 1 and sys.argv[1] == "--server":
         log("Argument '--server' detected. Starting in server mode.")
         if not os.path.isfile(NICEPLAYER_EXE):
@@ -445,7 +445,7 @@ def main():
         run_server()
         sys.exit(0)
 
-    # â”€â”€ Protocol-handler mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Protocol-handler mode
     if len(sys.argv) < 2 or not sys.argv[1].startswith("niceplayer://"):
         log(f"Invalid argument: {sys.argv[1:]}. Expected 'niceplayer://' URL or '--server'.")
         sys.exit(1)
@@ -501,7 +501,7 @@ def main():
 
     path = translate_local_to_unc(path, _cfg)
 
-    # â”€â”€ Path validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Path validation ─────────────────────────────────────────────────── 
     if not validate_path(path, _cfg):
         log("SECURITY: Path rejected by whitelist. Aborting.")
         sys.exit(1)
