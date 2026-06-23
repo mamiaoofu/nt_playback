@@ -31,71 +31,6 @@
                                         Add Network Share
                                     </button>
                                 </div>
-                                <div style="display: flex; align-items: center; gap: 10px;">
-                                    <div class="search-group" style="width:220px; position:relative;">
-                                        <li class="option option-search">
-                                            <div class="search-input-wrap">
-                                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                                                <input v-model="searchQuery" type="text"
-                                                       class="form-control form-control-sm search-input"
-                                                       placeholder="Search..." />
-                                                <i v-if="searchQuery" class="fa-solid fa-xmark fa-times clear-icon" aria-hidden="true" @click.stop="searchQuery = ''"></i>
-                                            </div>
-                                        </li>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Card List of Databases -->
-                            <div class="custom-roles-list" style="max-height: calc(100vh - 260px); overflow-y: auto;">
-                                <template v-if="loading">
-                                    <div class="table-overlay" style="height: 300px; display: flex; align-items: center; justify-content: center;">
-                                        <div class="overlay-box">Loading databases...</div>
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <div v-if="filteredDatabases.length" class="group-list">
-                                        <div v-for="db in filteredDatabases" :key="db.database_id" 
-                                             :class="['group-card-item', { active: selectedDbId === db.database_id }]"
-                                             @click.stop="selectDatabase(db)">
-                                            <div class="group-card-main">
-                                                <div class="group-card-header">
-                                                    <span class="group-card-title">{{ db.database_name }}</span>
-                                                    <span :class="['role-badge', db.hasConfig ? 'auditor' : 'administrator']">
-                                                        {{ db.hasConfig ? 'Configured' : 'Not Configured' }}
-                                                    </span>
-                                                </div>
-                                                <div class="group-card-desc">
-                                                    {{ db.networkPath || db.description || 'No description or network path provided.' }}
-                                                </div>
-                                            </div>
-                                            <div class="group-card-actions">
-                                                <button class="group-edit-btn">
-                                                    Configure
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-else class="empty-state">
-                                        <i class="fa-solid fa-dove"></i>
-                                        <p>No databases found.</p>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Right: Config Form -->
-                <div class="col-lg-6">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="d-flex align-items-center mb-4">
-                                <div class="d-flex align-items-center justify-content-center me-1"
-                                     style="width: 35px; height: 35px; background-color: #d9e2f6; border-radius: 10px !important">
-                                    <i class="fas fa-network-wired" style="color: #2b6cb0; font-size: 18px"></i>
-                                </div>
-                                <h5 class="card-title mb-2 mt-1">Network Share Settings</h5>
                             </div>
 
                             <div class="custom-roles-list" style="margin-top: 15px;">
@@ -292,11 +227,11 @@ const loadSettings = async () => {
                 databases.value = json.databases
             }
         } else {
-            showToast('Failed to load databases', 'error')
+            showToast('Failed to load settings', 'error')
         }
     } catch (err) {
         console.error('Error loading Network Share settings:', err)
-        showToast('Error loading databases', 'error')
+        showToast('Error loading settings', 'error')
     } finally {
         loading.value = false
     }
