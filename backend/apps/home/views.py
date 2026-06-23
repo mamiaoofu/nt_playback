@@ -54,6 +54,36 @@ one_year_ago = timezone.now() - timedelta(days=365)
 
 server_ip = socket.gethostbyname(socket.gethostname())
 
+def resolve_smb_host(server):
+    import socket
+    try:
+        socket.gethostbyname(server)
+        return server
+    except socket.gaierror:
+        if '.' not in server:
+            local_server = f"{server}.local"
+            try:
+                socket.gethostbyname(local_server)
+                return local_server
+            except socket.gaierror:
+                pass
+        try:
+            socket.gethostbyname('host.docker.internal')
+            return 'host.docker.internal'
+        except socket.gaierror:
+            pass
+        try:
+            with open('/proc/net/route') as fh:
+                for line in fh:
+                    fields = line.strip().split()
+                    if fields[1] == '00000000':
+                        import struct
+                        gw_ip = socket.inet_ntoa(struct.pack("<L", int(fields[2], 16)))
+                        return gw_ip
+        except Exception:
+            pass
+        return server
+
 def check_permission(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
@@ -1119,7 +1149,7 @@ def retrieve_file_from_smb(server, share, rel_path, smb_user, smb_pass):
     
     client_name = 'nt_playback_client'
     conn = SMBConnection(smb_user, smb_pass, client_name, server, use_ntlm_v2=True, is_direct_tcp=True)
-    connected = conn.connect(server, 445, timeout=10)
+    connected = conn.connect(resolve_smb_host(server), 445, timeout=10)
     if not connected:
         raise Exception(f"Failed to connect to SMB server {server}")
         
@@ -1416,7 +1446,13 @@ def ApiProxyAudio(request):
         print(f"Proxying audio file: {base} from SMB share {smb_host}/{smb_share} as user {smb_user}")
 
         if audio_file and audio_file.file_path:
-            remote_path = get_smb_relative_path(audio_file.file_path, base_path)
+            fp_clean = audio_file.file_path.replace('\\', '/').rstrip('/')
+            fn_clean = audio_file.file_name.replace('\\', '/').lstrip('/')
+            if fp_clean.endswith(fn_clean):
+                full_path = audio_file.file_path
+            else:
+                full_path = f"{fp_clean}/{fn_clean}"
+            remote_path = get_smb_relative_path(full_path, base_path)
         else:
             remote_path = f"Administrator/Desktop/Music/{base}"
             if base_path:
@@ -1434,7 +1470,7 @@ def ApiProxyAudio(request):
         client_name = 'nt_playback'
         try:
             conn = SMBConnection(smb_user, smb_pass, client_name, smb_host, use_ntlm_v2=True, is_direct_tcp=True)
-            connected = conn.connect(smb_host, 445, timeout=10)
+            connected = conn.connect(resolve_smb_host(smb_host), 445, timeout=10)
         except Exception as e:
             tb = traceback.format_exc()
             err = f'Failed to establish SMB connection: {repr(e)}'
@@ -1545,21 +1581,38 @@ def ApiPlayAudio(request, file_id=None):
             safe_name = os.path.basename(str(file_name_param)) if file_name_param else None
 
             from apps.core.model.audio.models import AudioFile, AudioInfo
-            audio_file = AudioFile.objects.filter(file_path=fp).first()
-            if not audio_file and safe_name:
-                audio_file = AudioFile.objects.filter(file_name=safe_name).first()
+            audio_file = None
+            if safe_name:
+                audio_file = AudioFile.objects.filter(file_path=fp, file_name=safe_name).first()
+                if not audio_file:
+                    audio_file = AudioFile.objects.filter(file_name=safe_name).first()
+            if not audio_file:
+                audio_file = AudioFile.objects.filter(file_path=fp).first()
             if not audio_file:
                 base_name = os.path.basename(fp)
                 audio_file = AudioFile.objects.filter(file_name=base_name).first()
 
             if audio_file:
-                source_path = audio_file.file_path
+                fp_clean = audio_file.file_path.replace('\\', '/').rstrip('/')
+                fn_clean = audio_file.file_name.replace('\\', '/').lstrip('/')
+                if fp_clean.endswith(fn_clean):
+                    source_path = audio_file.file_path
+                else:
+                    source_path = f"{fp_clean}/{fn_clean}"
                 file_name = audio_file.file_name
                 audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
                 if audio_info:
                     main_db_id = audio_info.main_db_id
             else:
-                source_path = fp
+                fp_clean = fp.replace('\\', '/').rstrip('/')
+                if safe_name:
+                    fn_clean = safe_name.replace('\\', '/').lstrip('/')
+                    if fp_clean.endswith(fn_clean):
+                        source_path = fp
+                    else:
+                        source_path = f"{fp_clean}/{fn_clean}"
+                else:
+                    source_path = fp
                 file_name = safe_name or os.path.basename(fp)
         else:
             from apps.core.model.audio.models import AudioFile, AudioInfo
@@ -1569,7 +1622,12 @@ def ApiPlayAudio(request, file_id=None):
             if not audio_file:
                 return JsonResponse({'error': 'Audio file not found'}, status=404)
 
-            source_path = audio_file.file_path
+            fp_clean = audio_file.file_path.replace('\\', '/').rstrip('/')
+            fn_clean = audio_file.file_name.replace('\\', '/').lstrip('/')
+            if fp_clean.endswith(fn_clean):
+                source_path = audio_file.file_path
+            else:
+                source_path = f"{fp_clean}/{fn_clean}"
             file_name = audio_file.file_name
             audio_info = AudioInfo.objects.filter(audiofile_id=audio_file.id).first()
             if audio_info:
@@ -1578,7 +1636,7 @@ def ApiPlayAudio(request, file_id=None):
         # Retrieve file via SMB using credentials associated with database ID
         resolved_path, err = retrieve_audio_file_via_smb(main_db_id, source_path, temp_files)
         if err:
-            status_code = 404 if "File not found" in err else 502
+            status_code = 404 if any(x in err for x in ["File not found", "Unable to open file", "0xC0000034"]) else 502
             create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "file_id": str(file_id or ''), "file": str(file_name or '')}, status="error", request=request)
             return JsonResponse({'error': err}, status=status_code)
 
@@ -2087,7 +2145,7 @@ def retrieve_file_from_smb(server, share, rel_path, smb_user, smb_pass):
     
     client_name = 'nt_playback_client'
     conn = SMBConnection(smb_user, smb_pass, client_name, server, use_ntlm_v2=True, is_direct_tcp=True)
-    connected = conn.connect(server, 445, timeout=10)
+    connected = conn.connect(resolve_smb_host(server), 445, timeout=10)
     if not connected:
         raise Exception(f"Failed to connect to SMB server {server}")
         
@@ -2191,129 +2249,4 @@ def map_host_to_container_path(path):
 
     return path_norm
 
-@login_required(login_url='/login')
-@require_action(PermissionIDs.PLAYBACK_AUDIO_RECORDS, PermissionIDs.DOWNLOAD_AUDIO_RECORDS, PermissionIDs.DELEGATE_FILES, PermissionIDs.PLAYBACK_TICKET_FILE)
-def ApiPlayAudio(request, file_id=None):
-    """
-    API endpoint to play audio files with on-the-fly transcoding for legacy codecs.
-    Supports local files and SMB shares.
-    """
-    temp_files = []
-    try:
-        # Two modes supported:
-        # - client provides `file_path` (query param or POST) -> attempt to open that path directly
-        # - client provides `file_id` in URL -> resolve via AudioFile model (legacy behaviour)
-        file_path_param = request.GET.get('file_path') or request.POST.get('file_path')
-        audio_file = None
-        if file_path_param:
-            # Normalize and sanitize incoming path
-            fp = str(file_path_param)
-            # allow client to suggest a filename for download; sanitize it
-            file_name_param = request.GET.get('file_name') or request.POST.get('file_name')
-            safe_name = os.path.basename(str(file_name_param)) if file_name_param else None
 
-            # First construct the full path (host-side) before mapping
-            candidate_path = fp
-            if safe_name:
-                fp_clean = fp.replace('\\', '/').rstrip('/')
-                safe_name_clean = safe_name.replace('\\', '/').strip('/')
-                if not (fp_clean.endswith('/' + safe_name_clean) or fp_clean == safe_name_clean):
-                    if '\\' in fp or (':' in fp and '/' not in fp):
-                        # Windows style path
-                        candidate_path = fp + ('' if fp.endswith('\\') or fp.endswith('/') else '\\') + safe_name
-                    else:
-                        # POSIX/Generic style
-                        candidate_path = fp + ('' if fp.endswith('/') or fp.endswith('\\') else '/') + safe_name
-
-            # Map the candidate path if it is inside container
-            candidate_path = map_host_to_container_path(candidate_path)
-
-            # Basic safety: require absolute or UNC path
-            if not (os.path.isabs(candidate_path) or candidate_path.startswith('\\\\') or candidate_path.startswith('//')):
-                return JsonResponse({'error': 'file_path must be an absolute or UNC path'}, status=400)
-            
-            # Resolve and fetch UNC files if necessary
-            resolved_path, err = resolve_and_fetch_if_unc(candidate_path, temp_files)
-            if err:
-                status_code = 404 if "File not found" in err else 502
-                create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "path": str(file_path_param or '')}, status="error", request=request)
-                return JsonResponse({'error': err}, status=status_code)
-
-            target_path = resolved_path
-            file_name = safe_name or os.path.basename(candidate_path)
-            is_smb = False
-        else:
-            from apps.core.model.audio.models import AudioFile
-            if file_id is None:
-                return JsonResponse({'error': 'file_id or file_path required'}, status=400)
-            audio_file = AudioFile.objects.filter(id=file_id).first()
-            if not audio_file:
-                return JsonResponse({'error': 'Audio file not found'}, status=404)
-
-            source_path = audio_file.file_path
-            file_name = audio_file.file_name
-
-            # Map the database path if it is inside container
-            mapped_source_path = map_host_to_container_path(source_path)
-
-            # Do not attempt SMB/remote retrieval here. Require an absolute filesystem path
-            # (or UNC path) that the Django process can open directly.
-            if not (os.path.isabs(mapped_source_path) or mapped_source_path.startswith('\\\\') or mapped_source_path.startswith('//') or mapped_source_path.startswith('\\')):
-                return JsonResponse({'error': 'Audio file path is not an absolute or UNC path. Please configure storage as a mounted path.'}, status=400)
-
-            # Resolve and fetch UNC files if necessary
-            resolved_path, err = resolve_and_fetch_if_unc(mapped_source_path, temp_files)
-            if err:
-                status_code = 404 if "File not found" in err else 502
-                create_user_log(user=request.user, action="Playback Audio Records", detail={"error": err, "file_id": str(file_id or ''), "file": str(file_name or '')}, status="error", request=request)
-                return JsonResponse({'error': err}, status=status_code)
-
-            target_path = resolved_path
-
-        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
-        original_ext = os.path.splitext(file_name)[1].lower()
-        is_wav_download = _is_download_intent(request) and original_ext in download_exts
-        download_name = file_name
-
-        if not (_is_download_intent(request) and file_name.lower().endswith('.nmf')):
-            if is_wav_download and original_ext != '.wav':
-                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
-                if err:
-                    pass
-                else:
-                    target_path = transcoded_path
-                    temp_files.append(transcoded_path)
-                    download_name = f"{os.path.splitext(file_name)[0]}.wav"
-            elif not AudioTranscoder.is_browser_compatible(target_path):
-                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
-                if err:
-                    pass
-                else:
-                    target_path = transcoded_path
-                    temp_files.append(transcoded_path)
-                    if is_wav_download:
-                        download_name = f"{os.path.splitext(file_name)[0]}.wav"
-
-        if is_wav_download and original_ext == '.wav':
-            download_name = f"{os.path.splitext(file_name)[0]}.wav"
-
-        response = RangeFileResponse(
-            request,
-            open(target_path, 'rb'), 
-            content_type='audio/wav' if is_wav_download else mimetypes.guess_type(target_path)[0] or 'audio/wav',
-            temp_to_cleanup=temp_files
-        )
-        disposition = 'attachment' if _is_download_intent(request) else 'inline'
-        response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
-        response['Accept-Ranges'] = 'bytes'
-        if _is_download_intent(request):
-            _log_voice_download(request, download_name, status='success')
-        return response
-
-    except Exception as e:
-        # Cleanup on immediate error
-        for f in temp_files:
-            if os.path.exists(f): os.remove(f)
-        if _is_download_intent(request):
-            _log_voice_download(request, f"file_id:{file_id}", status='error', error=e)
-        return JsonResponse({'error': str(e)}, status=500)
