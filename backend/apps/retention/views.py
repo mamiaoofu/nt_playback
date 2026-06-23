@@ -7,7 +7,7 @@ from .models import RetentionTask, RetentionLog, AutoRetentionConfig
 from .serializers import RetentionTaskSerializer, RetentionLogSerializer, AutoRetentionConfigSerializer
 from apps.core.model.audio.models import AudioInfo
 from apps.core.utils.function import create_user_log
-from apps.core.model.authorize.models import UserLog
+from apps.core.model.authorize.models import UserLog, UserProfile
 
 
 def _format_delete_option(delete_option):
@@ -81,6 +81,67 @@ def _error_response(request, action, detail, exception=None, status_code=status.
     return Response({'error': detail}, status=status_code)
 
 
+def _verify_user_password(user, password):
+    """
+    Verify user password. For AD users, attempt LDAP/AD verification first.
+    For non-AD users, use Django's check_password().
+    Returns True if password is valid, False otherwise.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    
+    try:
+        # Check if user is an AD user
+        user_profile = UserProfile.objects.filter(user=user).first()
+        if user_profile and user_profile.ad_account:
+            # Try AD authentication
+            try:
+                from ldap3 import Server, Connection, NTLM, SIMPLE, ALL
+                from ldap3.core.exceptions import LDAPBindError
+                
+                ad_server_uri = "ldap://192.168.1.8"
+                username = user.username
+                
+                formats = [
+                    (f"nichetel.local\\{username}", NTLM),
+                    (f"nichetel\\{username}", NTLM),
+                    (f"{username}@nichetel.local", SIMPLE)
+                ]
+                
+                server = Server(ad_server_uri, get_info=ALL)
+                
+                for principal, auth_type in formats:
+                    try:
+                        conn = Connection(
+                            server,
+                            user=principal,
+                            password=password,
+                            authentication=auth_type,
+                            auto_bind=True
+                        )
+                        conn.unbind()
+                        return True  # AD authentication successful
+                    except LDAPBindError:
+                        continue
+                    except Exception:
+                        continue
+                
+                # All AD attempts failed, fall through to Django password check
+                return user.check_password(password)
+            except ImportError:
+                # ldap3 not available, fall back to Django password check
+                return user.check_password(password)
+            except Exception:
+                # Any other error, fall back to Django password check
+                return user.check_password(password)
+        else:
+            # Non-AD user, use Django's check_password
+            return user.check_password(password)
+    except Exception:
+        # Fallback to Django's check_password in case of any error
+        return user.check_password(password) if user else False
+
+
 def _calculate_next_run(task, config):
     if not task or task.task_type == 'MANUAL':
         return '-'
@@ -150,7 +211,7 @@ class RetentionViewSet(viewsets.ViewSet):
         if not password:
             _create_error_log(request, 'Save and Run Immediately Retention', 'Password is required')
             return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not request.user.is_authenticated or not request.user.check_password(password):
+        if not request.user.is_authenticated or not _verify_user_password(request.user, password):
             _create_error_log(request, 'Save and Run Immediately Retention', 'Invalid password')
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -232,7 +293,7 @@ class RetentionViewSet(viewsets.ViewSet):
         if not password:
             _create_error_log(request, 'Save and Run Schedule Retention', 'Password is required')
             return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not request.user.is_authenticated or not request.user.check_password(password):
+        if not request.user.is_authenticated or not _verify_user_password(request.user, password):
             _create_error_log(request, 'Save and Run Schedule Retention', 'Invalid password')
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -315,7 +376,7 @@ class RetentionViewSet(viewsets.ViewSet):
         if not password:
             _create_error_log(request, 'Restore Data Schedule Retention' if pk else 'Restore Data Immediately Retention', 'Password is required')
             return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not request.user.is_authenticated or not request.user.check_password(password):
+        if not request.user.is_authenticated or not _verify_user_password(request.user, password):
             _create_error_log(request, 'Restore Data Schedule Retention' if pk else 'Restore Data Immediately Retention', 'Invalid password')
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
