@@ -367,7 +367,10 @@
           <div class="form-group-modal">
             <p class="mb-3 text-muted" style="font-size: 13px; margin-bottom: 16px; color: #64748b;">Please enter your password to confirm this action.</p>
             <div class="input-group" v-has-value>
-              <input required v-model="confirmPassword" type="password" autocomplete="off" class="input" @keyup.enter="handlePasswordConfirm" />
+              <input required v-model="confirmPassword" :type="passwordVisible ? 'text' : 'password'" autocomplete="off" class="input" @keyup.enter="handlePasswordConfirm" />
+              <button type="button" class="toggle-visibility" @click="passwordVisible = !passwordVisible" aria-label="Toggle password visibility">
+                <i :class="passwordVisible ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+              </button>
               <label class="title-label">Password</label>
             </div>
           </div>
@@ -517,6 +520,7 @@ const showPasswordModal = ref(false);
 const confirmPassword = ref('');
 const passwordAction = ref('');
 const isConfigRunning = ref(false);
+const passwordVisible = ref(false);
 
 const taskToRestore = ref(null);
 
@@ -757,7 +761,7 @@ watch(() => route.query, (newQuery) => {
 
 const fetchAutoConfig = async () => {
   try {
-    const res = await axios.get(`${API_BASE}/auto/`);
+    const res = await axios.get(`${API_BASE}/auto/`, { withCredentials: true });
     if (res.data && res.data.id) {
       config.value = res.data;
       auto.value.retentionType = res.data.retention_type || 'OLDER_THAN';
@@ -791,7 +795,7 @@ const fetchAutoConfig = async () => {
 const fetchTasks = async () => {
   loadingTasks.value = true;
   try {
-    const res = await axios.get(`${API_BASE}/tasks/`);
+    const res = await axios.get(`${API_BASE}/tasks/`, { withCredentials: true });
     tasks.value = res.data;
   } catch (err) {
     console.error("Failed to fetch tasks", err);
@@ -813,6 +817,7 @@ const promptPassword = (actionType, taskId = null) => {
     taskToRestore.value = taskId;
   }
   confirmPassword.value = '';
+  passwordVisible.value = false;
   showPasswordModal.value = true;
 };
 
@@ -821,6 +826,7 @@ const handlePasswordConfirm = async () => {
   const pwd = confirmPassword.value;
   showPasswordModal.value = false;
   confirmPassword.value = '';
+  passwordVisible.value = false;
   
   if (passwordAction.value === 'manual') {
     await submitManual(pwd);
@@ -840,6 +846,7 @@ const submitManual = async (password) => {
       delete_option: manual.value.deleteOption,
       password: password
     }, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }
@@ -872,6 +879,7 @@ const saveAutoConfig = async (password) => {
       is_active: true,
       password: password
     }, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }
@@ -912,6 +920,7 @@ const confirmRestore = async (password) => {
     await axios.post(`${API_BASE}/${taskToRestore.value}/restore/`, {
       password: password
     }, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }
@@ -930,6 +939,7 @@ const confirmRestore = async (password) => {
 const startTask = async (taskId) => {
   try {
     await axios.post(`${API_BASE}/${taskId}/start/`, {}, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }
@@ -945,6 +955,7 @@ const startTask = async (taskId) => {
 const stopTask = async (taskId) => {
   try {
     await axios.post(`${API_BASE}/${taskId}/stop/`, {}, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }

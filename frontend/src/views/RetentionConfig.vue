@@ -17,7 +17,7 @@
               <div class="permissions-grid-2">
                 <!-- Value Input -->
                 <div class="input-group" v-has-value>
-                  <input v-model="form.permanent_delete_value" required type="number" name="permanent_delete_value" autocomplete="off" class="input" min="1">
+                  <input v-model="form.permanent_delete_value" required type="number" name="permanent_delete_value" autocomplete="off" class="input" min="1" max="365" @input="onPermanentDeleteInput($event)">
                   <label class="title-label">Permanent Delete</label>
                 </div>
 
@@ -63,7 +63,10 @@
           <div class="form-group-modal">
             <p class="mb-3 text-muted" style="font-size: 13px; margin-bottom: 16px; color: #64748b;">Please enter your password to confirm this action.</p>
             <div class="input-group" v-has-value>
-              <input required v-model="confirmPassword" type="password" autocomplete="off" class="input" @keyup.enter="saveChanges" />
+              <input required v-model="confirmPassword" :type="passwordVisible ? 'text' : 'password'" autocomplete="off" class="input" @keyup.enter="saveChanges" />
+              <button type="button" class="toggle-visibility" @click="passwordVisible = !passwordVisible" aria-label="Toggle password visibility">
+                <i :class="passwordVisible ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+              </button>
               <label class="title-label">Password</label>
             </div>
           </div>
@@ -99,14 +102,35 @@ const loading = ref(false);
 const saving = ref(false);
 const showPasswordModal = ref(false);
 const confirmPassword = ref('');
+const passwordVisible = ref(false);
+
+const clampPermanentDelete = (val) => {
+  if (val === '' || val === null || val === undefined) return '';
+  const n = Number(val);
+  if (Number.isNaN(n)) return '';
+  if (n < 1) return 1;
+  if (n > 365) return 365;
+  return Math.floor(n);
+};
+
+const onPermanentDeleteInput = (e) => {
+  const raw = e.target.value;
+  if (raw === '') {
+    form.value.permanent_delete_value = '';
+    return;
+  }
+  form.value.permanent_delete_value = clampPermanentDelete(raw);
+};
 
 const loadConfig = async () => {
   loading.value = true;
   try {
-    const res = await axios.get(`${API_BASE}/auto/`);
+    const res = await axios.get(`${API_BASE}/auto/`, { withCredentials: true });
     if (res.data && res.data.id) {
       config.value = res.data;
-      form.value.permanent_delete_value = res.data.permanent_delete_value !== undefined ? res.data.permanent_delete_value : 30;
+      let pdv = res.data.permanent_delete_value !== undefined ? res.data.permanent_delete_value : 30;
+      pdv = clampPermanentDelete(pdv) || 30;
+      form.value.permanent_delete_value = pdv;
       form.value.permanent_delete_unit = res.data.permanent_delete_unit || 'days';
     }
   } catch (err) {
@@ -118,11 +142,13 @@ const loadConfig = async () => {
 };
 
 const triggerSave = () => {
-  if (form.value.permanent_delete_value <= 0) {
-    showToast("Please enter a valid value greater than 0.", "error");
+  const val = Number(form.value.permanent_delete_value);
+  if (!val || val < 1 || val > 365) {
+    showToast("Please enter a valid value between 1 and 365.", "error");
     return;
   }
   confirmPassword.value = '';
+  passwordVisible.value = false;
   showPasswordModal.value = true;
 };
 
@@ -131,17 +157,19 @@ const saveChanges = async () => {
   const password = confirmPassword.value;
   showPasswordModal.value = false;
   confirmPassword.value = '';
+  passwordVisible.value = false;
   saving.value = true;
 
   try {
     const payload = {
       ...config.value,
-      permanent_delete_value: form.value.permanent_delete_value,
+      permanent_delete_value: Number(form.value.permanent_delete_value),
       permanent_delete_unit: form.value.permanent_delete_unit,
       password: password
     };
 
     await axios.put(`${API_BASE}/auto/`, payload, {
+      withCredentials: true,
       headers: {
         'X-CSRFToken': getCsrfToken() || ''
       }

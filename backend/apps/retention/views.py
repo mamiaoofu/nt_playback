@@ -2,11 +2,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime, timedelta
 from .models import RetentionTask, RetentionLog, AutoRetentionConfig
 from .serializers import RetentionTaskSerializer, RetentionLogSerializer, AutoRetentionConfigSerializer
 from apps.core.model.audio.models import AudioInfo
 from apps.core.utils.function import create_user_log
+from apps.core.model.authorize.models import UserLog
 
 
 def _format_delete_option(delete_option):
@@ -27,7 +28,7 @@ def _format_time_period_detail_from_config(config):
     if config.retention_type == 'DATE_RANGE':
         start = str(config.start_date or '')
         end = str(config.end_date or '')
-        return f"{start} 00:00:00 - {end} 23:59:59"
+        return f"{start} 00:00 - {end} 23:59"
     return str(config.retention_period or '')
 
 
@@ -37,10 +38,10 @@ def _format_time_period_detail_from_task(task):
     time_period = task.time_period or ''
     if ' to ' in time_period:
         start, end = time_period.split(' to ', 1)
-        return f"{start} 00:00:00 - {end} 23:59:59"
+        return f"{start} 00:00 - {end} 23:59"
     if ' - ' in time_period and task.task_type == 'MANUAL':
         start, end = time_period.split(' - ', 1)
-        return f"{start} 00:00:00 - {end} 23:59:59"
+        return f"{start} 00:00 - {end} 23:59"
     return time_period.replace('Older than', 'Over')
 
 
@@ -78,6 +79,68 @@ def _create_error_log(request, action, detail, exception=None):
 def _error_response(request, action, detail, exception=None, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR):
     _create_error_log(request, action, detail, exception=exception)
     return Response({'error': detail}, status=status_code)
+
+
+def _calculate_next_run(task, config):
+    if not task or task.task_type == 'MANUAL':
+        return '-'
+    if task.status == 'STOPPED' or not config or not config.is_active:
+        return 'Stopped'
+        
+    execution_time = config.execution_time or datetime.strptime('01:00:00', '%H:%M:%S').time()
+    now = timezone.localtime(timezone.now())
+    
+    last_executed_today = False
+    if task.executed_at:
+        exec_date = timezone.localtime(task.executed_at)
+        if exec_date.date() == now.date():
+            last_executed_today = True
+            
+    candidate = now.replace(hour=execution_time.hour, minute=execution_time.minute, second=0, microsecond=0)
+    if candidate <= now or last_executed_today:
+        candidate += timedelta(days=1)
+        
+    how_often = config.how_often or 'daily'
+    what_day = config.what_day
+    
+    import calendar
+    for _ in range(400):
+        matches = False
+        day_of_week = candidate.strftime('%A')
+        
+        if how_often == 'daily':
+            matches = True
+        elif how_often == 'weekly':
+            if what_day and day_of_week.lower() == what_day.lower():
+                matches = True
+        elif how_often == 'monthly':
+            if what_day:
+                if what_day.isdigit():
+                    target_day = int(what_day)
+                    _, last_day = calendar.monthrange(candidate.year, candidate.month)
+                    effective_target = min(target_day, last_day)
+                    if candidate.day == effective_target:
+                        matches = True
+                else:
+                    if day_of_week.lower() == what_day.lower() and candidate.day <= 7:
+                        matches = True
+        elif how_often == 'yearly':
+            if candidate.month == 1 and what_day:
+                if what_day.isdigit():
+                    target_day = int(what_day)
+                    _, last_day = calendar.monthrange(candidate.year, 1)
+                    effective_target = min(target_day, last_day)
+                    if candidate.day == effective_target:
+                        matches = True
+                else:
+                    if day_of_week.lower() == what_day.lower() and candidate.day <= 7:
+                        matches = True
+                        
+        if matches:
+            return candidate.strftime('%Y-%m-%d %H:%M')
+        candidate += timedelta(days=1)
+        
+    return '-'
 
 
 class RetentionViewSet(viewsets.ViewSet):
@@ -396,9 +459,101 @@ class RetentionViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def logs(self, request):
-        logs = RetentionLog.objects.all().order_by('-created_at')
-        serializer = RetentionLogSerializer(logs, many=True)
-        return Response(serializer.data)
+        retention_actions = [
+            'Save and Run Immediately Retention',
+            'Save and Run Schedule Retention',
+            'Run Schedule Retention',
+            'Stop Schedule Retention',
+            'Restore Data Schedule Retention',
+            'Restore Data Immediately Retention',
+        ]
+        
+        user_logs = UserLog.objects.filter(
+            action__in=retention_actions
+        ).select_related('user').order_by('-timestamp')
+        
+        config = AutoRetentionConfig.load()
+        data = []
+        
+        for log in user_logs:
+            detail_str = log.detail or ''
+            retention_id = '-'
+            retention_period = '-'
+            times = '-'
+            delete_option = '-'
+            
+            parts = [p.strip() for p in detail_str.split('|')]
+            for p in parts:
+                if p.lower().startswith('retention id :'):
+                    retention_id = p.split(':', 1)[1].strip()
+                elif p.lower().startswith('retention period :'):
+                    retention_period = p.split(':', 1)[1].strip()
+                    import re
+                    retention_period = re.sub(r':\d{2}\b', '', retention_period)
+                elif p in ['Once', 'Recurrence']:
+                    times = p
+                elif p in ['Indexes & Voice Files', 'Indexes', 'Only Indexs', 'Indexs', 'Indexes & Voice Files']:
+                    delete_option = p
+            
+            task_type = '-'
+            index_count = '-'
+            running_date = '-'
+            
+            if retention_id.isdigit():
+                task_id = int(retention_id)
+                try:
+                    task = RetentionTask.objects.get(pk=task_id)
+                    task_type = 'Schedule' if task.task_type == 'AUTO_EXECUTION' else 'Immediately'
+                    
+                    # Retrieve index count from RetentionLog (actual deleted count) if it exists, otherwise fall back to task.index_count
+                    ret_logs = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_")
+                    if ret_logs.exists():
+                        index_count = sum(r.index_count for r in ret_logs if r.index_count is not None)
+                    else:
+                        index_count = task.index_count
+                    
+                    if task.task_type == 'MANUAL':
+                        running_date = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
+                    else:
+                        running_date = _calculate_next_run(task, config)
+                except RetentionTask.DoesNotExist:
+                    pass
+            
+            if task_type == '-':
+                if 'Schedule' in log.action:
+                    task_type = 'Schedule'
+                elif 'Immediately' in log.action:
+                    task_type = 'Immediately'
+                    
+            download_url = None
+            if retention_id.isdigit():
+                task_id = int(retention_id)
+                ret_log = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_").first()
+                if ret_log:
+                    download_url = f"/api/v1/retention/logs/{ret_log.id}/download/"
+            
+            ts_str = '-'
+            if log.timestamp:
+                ts_str = timezone.localtime(log.timestamp).strftime('%Y-%m-%d %H:%M')
+                
+            data.append({
+                "id": log.id,
+                "retention_id": retention_id,
+                "action": log.action,
+                "retention_type": task_type,
+                "retention_period": retention_period,
+                "times": times,
+                "index_count": index_count,
+                "running_date": running_date,
+                "created_by": log.user.username if log.user else "-",
+                "description": log.detail,
+                "ip_address": log.ip_address or "-",
+                "timestamp": ts_str,
+                "client_type": log.client_type or "-",
+                "download_url": download_url
+            })
+            
+        return Response(data)
 
     @action(detail=True, methods=['get'])
     def download_log(self, request, pk=None):

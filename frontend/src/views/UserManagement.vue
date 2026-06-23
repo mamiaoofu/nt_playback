@@ -107,11 +107,11 @@
                             @per-change="setPerPage">
 
                             <template #cell-username="{ row }">
-                                {{ row.user?.username ? row.user.username + (row.ad_account ? ' (AD)' : '') : '' }}
+                                {{ (row.user?.username ? row.user.username + (row.ad_account ? ' (AD)' : '') : '') + (row.user?.is_superuser ? ' *' : '') }}
                             </template>
 
                             <template #cell-full_name="{ row }">
-                                {{ (row.user?.first_name || '') + ' ' + (row.user?.last_name || '') }}
+                                {{ (((row.user?.first_name || '') + ' ' + (row.user?.last_name || '')).trim() || '') + (row.user?.is_superuser ? ' *' : '') }}
                             </template>
 
                             
