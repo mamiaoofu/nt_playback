@@ -86,7 +86,7 @@
           </li> -->
           <li>
             <router-link to="/system-tool/data-retention/logs" class="sub-link">
-              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Log Retention</span>
+              <span class="sub-text"><i class="fa-solid fa-circle-dot"></i> Retention Log</span>
             </router-link>
           </li>
         </ul>

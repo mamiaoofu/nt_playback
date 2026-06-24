@@ -247,6 +247,17 @@ def ApiNetworkShareSetting(request):
                 if not network_path:
                     return JsonResponse({'status': 'error', 'message': 'Network Path is required.'}, status=400)
                 
+                if main_db_id:
+                    duplicate_query = FileStorageConfig.objects.filter(main_db_id=main_db_id)
+                    if action == 'update':
+                        duplicate_query = duplicate_query.exclude(id=record_id)
+                    if duplicate_query.exists():
+                        db_name = 'this database'
+                        db_obj = MainDatabase.objects.filter(id=main_db_id).first()
+                        if db_obj:
+                            db_name = f'database "{db_obj.database_name}"'
+                        return JsonResponse({'status': 'error', 'message': f'The {db_name} is already assigned to another Network Share.'}, status=400)
+                
                 with transaction.atomic():
                     if action == 'create':
                         config = FileStorageConfig(name='smb_config', protocol='smb')

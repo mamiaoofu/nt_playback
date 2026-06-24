@@ -12,7 +12,7 @@
                   style="width: 35px; height: 35px; background-color: #d9e2f6; border-radius: 10px !important">
                   <i class="fas fa-file-alt" style="color: #2b6cb0; font-size: 18px"></i>
                 </div>
-                <h5 class="card-title mb-2 mt-1">Log Retention</h5>
+                <h5 class="card-title mb-2 mt-1">Retention Log</h5>
               </div>
               
               <div class="d-flex align-items-center">

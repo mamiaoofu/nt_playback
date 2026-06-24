@@ -62,7 +62,7 @@
                           @change="autoOlderThanUnit = 'D'"
                           :disabled="isScheduleActive || auto.retentionType !== 'OLDER_THAN'"
                         />
-                        <label class="form-check-label" for="unitDaily">Daily</label>
+                        <label class="form-check-label" for="unitDaily">Day(s)</label>
                       </div>
                       <div class="form-check">
                         <input 
@@ -73,7 +73,7 @@
                           @change="autoOlderThanUnit = 'M'"
                           :disabled="isScheduleActive || auto.retentionType !== 'OLDER_THAN'"
                         />
-                        <label class="form-check-label" for="unitMonthly">Monthly</label>
+                        <label class="form-check-label" for="unitMonthly">Month(s)</label>
                       </div>
                       <div class="form-check">
                         <input 
@@ -84,7 +84,7 @@
                           @change="autoOlderThanUnit = 'Y'"
                           :disabled="isScheduleActive || auto.retentionType !== 'OLDER_THAN'"
                         />
-                        <label class="form-check-label" for="unitYearly">Yearly</label>
+                        <label class="form-check-label" for="unitYearly">Year(s)</label>
                       </div>
                     </div>
                   </div>
@@ -201,11 +201,11 @@
                 <div class="d-flex gap-4 align-items-center">
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="checkbox" id="autoDeleteIndexOnly" :checked="auto.deleteOption === 'INDEX_ONLY'" @change="auto.deleteOption = 'INDEX_ONLY'" :disabled="isScheduleActive" />
-                    <label class="form-check-label" for="autoDeleteIndexOnly">Only Indexs</label>
+                    <label class="form-check-label" for="autoDeleteIndexOnly">Only Indexes</label>
                   </div>
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="checkbox" id="autoDeleteVoiceIndex" :checked="auto.deleteOption === 'VOICE_AND_INDEX'" @change="auto.deleteOption = 'VOICE_AND_INDEX'" :disabled="isScheduleActive" />
-                    <label class="form-check-label" for="autoDeleteVoiceIndex">Indexs & Voice Files</label>
+                    <label class="form-check-label" for="autoDeleteVoiceIndex">Indexes & Voice Files</label>
                   </div>
                 </div>
                 <div>
@@ -256,11 +256,11 @@
                 <div class="d-flex gap-4 align-items-center">
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="checkbox" id="manualDeleteIndexOnly" :checked="manual.deleteOption === 'INDEX_ONLY'" @change="manual.deleteOption = 'INDEX_ONLY'" />
-                    <label class="form-check-label" for="manualDeleteIndexOnly">Only Indexs</label>
+                    <label class="form-check-label" for="manualDeleteIndexOnly">Only Indexes</label>
                   </div>
                   <div class="form-check form-check-inline">
                     <input class="form-check-input" type="checkbox" id="manualDeleteVoiceIndex" :checked="manual.deleteOption === 'VOICE_AND_INDEX'" @change="manual.deleteOption = 'VOICE_AND_INDEX'" />
-                    <label class="form-check-label" for="manualDeleteVoiceIndex">Indexs & Voice Files</label>
+                    <label class="form-check-label" for="manualDeleteVoiceIndex">Indexes & Voice Files</label>
                   </div>
                 </div>
                 <div>
@@ -386,6 +386,29 @@
       </div>
     </div>
 
+    <!-- Warning Modal -->
+    <div v-if="showWarningModal" class="modal-backdrop" @click.self="showWarningModal = false" style="z-index: 2100; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center;">
+      <div class="modal-box" style="max-width: 400px; width: 100%;">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid rgba(0,0,0,0.06);">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <div class="warning-icon" style="width: 35px; height: 35px; background-color: #FEF3C7; border-radius: 10px !important; display: flex; align-items: center; justify-content: center;">
+              <i class="fa-solid fa-triangle-exclamation" style="color: #D97706;"></i>
+            </div>
+            <h3 class="modal-title ad" style="font-size: 16px; font-weight: 600; margin: 0; color: #D97706;">Warning</h3>
+          </div>
+          <button type="button" class="btn-close" @click="showWarningModal = false" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px 24px; text-align: center; color: #475569; font-size: 14px;">
+          {{ warningMessage }}
+        </div>
+        <div class="modal-footer" style="padding: 12px 24px; border-top: 1px solid rgba(0,0,0,0.06); display: flex; justify-content: flex-end;">
+          <button class="btn btn-primary btn-sm" style="border-radius: 20px; padding: 6px 16px; font-size: 12px; margin-top: 0;" @click="showWarningModal = false">
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Task Detail Modal -->
     <div v-if="showDetailModal && selectedTask" class="modal-backdrop" @click.self="showDetailModal = false" style="z-index: 2000; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center;">
       <div class="modal-box" style="max-width: 500px; width: 100%;">
@@ -409,14 +432,14 @@
             <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
               <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Action</div>
               <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
-                {{ selectedTask.delete_option === 'INDEX_ONLY' ? 'Only Indexs' : selectedTask.delete_option === 'VOICE_AND_INDEX' ? 'Indexs & Voice Files' : selectedTask.delete_option }}
+                {{ selectedTask.delete_option === 'INDEX_ONLY' ? 'Only Indexes' : selectedTask.delete_option === 'VOICE_AND_INDEX' ? 'Indexes & Voice Files' : selectedTask.delete_option }}
               </div>
             </div>
 
             <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
               <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Retention Type</div>
               <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
-                {{ selectedTask.task_type === 'AUTO_EXECUTION' ? 'Schedule' : selectedTask.task_type === 'MANUAL' ? 'Immediately' : selectedTask.task_type }}
+                {{ formatRetentionType(selectedTask) }}
               </div>
             </div>
 
@@ -433,6 +456,13 @@
               <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Retention Period</div>
               <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
                 {{ formatRetentionPeriod(selectedTask.time_period) }}
+              </div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Run on a Schedule</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">
+                {{ formatRunOnSchedule(selectedTask) }}
               </div>
             </div>
 
@@ -532,12 +562,44 @@ const showTaskDetails = (task) => {
   showDetailModal.value = true;
 };
 
+const showWarningModal = ref(false);
+const warningMessage = ref('');
+
+const triggerWarning = (msg) => {
+  warningMessage.value = msg;
+  showWarningModal.value = true;
+};
+
 const formatRetentionPeriod = (timePeriod) => {
   if (!timePeriod) return '-';
   if (timePeriod.startsWith('Older than ')) {
     return timePeriod.replace('Older than ', 'over ');
   }
   return timePeriod;
+};
+
+const formatRetentionType = (task) => {
+  if (!task) return '';
+  if (task.task_type === 'MANUAL') {
+    return 'Immediately';
+  }
+  if (task.task_type === 'AUTO_EXECUTION') {
+    return 'Schedule';
+  }
+  return task.task_type;
+};
+
+const formatRunOnSchedule = (task) => {
+  if (!task || task.task_type === 'MANUAL') {
+    return '-';
+  }
+  if (task.task_type === 'AUTO_EXECUTION' && config.value) {
+    const howOften = config.value.how_often ? (config.value.how_often.charAt(0).toUpperCase() + config.value.how_often.slice(1)) : '-';
+    const whatDay = config.value.what_day || '-';
+    const whatTime = config.value.execution_time ? config.value.execution_time.substring(0, 5) : '-';
+    return `${howOften} | ${whatDay} | ${whatTime}`;
+  }
+  return '-';
 };
 
 const calculateNextRun = (task, configVal) => {
@@ -702,6 +764,34 @@ const auto = ref({
 });
 
 // Date range watchers only
+
+watch(() => auto.value.startDate, (newVal) => {
+  if (newVal && auto.value.endDate && newVal > auto.value.endDate) {
+    auto.value.endDate = newVal;
+    triggerWarning('Start date cannot be after the end date.');
+  }
+});
+
+watch(() => auto.value.endDate, (newVal) => {
+  if (newVal && auto.value.startDate && newVal < auto.value.startDate) {
+    auto.value.startDate = newVal;
+    triggerWarning('End date cannot be before the start date.');
+  }
+});
+
+watch(() => manual.value.startDate, (newVal) => {
+  if (newVal && manual.value.endDate && newVal > manual.value.endDate) {
+    manual.value.endDate = newVal;
+    triggerWarning('Start date cannot be after the end date.');
+  }
+});
+
+watch(() => manual.value.endDate, (newVal) => {
+  if (newVal && manual.value.startDate && newVal < manual.value.startDate) {
+    manual.value.startDate = newVal;
+    triggerWarning('End date cannot be before the start date.');
+  }
+});
 
 watch(() => auto.value.retentionType, (newVal) => {
   if (newVal === 'DATE_RANGE') {
@@ -1048,7 +1138,7 @@ label {
   font-weight: 600;
   color: #64748b;
   font-size: 16px;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   letter-spacing: 0.05em;
   margin-bottom: 8px;
   border-radius: 8px;
