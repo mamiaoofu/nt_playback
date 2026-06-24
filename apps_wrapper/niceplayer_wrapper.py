@@ -215,17 +215,19 @@ def kill_niceplayer():
 
 
 def translate_local_to_unc(path, config):
-    """
+    r"""
     Translate a server-local absolute path to a UNC path accessible from this client.
 
     Strategy (in order):
     1. If already a UNC path  → just resolve any IP to hostname.
     2. If the path is locally accessible  → use as-is.
-    3. If the path has a drive letter (X:\\...)  → use Windows admin share X$
-       e.g.  C:\\Users\\foo.nmf  →  \\\\SERVER\\C$\\Users\\foo.nmf
-             D:\\Recordings\\bar.nmf  →  \\\\SERVER\\D$\\Recordings\\bar.nmf
+    3. Try translating using base_path / share from config.json to prioritize
+       the configured network path over the administrative X$ share.
+    4. If the path has a drive letter (X:\...) and wasn't mapped by config → use Windows admin share X$
+       e.g.  C:\Users\foo.nmf  →  \\SERVER\C$\Users\foo.nmf
+             D:\Recordings\bar.nmf  →  \\SERVER\D$\Recordings\bar.nmf
        This works for any drive letter (C, D, E, …) automatically.
-    4. Fallback: use the configured share + base_path from config.json.
+    5. Fallback: use the configured share + base_path from config.json.
     """
     server = config.get("server", "").strip()
     if not server:
@@ -246,7 +248,35 @@ def translate_local_to_unc(path, config):
     if os.path.exists(path):
         return path
 
-    # ── 3. Drive letter path → admin share (X$) ───────────────────────────
+    # ── 3. Try matching configured base_path or share from config.json ────
+    share     = config.get("share", "").strip()
+    base_path = config.get("base_path", "").strip().rstrip("\\/")
+    if share:
+        path_lower = path.lower().replace('/', '\\')
+        # Check if the path contains base_path
+        if base_path:
+            base_path_lower = base_path.lower().replace('/', '\\')
+            idx = path_lower.find(base_path_lower)
+            if idx != -1:
+                rel_path = path[idx + len(base_path):].lstrip('\\/')
+                unc_path = f"\\\\{server}\\{share}\\{base_path}"
+                if rel_path:
+                    unc_path = os.path.join(unc_path, rel_path)
+                log(f"Translated '{path}' -> '{unc_path}' (matched base_path '{base_path}')")
+                return unc_path
+
+        # If base_path not matched or empty, try matching share name itself
+        share_lower = share.lower()
+        idx_share = path_lower.find(share_lower)
+        if idx_share != -1:
+            rel_path = path[idx_share + len(share):].lstrip('\\/')
+            unc_path = f"\\\\{server}\\{share}"
+            if rel_path:
+                unc_path = os.path.join(unc_path, rel_path)
+            log(f"Translated '{path}' -> '{unc_path}' (matched share '{share}')")
+            return unc_path
+
+    # ── 4. Drive letter path → admin share (X$) fallback ──────────────────
     # Windows exposes every drive as a hidden admin share: C$, D$, E$, etc.
     # We extract the drive letter and build the UNC path automatically.
     if len(path) >= 3 and path[1] == ":" and path[2] == "\\":
@@ -256,19 +286,17 @@ def translate_local_to_unc(path, config):
         unc_path = f"\\\\{server}\\{admin_share}"
         if rel_path:
             unc_path = os.path.join(unc_path, rel_path)
-        log(f"Translated '{path}' → '{unc_path}' (admin share {admin_share})")
+        log(f"Translated '{path}' -> '{unc_path}' (admin share {admin_share} fallback)")
         return unc_path
 
-    # ── 4. Fallback: use configured share from config.json ─────────────────
-    share     = config.get("share", "").strip()
-    base_path = config.get("base_path", "").strip().rstrip("\\")
+    # ── 5. Fallback: use configured share from config.json ─────────────────
     if share:
         unc_path = f"\\\\{server}\\{share}"
         if base_path:
             unc_path = os.path.join(unc_path, base_path)
         if path:
             unc_path = os.path.join(unc_path, path.lstrip("\\"))
-        log(f"Translated '{path}' → '{unc_path}' (configured share '{share}')")
+        log(f"Translated '{path}' -> '{unc_path}' (configured share '{share}' fallback)")
         return unc_path
 
     return path
