@@ -28,7 +28,7 @@ def _format_time_period_detail_from_config(config):
     if config.retention_type == 'DATE_RANGE':
         start = str(config.start_date or '')
         end = str(config.end_date or '')
-        return f"{start} 00:00 - {end} 23:59"
+        return f"{start} - {end}"
     return str(config.retention_period or '')
 
 
@@ -38,10 +38,10 @@ def _format_time_period_detail_from_task(task):
     time_period = task.time_period or ''
     if ' to ' in time_period:
         start, end = time_period.split(' to ', 1)
-        return f"{start} 00:00 - {end} 23:59"
+        return f"{start} - {end}"
     if ' - ' in time_period and task.task_type == 'MANUAL':
         start, end = time_period.split(' - ', 1)
-        return f"{start} 00:00 - {end} 23:59"
+        return f"{start} - {end}"
     return time_period.replace('Older than', 'Over')
 
 
@@ -53,7 +53,7 @@ def _format_occurrence(task=None, config=None):
     return 'Recurrence'
 
 
-def _build_log_detail(task_id, time_period, occurrence=None, delete_option=None, restore=False):
+def _build_log_detail(task_id, time_period, occurrence=None, delete_option=None, restore=False, running_date=None, index_count=None):
     detail_parts = [f"Retention ID : {task_id}", f"Retention Period : {time_period}"]
     if restore:
         detail_parts.append('Indexes')
@@ -62,6 +62,12 @@ def _build_log_detail(task_id, time_period, occurrence=None, delete_option=None,
             detail_parts.append(occurrence)
         if delete_option:
             detail_parts.append(_format_delete_option(delete_option))
+            
+    if running_date is not None:
+        detail_parts.append(f"Running Date : {running_date}")
+    if index_count is not None:
+        detail_parts.append(f"Index Count : {index_count}")
+        
     return ' | '.join(detail_parts)
 
 
@@ -232,8 +238,13 @@ class RetentionViewSet(viewsets.ViewSet):
             return Response({'error': 'Invalid date format (YYYY-MM-DD)'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
+            from django.db.models import Max
+            max_id = RetentionTask.objects.aggregate(Max('id'))['id__max'] or 0
+            next_id = max(max_id + 1, 10002)
+            
             # Create Task
             task = RetentionTask.objects.create(
+                id=next_id,
                 task_type='MANUAL',
                 delete_option=delete_option,
                 status='RUNNING',
@@ -269,7 +280,9 @@ class RetentionViewSet(viewsets.ViewSet):
                     task.id,
                     _format_time_period_detail_from_task(task),
                     occurrence='Once',
-                    delete_option=delete_option
+                    delete_option=delete_option,
+                    running_date=timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-',
+                    index_count=count
                 ),
                 status='success',
                 request=request
@@ -335,14 +348,19 @@ class RetentionViewSet(viewsets.ViewSet):
                         task.index_count = 0
                     else:
                         task.status = 'STOPPED'
+                    task.user_create = request.user.username if request.user.is_authenticated else 'system'
+                    task.update_by = request.user.username if request.user.is_authenticated else 'system'
+                    task.created_at = timezone.now()
                     task.save()
                 else:
                     task = RetentionTask.objects.create(
+                        id=10001,
                         task_type='AUTO_EXECUTION',
                         delete_option=config.delete_option or 'INDEX_ONLY',
                         status='READY' if config.is_active else 'STOPPED',
                         time_period=time_period_desc,
-                        user_create=request.user.username if request.user.is_authenticated else 'system'
+                        user_create=request.user.username if request.user.is_authenticated else 'system',
+                        update_by=request.user.username if request.user.is_authenticated else 'system'
                     )
 
                 create_user_log(
@@ -352,7 +370,9 @@ class RetentionViewSet(viewsets.ViewSet):
                         task.id,
                         time_period_desc.replace('Older than', 'Over'),
                         occurrence=_format_occurrence(config=config),
-                        delete_option=config.delete_option
+                        delete_option=config.delete_option,
+                        running_date=_calculate_next_run(task, config),
+                        index_count=task.index_count
                     ),
                     status='success',
                     request=request
@@ -400,7 +420,10 @@ class RetentionViewSet(viewsets.ViewSet):
             task.status = 'RESTORED'
             task.executed_at = None
             task.index_count = 0
+            task.update_by = request.user.username if request.user.is_authenticated else 'system'
             task.save()
+
+            config = AutoRetentionConfig.load() if task.task_type == 'AUTO_EXECUTION' else None
 
             create_user_log(
                 user=request.user,
@@ -408,7 +431,9 @@ class RetentionViewSet(viewsets.ViewSet):
                 detail=_build_log_detail(
                     task.id,
                     _format_time_period_detail_from_task(task),
-                    restore=True
+                    restore=True,
+                    running_date=timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.task_type == 'MANUAL' else _calculate_next_run(task, config),
+                    index_count=count
                 ),
                 status='success',
                 request=request
@@ -434,6 +459,7 @@ class RetentionViewSet(viewsets.ViewSet):
             task.status = 'READY'
             task.index_count = 0
             task.executed_at = None
+            task.update_by = request.user.username if request.user.is_authenticated else 'system'
             task.save()
 
             # Sync config is_active to True
@@ -448,7 +474,9 @@ class RetentionViewSet(viewsets.ViewSet):
                     task.id,
                     _format_time_period_detail_from_config(config),
                     occurrence=_format_occurrence(task=task, config=config),
-                    delete_option=config.delete_option
+                    delete_option=config.delete_option,
+                    running_date=_calculate_next_run(task, config),
+                    index_count=task.index_count
                 ),
                 status='success',
                 request=request
@@ -457,21 +485,6 @@ class RetentionViewSet(viewsets.ViewSet):
             return Response({'message': 'Task started', 'status': task.status})
         except Exception as e:
             return _error_response(request, 'Run Schedule Retention', f'Failed to start schedule retention: {str(e)}', exception=e)
-
-        create_user_log(
-            user=request.user,
-            action='Run Schedule Retention',
-            detail=_build_log_detail(
-                task.id,
-                _format_time_period_detail_from_config(config),
-                occurrence=_format_occurrence(task=task, config=config),
-                delete_option=config.delete_option
-            ),
-            status='success',
-            request=request
-        )
-
-        return Response({'message': 'Task started', 'status': task.status})
 
     @action(detail=True, methods=['post'], url_path='stop')
     def stop_task(self, request, pk=None):
@@ -487,6 +500,7 @@ class RetentionViewSet(viewsets.ViewSet):
             
         try:
             task.status = 'STOPPED'
+            task.update_by = request.user.username if request.user.is_authenticated else 'system'
             task.save()
 
             # Sync config is_active to False
@@ -499,7 +513,9 @@ class RetentionViewSet(viewsets.ViewSet):
                 action='Stop Schedule Retention',
                 detail=_build_log_detail(
                     task.id,
-                    _format_time_period_detail_from_config(config)
+                    _format_time_period_detail_from_config(config),
+                    running_date='Stopped',
+                    index_count=task.index_count
                 ),
                 status='success',
                 request=request
@@ -527,6 +543,7 @@ class RetentionViewSet(viewsets.ViewSet):
             'Stop Schedule Retention',
             'Restore Data Schedule Retention',
             'Restore Data Immediately Retention',
+            'Auto Execution Schedule Retention',
         ]
         
         user_logs = UserLog.objects.filter(
@@ -542,6 +559,8 @@ class RetentionViewSet(viewsets.ViewSet):
             retention_period = '-'
             times = '-'
             delete_option = '-'
+            running_date = '-'
+            index_count = '-'
             
             parts = [p.strip() for p in detail_str.split('|')]
             for p in parts:
@@ -555,10 +574,12 @@ class RetentionViewSet(viewsets.ViewSet):
                     times = p
                 elif p in ['Indexes & Voice Files', 'Indexes', 'Only Indexs', 'Indexs', 'Indexes & Voice Files']:
                     delete_option = p
+                elif p.lower().startswith('running date :'):
+                    running_date = p.split(':', 1)[1].strip()
+                elif p.lower().startswith('index count :'):
+                    index_count = p.split(':', 1)[1].strip()
             
             task_type = '-'
-            index_count = '-'
-            running_date = '-'
             
             if retention_id.isdigit():
                 task_id = int(retention_id)
@@ -566,17 +587,20 @@ class RetentionViewSet(viewsets.ViewSet):
                     task = RetentionTask.objects.get(pk=task_id)
                     task_type = 'Schedule' if task.task_type == 'AUTO_EXECUTION' else 'Immediately'
                     
-                    # Retrieve index count from RetentionLog (actual deleted count) if it exists, otherwise fall back to task.index_count
-                    ret_logs = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_")
-                    if ret_logs.exists():
-                        index_count = sum(r.index_count for r in ret_logs if r.index_count is not None)
-                    else:
-                        index_count = task.index_count
+                    if index_count == '-':
+                        # Fallback for old logs
+                        ret_logs = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_")
+                        if ret_logs.exists():
+                            index_count = sum(r.index_count for r in ret_logs if r.index_count is not None)
+                        else:
+                            index_count = task.index_count
                     
-                    if task.task_type == 'MANUAL':
-                        running_date = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
-                    else:
-                        running_date = _calculate_next_run(task, config)
+                    if running_date == '-':
+                        # Fallback for old logs
+                        if task.task_type == 'MANUAL':
+                            running_date = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
+                        else:
+                            running_date = _calculate_next_run(task, config)
                 except RetentionTask.DoesNotExist:
                     pass
             

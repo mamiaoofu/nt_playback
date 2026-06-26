@@ -118,6 +118,23 @@ def execute_auto_retention_job():
             retention_task_id=task.id,
             delete_option=config.delete_option
         )
+        try:
+            from apps.core.model.authorize.models import UserLog
+            local_now = timezone.localtime(now)
+            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {time_period_desc} | {delete_option_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
+            
+            UserLog.objects.create(
+                user=None,
+                action='Auto Execution Schedule Retention',
+                detail=detail_str,
+                status='success',
+                ip_address='127.0.0.1',
+                client_type='System Scheduler'
+            )
+            logger.info(f"Auto Retention UserLog created for task {task.id}. Count: {count}")
+        except Exception as e:
+            logger.error(f"Failed to create UserLog for Auto Retention task {task.id}: {e}")
     
     # Update the single AUTO_EXECUTION task
     task.status = 'RUNNING'

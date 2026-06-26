@@ -238,9 +238,18 @@ const loadSettings = async () => {
 }
 
 const databaseOptions = computed(() => {
-    return Array.isArray(databases.value) 
-        ? databases.value.map(db => ({ label: db.database_name, value: db.id })) 
-        : []
+    if (!Array.isArray(databases.value)) return []
+    return databases.value
+        .filter(db => {
+            if (!isEdit.value) {
+                // For creation, exclude already assigned databases
+                return !db.is_assigned
+            } else {
+                // For update, exclude already assigned databases EXCEPT the one currently assigned to this share
+                return !db.is_assigned || db.id === form.value.mainDbId
+            }
+        })
+        .map(db => ({ label: db.database_name, value: db.id }))
 })
 
 const openCreateModal = () => {
@@ -283,6 +292,11 @@ const saveChanges = async () => {
     errors.value.networkPath = ''
     errors.value.username = ''
     errors.value.password = ''
+    
+    if (!form.value.mainDbId) {
+        showToast('Database Server is required.', 'error')
+        return
+    }
     
     if (!form.value.networkPath.trim()) {
         errors.value.networkPath = 'Network Path is required.'

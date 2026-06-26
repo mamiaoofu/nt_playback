@@ -332,7 +332,7 @@
                           type="button" class="group-send-btn" @click.stop="startTask(row.id)">
                           <i class="fas fa-play" style="font-size: 10px;"></i>
                         </button>
-                        <button v-if="row.status === 'READY' || row.status === 'RUNNING'"
+                        <button v-if="row.status === 'READY'"
                           type="button" class="group-delete-btn" @click.stop="stopTask(row.id)">
                           <i class="fas fa-stop" style="font-size: 10px;"></i>
                         </button>
@@ -490,9 +490,19 @@
               <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ selectedTask.user_create }}</div>
             </div>
 
-            <div class="detail-row" style="display: flex; padding-bottom: 4px;">
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
               <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Created Date</div>
               <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ formatDate(selectedTask.created_at) }}</div>
+            </div>
+
+            <div class="detail-row" style="display: flex; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Updated By</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ selectedTask.update_by || selectedTask.user_create }}</div>
+            </div>
+
+            <div class="detail-row" style="display: flex; padding-bottom: 4px;">
+              <div class="detail-label" style="width: 160px; font-weight: 600; color: #64748b; font-size: 13px;">Updated Date</div>
+              <div class="detail-value" style="color: #1e293b; font-size: 13px; font-weight: 500;">{{ formatDate(selectedTask.updated_at) }}</div>
             </div>
 
           </div>

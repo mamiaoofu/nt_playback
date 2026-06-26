@@ -22,6 +22,7 @@ class RetentionTask(models.Model):
     index_count = models.IntegerField(default=0)
     time_period = models.CharField(max_length=100, blank=True, null=True)
     user_create = models.CharField(max_length=100)
+    update_by = models.CharField(max_length=100, blank=True, null=True)
     executed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

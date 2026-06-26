@@ -203,8 +203,15 @@ def ApiNetworkShareSetting(request):
                     'mainDbName': config.main_db.database_name if config.main_db else 'Default / Unassigned'
                 })
                 
-            # Fetch all main databases for the dropdown
-            db_list = list(MainDatabase.objects.filter(status=True).values('id', 'database_name'))
+            # Fetch all main databases for the dropdown, including assignment status
+            assigned_db_ids = set(FileStorageConfig.objects.filter(main_db__isnull=False).values_list('main_db_id', flat=True))
+            db_list = []
+            for db in MainDatabase.objects.filter(status=True):
+                db_list.append({
+                    'id': db.id,
+                    'database_name': db.database_name,
+                    'is_assigned': db.id in assigned_db_ids
+                })
             
             return JsonResponse({
                 'status': 'success',
@@ -247,16 +254,25 @@ def ApiNetworkShareSetting(request):
                 if not network_path:
                     return JsonResponse({'status': 'error', 'message': 'Network Path is required.'}, status=400)
                 
-                if main_db_id:
-                    duplicate_query = FileStorageConfig.objects.filter(main_db_id=main_db_id)
-                    if action == 'update':
-                        duplicate_query = duplicate_query.exclude(id=record_id)
-                    if duplicate_query.exists():
-                        db_name = 'this database'
-                        db_obj = MainDatabase.objects.filter(id=main_db_id).first()
-                        if db_obj:
-                            db_name = f'database "{db_obj.database_name}"'
-                        return JsonResponse({'status': 'error', 'message': f'The {db_name} is already assigned to another Network Share.'}, status=400)
+                # Parse and sanitize main_db_id
+                if main_db_id in ('', 'null', 'undefined', None):
+                    main_db_id = None
+                else:
+                    try:
+                        main_db_id = int(main_db_id)
+                    except (ValueError, TypeError):
+                        main_db_id = None
+                        
+                if not main_db_id:
+                    return JsonResponse({'status': 'error', 'message': 'Database Server is required.'}, status=400)
+                
+                duplicate_query = FileStorageConfig.objects.filter(main_db_id=main_db_id)
+                if action == 'update':
+                    duplicate_query = duplicate_query.exclude(id=record_id)
+                if duplicate_query.exists():
+                    db_obj = MainDatabase.objects.filter(id=main_db_id).first()
+                    db_name = f'database "{db_obj.database_name}"' if db_obj else 'this database'
+                    return JsonResponse({'status': 'error', 'message': f'The {db_name} is already assigned to another Network Share.'}, status=400)
                 
                 with transaction.atomic():
                     if action == 'create':
