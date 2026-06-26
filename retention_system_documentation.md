@@ -92,7 +92,7 @@ flowchart TD
    - นำเงื่อนไขลบ (เช่น เกิน 6 เดือน) มาคำนวณหาวันสิ้นสุด (Cutoff Date)
    - ค้นหา `Record` ในตาราง `tb_audioinfo` ที่ `status = True` และเก่ากว่า Cutoff Date
    - ดำเนินการอัปเดตเป็น `status = False` (Soft Delete) และผูก `retention_task_id = 10001`
-   - เขียนบันทึกเหตุการณ์ลง `UserLog` ในชื่อ **`Auto Execution Schedule Retention`** บันทึกจำนวน `Record` และวันที่รันไว้แบบถาวร
+   - เขียนบันทึกเหตุการณ์ลง `UserLog` ในชื่อ **`Complete Soft Delete Schedule Retention`** บันทึกจำนวน `Record` และวันที่รันไว้แบบถาวร
 
 #### Job 2: `execute_permanent_delete_job` (ทำงานตรวจสอบทุก 1 นาที)
 1. ดึงข้อมูลจำนวนวันที่ถูกตั้งค่าลบถาวร (เช่น 30 วัน)

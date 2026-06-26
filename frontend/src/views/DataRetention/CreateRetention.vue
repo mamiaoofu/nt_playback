@@ -616,14 +616,8 @@ const calculateNextRun = (task, configVal) => {
   if (!task || task.task_type === 'MANUAL') {
     return '-';
   }
-  if (task.status === 'STOPPED') {
-    return 'Stopped';
-  }
   if (!configVal) {
     return 'Loading...';
-  }
-  if (!configVal.is_active) {
-    return 'Stopped';
   }
   
   const timeStr = configVal.execution_time || '01:00:00';

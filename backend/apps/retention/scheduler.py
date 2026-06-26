@@ -119,18 +119,20 @@ def execute_auto_retention_job():
             delete_option=config.delete_option
         )
         try:
-            from apps.core.model.authorize.models import UserLog
-            local_now = timezone.localtime(now)
-            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
-            detail_str = f"Retention ID : {task.id} | Retention Period : {time_period_desc} | {delete_option_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
+            from apps.core.utils.function import create_user_log
+            period_str = time_period_desc
+            if period_str:
+                import re
+                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = period_str.replace(' to ', ' - ')
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes"
             
-            UserLog.objects.create(
+            create_user_log(
                 user=None,
-                action='Auto Execution Schedule Retention',
+                action='Complete Soft Delete Schedule Retention',
                 detail=detail_str,
                 status='success',
-                ip_address='127.0.0.1',
-                client_type='System Scheduler'
+                request=None
             )
             logger.info(f"Auto Retention UserLog created for task {task.id}. Count: {count}")
         except Exception as e:
@@ -257,6 +259,41 @@ def execute_permanent_delete_job():
                     status="SUCCESS"
                 )
                 logger.info(f"Permanent delete finished for task {task_id}. Records: {total_deleted}. Log: {log_file}")
+
+                # Create user log for permanent deletion
+                task_obj = None
+                if task_id:
+                    try:
+                        task_obj = RetentionTask.objects.get(pk=task_id)
+                    except Exception:
+                        pass
+
+                if task_obj and task_obj.task_type == 'AUTO_EXECUTION':
+                    action_name = 'Complete Delete Schedule Retention'
+                else:
+                    action_name = 'Complete Delete Immediately Retention'
+
+                period_str = task_obj.time_period if task_obj and task_obj.time_period else time_period_desc
+                if period_str:
+                    import re
+                    period_str = re.sub(r'(?i)older than', 'over', period_str)
+                    period_str = period_str.replace(' to ', ' - ')
+
+                delete_desc = "Indexes & Voice Files" if 'VOICE_AND_INDEX' in delete_options else "Indexes"
+
+                detail_str = f"Retention ID : {task_id} | Retention Period : {period_str} | {delete_desc}"
+                try:
+                    from apps.core.utils.function import create_user_log
+                    create_user_log(
+                        user=None,
+                        action=action_name,
+                        detail=detail_str,
+                        status='success',
+                        request=None
+                    )
+                    logger.info(f"UserLog created for permanent delete: {action_name} - {detail_str}")
+                except Exception as log_err:
+                    logger.error(f"Failed to create UserLog for permanent delete: {log_err}")
         
     running_tasks = RetentionTask.objects.filter(status='RUNNING')
     for task in running_tasks:

@@ -149,10 +149,8 @@ def _verify_user_password(user, password):
 
 
 def _calculate_next_run(task, config):
-    if not task or task.task_type == 'MANUAL':
+    if not task or task.task_type == 'MANUAL' or not config:
         return '-'
-    if task.status == 'STOPPED' or not config or not config.is_active:
-        return 'Stopped'
         
     execution_time = config.execution_time or datetime.strptime('01:00:00', '%H:%M:%S').time()
     now = timezone.localtime(timezone.now())
@@ -213,12 +211,14 @@ def _calculate_next_run(task, config):
 class RetentionViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def manual(self, request):
+        # POST request
+        action_name = 'Complete Soft Delete Immediately Retention'
         password = request.data.get('password')
         if not password:
-            _create_error_log(request, 'Save and Run Immediately Retention', 'Password is required')
+            _create_error_log(request, action_name, 'Password is required')
             return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not request.user.is_authenticated or not _verify_user_password(request.user, password):
-            _create_error_log(request, 'Save and Run Immediately Retention', 'Invalid password')
+            _create_error_log(request, action_name, 'Invalid password')
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
         start_date_str = request.data.get('date_range_start')
@@ -227,14 +227,14 @@ class RetentionViewSet(viewsets.ViewSet):
         user_create = request.user.username if request.user.is_authenticated else 'system'
         
         if not start_date_str or not end_date_str:
-            _create_error_log(request, 'Save and Run Immediately Retention', 'Missing date range')
+            _create_error_log(request, action_name, 'Missing date range')
             return Response({'error': 'Missing date range'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
             end_date = datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
         except ValueError as e:
-            _create_error_log(request, 'Save and Run Immediately Retention', 'Invalid date format (YYYY-MM-DD)', exception=e)
+            _create_error_log(request, action_name, 'Invalid date format (YYYY-MM-DD)', exception=e)
             return Response({'error': 'Invalid date format (YYYY-MM-DD)'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
@@ -273,24 +273,18 @@ class RetentionViewSet(viewsets.ViewSet):
             task.index_count = count
             task.save()
 
+            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Indexes"
             create_user_log(
                 user=request.user,
-                action='Save and Run Immediately Retention',
-                detail=_build_log_detail(
-                    task.id,
-                    _format_time_period_detail_from_task(task),
-                    occurrence='Once',
-                    delete_option=delete_option,
-                    running_date=timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-',
-                    index_count=count
-                ),
+                action=action_name,
+                detail=detail_str,
                 status='success',
                 request=request
             )
             
             return Response({'message': 'Manual retention triggered', 'task_id': task.id, 'count': count})
         except Exception as e:
-            return _error_response(request, 'Save and Run Immediately Retention', f'Manual retention failed: {str(e)}', exception=e)
+            return _error_response(request, action_name, f'Manual retention failed: {str(e)}', exception=e)
 
     @action(detail=False, methods=['get', 'put'])
     def auto(self, request):
@@ -302,17 +296,20 @@ class RetentionViewSet(viewsets.ViewSet):
             return Response(data)
         
         # PUT request
+        is_permanent_delete_save = 'permanent_delete_value' in request.data
+        action_name = 'Change Retention Permanent Delete' if is_permanent_delete_save else 'Save and Run Schedule Retention'
+
         password = request.data.get('password')
         if not password:
-            _create_error_log(request, 'Save and Run Schedule Retention', 'Password is required')
+            _create_error_log(request, action_name, 'Password is required')
             return Response({'error': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
         if not request.user.is_authenticated or not _verify_user_password(request.user, password):
-            _create_error_log(request, 'Save and Run Schedule Retention', 'Invalid password')
+            _create_error_log(request, action_name, 'Invalid password')
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if there is an active running task
         if RetentionTask.objects.filter(task_type='AUTO_EXECUTION', status__in=['READY', 'RUNNING']).exists():
-            _create_error_log(request, 'Save and Run Schedule Retention', 'Cannot edit configuration while a task is active (Ready or Running).')
+            _create_error_log(request, action_name, 'Cannot edit configuration while a task is active (Ready or Running).')
             return Response({'error': 'Cannot edit configuration while a task is active (Ready or Running).'}, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = AutoRetentionConfigSerializer(config, data=request.data, partial=True)
@@ -363,26 +360,39 @@ class RetentionViewSet(viewsets.ViewSet):
                         update_by=request.user.username if request.user.is_authenticated else 'system'
                     )
 
-                create_user_log(
-                    user=request.user,
-                    action='Save and Run Schedule Retention',
-                    detail=_build_log_detail(
-                        task.id,
-                        time_period_desc.replace('Older than', 'Over'),
-                        occurrence=_format_occurrence(config=config),
-                        delete_option=config.delete_option,
-                        running_date=_calculate_next_run(task, config),
-                        index_count=task.index_count
-                    ),
-                    status='success',
-                    request=request
-                )
+                if is_permanent_delete_save:
+                    create_user_log(
+                        user=request.user,
+                        action='Change Retention Permanent Delete',
+                        detail=f"Permanent Delete : {config.permanent_delete_value} {config.permanent_delete_unit}",
+                        status='success',
+                        request=request
+                    )
+                else:
+                    period_str = time_period_desc
+                    if period_str:
+                        import re
+                        period_str = re.sub(r'(?i)older than', 'over', period_str)
+                        period_str = period_str.replace(' to ', ' - ')
+                    
+                    occurrence = _format_occurrence(config=config)
+                    occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
+                    delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+                    detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc}"
+                    
+                    create_user_log(
+                        user=request.user,
+                        action='Save and Run Schedule Retention',
+                        detail=detail_str,
+                        status='success',
+                        request=request
+                    )
 
                 return Response(serializer.data)
-            _create_error_log(request, 'Save and Run Schedule Retention', f"Invalid auto retention config: {serializer.errors}")
+            _create_error_log(request, action_name, f"Invalid auto retention config: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return _error_response(request, 'Save and Run Schedule Retention', f'Failed to save auto retention config: {str(e)}', exception=e)
+            return _error_response(request, action_name, f'Failed to save auto retention config: {str(e)}', exception=e)
 
     @action(detail=False, methods=['get'])
     def tasks(self, request):
@@ -419,22 +429,24 @@ class RetentionViewSet(viewsets.ViewSet):
             
             task.status = 'RESTORED'
             task.executed_at = None
-            task.index_count = 0
+            task.index_count = count
             task.update_by = request.user.username if request.user.is_authenticated else 'system'
             task.save()
 
             config = AutoRetentionConfig.load() if task.task_type == 'AUTO_EXECUTION' else None
 
+            period_str = task.time_period or ''
+            if period_str:
+                import re
+                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = period_str.replace(' to ', ' - ')
+            
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes"
+            
             create_user_log(
                 user=request.user,
                 action='Restore Data Schedule Retention' if task.task_type == 'AUTO_EXECUTION' else 'Restore Data Immediately Retention',
-                detail=_build_log_detail(
-                    task.id,
-                    _format_time_period_detail_from_task(task),
-                    restore=True,
-                    running_date=timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.task_type == 'MANUAL' else _calculate_next_run(task, config),
-                    index_count=count
-                ),
+                detail=detail_str,
                 status='success',
                 request=request
             )
@@ -467,17 +479,20 @@ class RetentionViewSet(viewsets.ViewSet):
             config.is_active = True
             config.save()
 
+            period_str = _format_time_period_detail_from_config(config)
+            if period_str:
+                import re
+                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = period_str.replace(' to ', ' - ')
+            occurrence = _format_occurrence(task=task, config=config)
+            occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
+            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc}"
+            
             create_user_log(
                 user=request.user,
                 action='Run Schedule Retention',
-                detail=_build_log_detail(
-                    task.id,
-                    _format_time_period_detail_from_config(config),
-                    occurrence=_format_occurrence(task=task, config=config),
-                    delete_option=config.delete_option,
-                    running_date=_calculate_next_run(task, config),
-                    index_count=task.index_count
-                ),
+                detail=detail_str,
                 status='success',
                 request=request
             )
@@ -508,15 +523,17 @@ class RetentionViewSet(viewsets.ViewSet):
             config.is_active = False
             config.save()
 
+            period_str = _format_time_period_detail_from_config(config)
+            if period_str:
+                import re
+                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = period_str.replace(' to ', ' - ')
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str}"
+            
             create_user_log(
                 user=request.user,
                 action='Stop Schedule Retention',
-                detail=_build_log_detail(
-                    task.id,
-                    _format_time_period_detail_from_config(config),
-                    running_date='Stopped',
-                    index_count=task.index_count
-                ),
+                detail=detail_str,
                 status='success',
                 request=request
             )
@@ -544,6 +561,11 @@ class RetentionViewSet(viewsets.ViewSet):
             'Restore Data Schedule Retention',
             'Restore Data Immediately Retention',
             'Auto Execution Schedule Retention',
+            'Change Retention Permanent Delete',
+            'Complete Delete Immediately Retention',
+            'Complete Delete Schedule Retention',
+            'Complete Soft Delete Schedule Retention',
+            'Complete Soft Delete Immediately Retention',
         ]
         
         user_logs = UserLog.objects.filter(
