@@ -103,7 +103,7 @@
           </router-link>
         </li>
 
-        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS) || store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)">
+        <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)">
           <a class="menu-link d-flex align-items-center" :class="{ collapsed: !isLogsOpen }"
             @click.prevent="isLogsOpen = !isLogsOpen" role="button" aria-expanded="false">
             <i class="fa-solid fa-clock-rotate-left"></i>
@@ -112,9 +112,6 @@
           </a>
           <div v-show="isLogsOpen" id="collapseLogs">
             <ul class="menu-list" style="padding-left: 12px; margin-top: 4px">
-              <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS)">
-                <router-link to="/logs/system" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> System log</router-link>
-              </li>
               <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS)">
                 <router-link to="/logs/audit" class="menu-link"><i class="fa-solid fa-circle-dot" style="font-size: 8px"></i> Audit log</router-link>
               </li>
@@ -126,7 +123,7 @@
         </li>
       </ul>
 
-      <div class="menu-divider" v-if="store.hasPermission(PERMISSIONS.USER_MANAGEMENT_ACCESS) || store.hasPermission(PERMISSIONS.ADD_USER) || store.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS) || store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)"></div>
+      <div class="menu-divider" v-if="store.hasPermission(PERMISSIONS.USER_MANAGEMENT_ACCESS) || store.hasPermission(PERMISSIONS.ADD_USER) || store.hasPermission(PERMISSIONS.AUDIT_LOG_ACCESS) || store.hasPermission(PERMISSIONS.TICKET_HISTORY_ACCESS)"></div>
 
       <ul class="menu-list">
         <li class="menu-item" v-if="store.hasPermission(PERMISSIONS.ROLE_PERMISSIONS_ACCESS) || store.hasPermission(PERMISSIONS.GROUP_TEAM_ACCESS)">

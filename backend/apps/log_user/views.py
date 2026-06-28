@@ -88,10 +88,22 @@ def ApiGetUserLogs(request,type):
     # avoid N+1 queries on user access by selecting related user
     log_list = UserLog.objects.select_related('user').all()
 
+    excluded_retention_actions = [
+        'Save and Run Schedule Retention',
+        'Stop Schedule Retention',
+        'Run Schedule Retention',
+        'Complete Soft Delete Schedule Retention',
+        'Complete Delete Schedule Retention',
+        'Restore Data Schedule Retention',
+        'Complete Soft Delete Immediately Retention',
+        'Complete Delete Immediately Retention',
+        'Restore Data Immediately Retention',
+    ]
+
     if type == 'system':
         log_list = log_list.filter(status='error')
     elif type == 'audit':
-        log_list = log_list.filter(status='success')
+        log_list = log_list.filter(status='success').exclude(action__in=excluded_retention_actions)
 
     # total before applying filters (for DataTables recordsTotal)
     records_total = log_list.count()
@@ -228,8 +240,19 @@ def ApiGetUserLogs(request,type):
 
 def ApiGetActionOptions(request):
     try:
+        excluded_retention_actions = [
+            'Save and Run Schedule Retention',
+            'Stop Schedule Retention',
+            'Run Schedule Retention',
+            'Complete Soft Delete Schedule Retention',
+            'Complete Delete Schedule Retention',
+            'Restore Data Schedule Retention',
+            'Complete Soft Delete Immediately Retention',
+            'Complete Delete Immediately Retention',
+            'Restore Data Immediately Retention',
+        ]
         # Fetch distinct actions from UserLog, explicitly ordering by 'action' to override Meta ordering (e.g. '-timestamp') which breaks distinct()
-        actions_qs = UserLog.objects.values_list('action', flat=True).order_by('action').distinct()
+        actions_qs = UserLog.objects.exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
         
         # Use a set to remove any duplicates that might have different leading/trailing whitespaces
         unique_actions = set()

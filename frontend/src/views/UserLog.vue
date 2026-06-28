@@ -1,7 +1,7 @@
 <template>
   <MainLayout>
     <div class="main-wrapper container-fluid py-3">
-      <Breadcrumbs :items="[{ text: 'Home', to: '/' }, { text: cardTitle }]" />
+      <Breadcrumbs v-if="type !== 'system'" :items="[{ text: 'Home', to: '/' }, { text: cardTitle }]" />
       <ModalDowload v-model="downloading" :progress="downloadProgress" :speed="downloadSpeed" :remaining="downloadRemaining" />
       <div class="col-lg-12">
         <div class="card">

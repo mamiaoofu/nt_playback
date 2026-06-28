@@ -91,6 +91,12 @@
           </li>
         </ul>
       </li>
+      <li class="icon-item" :class="{ 'expanded-item': isExpanded }" v-if="authStore.hasPermission(PERMISSIONS.SYSTEM_LOG_ACCESS)">
+        <router-link to="/system-tool/system-log" class="icon-link">
+          <i class="fa-solid fa-file-lines icon-part"></i>
+          <span v-if="isExpanded" class="text-part">System Log</span>
+        </router-link>
+      </li>
     </ul>
   </nav>
 </template>
@@ -99,6 +105,7 @@
 import { ref, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth.store';
+import { PERMISSIONS } from '../stores/permissions.constants';
 
 const authStore = useAuthStore();
 const route = useRoute();

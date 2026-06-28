@@ -125,7 +125,8 @@ def execute_auto_retention_job():
                 import re
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes"
+            local_now = timezone.localtime(now)
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
             
             create_user_log(
                 user=None,
@@ -280,8 +281,8 @@ def execute_permanent_delete_job():
                     period_str = period_str.replace(' to ', ' - ')
 
                 delete_desc = "Indexes & Voice Files" if 'VOICE_AND_INDEX' in delete_options else "Indexes"
-
-                detail_str = f"Retention ID : {task_id} | Retention Period : {period_str} | {delete_desc}"
+                local_now = timezone.localtime(now)
+                detail_str = f"Retention ID : {task_id} | Retention Period : {period_str} | {delete_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {total_deleted}"
                 try:
                     from apps.core.utils.function import create_user_log
                     create_user_log(

@@ -183,7 +183,7 @@ def ApiNetworkShareSetting(request):
             search_query = request.GET.get('search', '').strip()
             
             # Fetch all storage configs
-            configs_query = FileStorageConfig.objects.all().select_related('main_db')
+            configs_query = FileStorageConfig.objects.all().select_related('main_db').order_by('main_db__database_name')
             if search_query:
                 configs_query = configs_query.filter(
                     Q(network_path__icontains=search_query) |

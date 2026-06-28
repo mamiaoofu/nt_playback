@@ -71,6 +71,18 @@ def _build_log_detail(task_id, time_period, occurrence=None, delete_option=None,
     return ' | '.join(detail_parts)
 
 
+def _clean_log_detail(detail_str):
+    if not detail_str:
+        return ''
+    parts = [p.strip() for p in detail_str.split('|')]
+    clean_parts = []
+    for p in parts:
+        if p.lower().startswith('running date :') or p.lower().startswith('index count :'):
+            continue
+        clean_parts.append(p)
+    return ' | '.join(clean_parts)
+
+
 def _create_error_log(request, action, detail, exception=None):
     create_user_log(
         user=request.user,
@@ -273,7 +285,8 @@ class RetentionViewSet(viewsets.ViewSet):
             task.index_count = count
             task.save()
 
-            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Indexes"
+            running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
+            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Indexes | Running Date : {running_date_str} | Index Count : {count}"
             create_user_log(
                 user=request.user,
                 action=action_name,
@@ -345,9 +358,7 @@ class RetentionViewSet(viewsets.ViewSet):
                         task.index_count = 0
                     else:
                         task.status = 'STOPPED'
-                    task.user_create = request.user.username if request.user.is_authenticated else 'system'
                     task.update_by = request.user.username if request.user.is_authenticated else 'system'
-                    task.created_at = timezone.now()
                     task.save()
                 else:
                     task = RetentionTask.objects.create(
@@ -378,7 +389,8 @@ class RetentionViewSet(viewsets.ViewSet):
                     occurrence = _format_occurrence(config=config)
                     occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
                     delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
-                    detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc}"
+                    next_run_str = _calculate_next_run(task, config)
+                    detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {next_run_str} | Index Count : {task.index_count}"
                     
                     create_user_log(
                         user=request.user,
@@ -441,7 +453,8 @@ class RetentionViewSet(viewsets.ViewSet):
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes"
+            running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.task_type == 'MANUAL' else _calculate_next_run(task, config)
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes | Running Date : {running_date_str} | Index Count : {count}"
             
             create_user_log(
                 user=request.user,
@@ -487,7 +500,8 @@ class RetentionViewSet(viewsets.ViewSet):
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
             delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc}"
+            next_run_str = _calculate_next_run(task, config)
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {next_run_str} | Index Count : {task.index_count}"
             
             create_user_log(
                 user=request.user,
@@ -528,7 +542,7 @@ class RetentionViewSet(viewsets.ViewSet):
                 import re
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Running Date : Stopped | Index Count : {task.index_count}"
             
             create_user_log(
                 user=request.user,
@@ -653,7 +667,7 @@ class RetentionViewSet(viewsets.ViewSet):
                 "index_count": index_count,
                 "running_date": running_date,
                 "created_by": log.user.username if log.user else "-",
-                "description": log.detail,
+                "description": _clean_log_detail(log.detail),
                 "ip_address": log.ip_address or "-",
                 "timestamp": ts_str,
                 "client_type": log.client_type or "-",

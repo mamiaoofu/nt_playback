@@ -58,7 +58,7 @@ export function useUserLog() {
 
     const type = computed(() => {
         const p = route.path || ''
-        if (p === '/logs/system') return 'system'
+        if (p === '/system-tool/system-log') return 'system'
         if (p === '/logs/audit') return 'audit'
         if (p === '/logs/ticket-history') return 'ticket'
         return 'user'
@@ -66,7 +66,7 @@ export function useUserLog() {
 
     const cardTitle = computed(() => {
         const p = route.path || ''
-        if (p === '/logs/system') return 'System log'
+        if (p === '/system-tool/system-log') return 'System log'
         if (p === '/logs/audit') return 'Audit log'
         if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
@@ -74,7 +74,7 @@ export function useUserLog() {
 
     const requiredPermission = computed(() => {
         const p = route.path || ''
-        if (p === '/logs/system') return 'System Log'
+        if (p === '/system-tool/system-log') return 'System Log'
         if (p === '/logs/audit') return 'Audit Log'
         if (p === '/logs/ticket-history') return 'Ticket History'
         return 'User Logs'
@@ -82,7 +82,7 @@ export function useUserLog() {
 
     const requiredExportPermission = computed(() => {
         const rp = route.path || ''
-        if (rp === '/logs/system') return 'Save As System Log'
+        if (rp === '/system-tool/system-log') return 'Save As System Log'
         if (rp === '/logs/audit') return 'Save As Audit Log'
         if (rp === '/logs/ticket-history') return 'Save As Ticket History'
         return 'Save As User Logs'
