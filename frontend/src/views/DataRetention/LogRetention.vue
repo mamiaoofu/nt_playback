@@ -17,10 +17,9 @@
               </div>
               
               <div class="d-flex align-items-center">
-                 <div style="width:260px; position: relative;">
-                    <input type="text" v-model="searchQuery" class="form-control" placeholder="Search..." 
-                           style="border-radius: 20px; padding: 6px 36px 6px 16px; font-size: 13px; height: 34px; border: 1.5px solid #d1d5db;" />
-                    <i class="fas fa-search" style="position: absolute; right: 14px; top: 10px; color: #94a3b8;"></i>
+                 <div style="width:260px;">
+                    <SearchInput ref="searchInputRef" v-model="searchQuery" :placeholder="'Search...'"
+                      @typing="onTyping" @clear="clearSearchQuery" />
                  </div>
                  <div v-if="canExport" class="ms-2 export-group" ref="exportWrap">
                     <button type="button" class="btn btn-primary btn-sm export-icon" @click.stop="toggleExport" :aria-expanded="exportOpen">
@@ -62,7 +61,7 @@
                 </div>
 
                 <div :class="['input-group', { 'has-value': !!filters.running_date }]">
-                  <input ref="runningDateInput" v-flatpickr="{ target: filters, key: 'running_date' }" required type="text" name="running_date" autocomplete="off" class="input">
+                  <input ref="runningDateInput" v-flatpickr="{ target: filters, key: 'running_date', noTime: true }" required type="text" name="running_date" autocomplete="off" class="input">
                   <label class="floating-label">Running Date</label>
                   <span class="calendar-icon" @click="runningDateInput && runningDateInput.focus()"><i class="fa-regular fa-calendar"></i></span>
                 </div>
@@ -93,7 +92,7 @@
               :columns="columns"
               :rows="paginatedLogs"
               :loading="loading"
-              :total-items="filteredLogs.length"
+              :total-items="totalItems"
               :per-page="perPage"
               :per-page-options="perPageOptions"
               :current-page="currentPage"
@@ -104,7 +103,7 @@
               @per-change="handlePerPageChange"
               @sort-change="handleSortChange"
             >
-              <template #cell-no="{ index }">
+              <template #cell-index="{ index }">
                 {{ startIndex + index + 1 }}
               </template>
               <template #cell-retention_id="{ row }">
@@ -161,11 +160,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import axios from 'axios';
 import MainLayout from '../../layouts/MainLayout.vue';
 import TableTemplate from '../../components/TableTemplate.vue';
 import CustomSelect from '../../components/CustomSelect.vue';
+import SearchInput from '../../components/SearchInput.vue';
 import ModalDowload from '../../components/ModalDowload.vue';
 import { useAuthStore } from '../../stores/auth.store';
 import { showToast, exportTableToFormat, logUserAction } from '../../assets/js/function-all';
@@ -173,6 +173,7 @@ import { showToast, exportTableToFormat, logUserAction } from '../../assets/js/f
 const API_BASE = '/api/v1/retention';
 const logs = ref([]);
 const loading = ref(false);
+const totalItems = ref(0);
 
 const searchQuery = ref('');
 const currentPage = ref(1);
@@ -182,7 +183,7 @@ const sortColumn = ref('');
 const sortDirection = ref('');
 
 const filters = ref({
-  action: '',
+  action: [],
   running_date: '',
   from_date: '',
   to_date: ''
@@ -191,14 +192,55 @@ const filters = ref({
 const runningDateInput = ref(null);
 const startInput = ref(null);
 const endInput = ref(null);
+const searchInputRef = ref(null);
 
-const actionOptions = computed(() => {
-  const actions = new Set(logs.value.map(log => log.action).filter(Boolean));
-  return Array.from(actions).map(action => ({
-    label: action,
-    value: action
-  }));
-});
+let searchTimeout = null;
+let filterTimeout = null;
+
+const onTyping = () => {
+  if (searchTimeout) clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    fetchLogs();
+    searchTimeout = null;
+  }, 450);
+};
+
+const clearSearchQuery = () => {
+  searchQuery.value = '';
+  currentPage.value = 1;
+  fetchLogs();
+  nextTick(() => {
+    if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') {
+      searchInputRef.value.focus();
+    }
+  });
+};
+
+watch(filters, () => {
+  if (filterTimeout) clearTimeout(filterTimeout);
+  filterTimeout = setTimeout(() => {
+    currentPage.value = 1;
+    fetchLogs();
+    filterTimeout = null;
+  }, 350);
+}, { deep: true });
+
+const actionOptions = [
+  { label: 'All Actions', value: 'all' },
+  { label: 'Auto Execution Schedule Retention', value: 'Auto Execution Schedule Retention' },
+  { label: 'Change Retention Permanent Delete', value: 'Change Retention Permanent Delete' },
+  { label: 'Complete Delete Immediately Retention', value: 'Complete Delete Immediately Retention' },
+  { label: 'Complete Delete Schedule Retention', value: 'Complete Delete Schedule Retention' },
+  { label: 'Complete Soft Delete Immediately Retention', value: 'Complete Soft Delete Immediately Retention' },
+  { label: 'Complete Soft Delete Schedule Retention', value: 'Complete Soft Delete Schedule Retention' },
+  { label: 'Restore Data Immediately Retention', value: 'Restore Data Immediately Retention' },
+  { label: 'Restore Data Schedule Retention', value: 'Restore Data Schedule Retention' },
+  { label: 'Run Schedule Retention', value: 'Run Schedule Retention' },
+  { label: 'Save and Run Immediately Retention', value: 'Save and Run Immediately Retention' },
+  { label: 'Save and Run Schedule Retention', value: 'Save and Run Schedule Retention' },
+  { label: 'Stop Schedule Retention', value: 'Stop Schedule Retention' }
+];
 
 const authStore = useAuthStore();
 
@@ -247,8 +289,8 @@ const onExportFormat = async (formatOrFormats) => {
 
   if (formats.length === 0) return;
 
-  const rowsToExport = filteredLogs.value || [];
-  const exportColumns = columns.filter(c => c && c.key !== 'no' && c.key !== 'audio_files');
+  const rowsToExport = paginatedLogs.value || [];
+  const exportColumns = columns.filter(c => c && c.key !== 'audio_files');
   const multipleOutput = formats.length > 1;
 
   const fmtTimestamp = (d) => {
@@ -417,15 +459,29 @@ const onDocClick = (e) => {
 };
 
 const resetFilters = () => {
-  filters.value.action = '';
+  filters.value.action = [];
   filters.value.running_date = '';
   filters.value.from_date = '';
   filters.value.to_date = '';
+  sortColumn.value = '';
+  sortDirection.value = '';
   currentPage.value = 1;
+  
+  if (runningDateInput.value && runningDateInput.value._flatpickrInstance) {
+    runningDateInput.value._flatpickrInstance.clear();
+  }
+  if (startInput.value && startInput.value._flatpickrInstance) {
+    startInput.value._flatpickrInstance.clear();
+  }
+  if (endInput.value && endInput.value._flatpickrInstance) {
+    endInput.value._flatpickrInstance.clear();
+  }
+  
+  fetchLogs();
 };
 
 const columns = [
-  { key: 'no', label: 'No.', sortable: false },
+  { key: 'index', label: '#', isIndex: true, sortable: true },
   { key: 'retention_id', label: 'Retention ID' },
   { key: 'action', label: 'Action' },
   { key: 'retention_type', label: 'Retention Type' },
@@ -444,8 +500,34 @@ const columns = [
 const fetchLogs = async () => {
   loading.value = true;
   try {
-    const res = await axios.get(`${API_BASE}/logs/`, { withCredentials: true });
-    logs.value = res.data;
+    const start = (currentPage.value - 1) * perPage.value;
+    const params = new URLSearchParams();
+    params.set('draw', '1');
+    params.set('start', String(start));
+    params.set('length', String(perPage.value));
+    params.set('search[value]', searchQuery.value || '');
+
+    if (sortColumn.value && sortDirection.value) {
+      params.set('sort[0][field]', sortColumn.value);
+      params.set('sort[0][dir]', sortDirection.value);
+    }
+
+    if (filters.value.action && filters.value.action.length > 0) {
+      params.set('action', filters.value.action.join(','));
+    }
+    if (filters.value.running_date) {
+      params.set('running_date', filters.value.running_date);
+    }
+    if (filters.value.from_date) {
+      params.set('from_date', filters.value.from_date);
+    }
+    if (filters.value.to_date) {
+      params.set('to_date', filters.value.to_date);
+    }
+
+    const res = await axios.get(`${API_BASE}/logs/?${params.toString()}`, { withCredentials: true });
+    logs.value = res.data.data || [];
+    totalItems.value = res.data.recordsFiltered ?? res.data.recordsTotal ?? logs.value.length;
   } catch (err) {
     console.error("Failed to fetch logs", err);
     showToast("Failed to fetch logs", "error");
@@ -460,104 +542,27 @@ const downloadLog = (downloadUrl) => {
   }
 };
 
-// Client-side search & sort & pagination
-const filteredLogs = computed(() => {
-  let result = [...logs.value];
-  
-  if (filters.value.action) {
-    result = result.filter(item => item.action === filters.value.action);
-  }
-  
-  if (filters.value.running_date) {
-    result = result.filter(item => item.running_date && item.running_date.startsWith(filters.value.running_date));
-  }
-  
-  if (filters.value.from_date) {
-    result = result.filter(item => {
-      const dates = item.retention_period ? item.retention_period.match(/\d{4}-\d{2}-\d{2}/g) : null;
-      if (dates && dates.length > 0) {
-        return dates[0] >= filters.value.from_date;
-      }
-      return false;
-    });
-  }
-  
-  if (filters.value.to_date) {
-    result = result.filter(item => {
-      const dates = item.retention_period ? item.retention_period.match(/\d{4}-\d{2}-\d{2}/g) : null;
-      if (dates && dates.length > 0) {
-        const itemEnd = dates.length > 1 ? dates[1] : dates[0];
-        return itemEnd <= filters.value.to_date;
-      }
-      return false;
-    });
-  }
-  
-  if (searchQuery.value) {
-    const query = searchQuery.value.trim().toLowerCase();
-    result = result.filter(item => {
-      return (
-        String(item.retention_id).toLowerCase().includes(query) ||
-        String(item.action).toLowerCase().includes(query) ||
-        String(item.retention_type).toLowerCase().includes(query) ||
-        String(item.retention_period).toLowerCase().includes(query) ||
-        String(item.times).toLowerCase().includes(query) ||
-        String(item.index_count).toLowerCase().includes(query) ||
-        String(item.running_date).toLowerCase().includes(query) ||
-        String(item.created_by).toLowerCase().includes(query) ||
-        String(item.description).toLowerCase().includes(query) ||
-        String(item.ip_address).toLowerCase().includes(query) ||
-        String(item.timestamp).toLowerCase().includes(query) ||
-        String(item.client_type).toLowerCase().includes(query)
-      );
-    });
-  }
-  
-  if (sortColumn.value && sortDirection.value) {
-    const col = sortColumn.value;
-    const isDesc = sortDirection.value === 'desc';
-    result.sort((a, b) => {
-      let valA = a[col] ?? '';
-      let valB = b[col] ?? '';
-      
-      // numeric check for index_count
-      if (col === 'index_count') {
-        const numA = Number(valA) || 0;
-        const numB = Number(valB) || 0;
-        return isDesc ? numB - numA : numA - numB;
-      }
-      
-      valA = String(valA).toLowerCase();
-      valB = String(valB).toLowerCase();
-      
-      if (valA < valB) return isDesc ? 1 : -1;
-      if (valA > valB) return isDesc ? -1 : 1;
-      return 0;
-    });
-  }
-  
-  return result;
-});
-
-const paginatedLogs = computed(() => {
-  const start = (currentPage.value - 1) * perPage.value;
-  return filteredLogs.value.slice(start, start + perPage.value);
-});
+const filteredLogs = computed(() => logs.value);
+const paginatedLogs = computed(() => logs.value);
 
 const startIndex = computed(() => (currentPage.value - 1) * perPage.value);
 
 const handlePageChange = (p) => {
   currentPage.value = p;
+  fetchLogs();
 };
 
 const handlePerPageChange = (opt) => {
   perPage.value = opt;
   currentPage.value = 1;
+  fetchLogs();
 };
 
 const handleSortChange = ({ column, direction }) => {
   sortColumn.value = column;
   sortDirection.value = direction;
+  currentPage.value = 1;
+  fetchLogs();
 };
 
 onMounted(() => {

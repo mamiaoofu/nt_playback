@@ -88,22 +88,60 @@ def ApiGetUserLogs(request,type):
     # avoid N+1 queries on user access by selecting related user
     log_list = UserLog.objects.select_related('user').all()
 
-    excluded_retention_actions = [
-        'Save and Run Schedule Retention',
-        'Stop Schedule Retention',
-        'Run Schedule Retention',
-        'Complete Soft Delete Schedule Retention',
-        'Complete Delete Schedule Retention',
-        'Restore Data Schedule Retention',
-        'Complete Soft Delete Immediately Retention',
-        'Complete Delete Immediately Retention',
-        'Restore Data Immediately Retention',
-    ]
+    audit_actions = {
+        'Login',
+        'Logout',
+        'Playback Audio Records',
+        'Download Audio Records',
+        'Save as Audio Index',
+        'Create My Favorite',
+        'Edit My Favorite',
+        'Delete My Favorite',
+        'Add Column Audio Records',
+        'Edit Column Audio Records',
+        'Delete Column Audio Records',
+        'Enable Column Audio Records',
+        'Disable Column Audio Records',
+        'Add User',
+        'Edit User',
+        'Delete User',
+        'Change User Status',
+        'Reset User Password',
+        'Save as User Index',
+        'Add Group',
+        'Edit Group',
+        'Delete Group',
+        'Add Team',
+        'Edit Team',
+        'Delete Team',
+        'Edit Base Role',
+        'Add Custom Role',
+        'Edit Custom Role',
+        'Delete Custom Role',
+        'Save as System Log',
+        'Save as Audit Log',
+        'Create Delegate',
+        'Playback Delegate File',
+        'Download Delegate File',
+        'Change Delegate Status',
+        'Create Ticket',
+        'Playback Ticket File',
+        'Download Ticket File',
+        'Change Ticket Status',
+        'Save as Ticket History',
+        'Ticket Resent',
+        'Ticket Send Mail',
+        'Ticket Copy Form',
+        'Download Player',
+        'User Change Password'
+    }
 
     if type == 'system':
-        log_list = log_list.filter(status='error')
+        log_list = log_list.filter(
+            Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+        )
     elif type == 'audit':
-        log_list = log_list.filter(status='success').exclude(action__in=excluded_retention_actions)
+        log_list = log_list.filter(status='success', action__in=audit_actions)
 
     # total before applying filters (for DataTables recordsTotal)
     records_total = log_list.count()

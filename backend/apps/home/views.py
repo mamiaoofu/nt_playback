@@ -1197,17 +1197,17 @@ def retrieve_audio_file_via_smb(main_db_id, file_path, temp_files):
     
     config = None
     if main_db_id:
-        config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
-        if not config:
-            config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+        exists_config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+        if exists_config:
+            if not exists_config.is_active:
+                return None, f"Storage configuration for database ID {main_db_id} is inactive."
+            config = exists_config
             
     if not config:
         config = FileStorageConfig.objects.filter(is_active=1).first()
-        if not config:
-            config = FileStorageConfig.objects.first()
             
     if not config:
-        return None, "No storage configuration found in FileStorageConfig table."
+        return None, "No active storage configuration found in FileStorageConfig table."
         
     parsed = parse_network_path(config.network_path)
     server = parsed['host']
@@ -1262,17 +1262,17 @@ def resolve_and_fetch_if_unc(path, temp_files):
             
     config = None
     if main_db_id:
-        config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
-        if not config:
-            config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+        exists_config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+        if exists_config:
+            if not exists_config.is_active:
+                return None, f"Storage configuration for database ID {main_db_id} is inactive."
+            config = exists_config
             
     if not config:
         config = FileStorageConfig.objects.filter(is_active=1).first()
-        if not config:
-            config = FileStorageConfig.objects.first()
             
     if not config:
-        return None, "No storage configuration found in FileStorageConfig."
+        return None, "No active storage configuration found in FileStorageConfig."
         
     smb_user = config.smb_username
     smb_pass = config.get_password()
@@ -1424,17 +1424,17 @@ def ApiProxyAudio(request):
 
         config = None
         if main_db_id:
-            config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=1).first()
-            if not config:
-                config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+            exists_config = FileStorageConfig.objects.filter(main_db_id=main_db_id).first()
+            if exists_config:
+                if not exists_config.is_active:
+                    return JsonResponse({'error': f"Storage configuration for database ID {main_db_id} is inactive."}, status=400)
+                config = exists_config
                 
         if not config:
             config = FileStorageConfig.objects.filter(is_active=1).first()
-            if not config:
-                config = FileStorageConfig.objects.first()
                 
         if not config:
-            return JsonResponse({'error': 'No storage configuration found in FileStorageConfig.'}, status=502)
+            return JsonResponse({'error': 'No active storage configuration found in FileStorageConfig.'}, status=502)
 
         parsed = parse_network_path(config.network_path)
         smb_host = parsed['host']

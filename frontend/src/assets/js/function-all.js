@@ -446,11 +446,13 @@ export async function exportTableToFormat(format, type = 'audio', opts = {}) {
 
       // Compute minCellWidth per column so header text fits without wrapping (~1.8mm per char in bold 8.5pt Helvetica + 4mm padding)
       const columnStyles = {}
+      const charFactor = hdrs.length > 8 ? 0.9 : 1.8
+      const padFactor = hdrs.length > 8 ? 2 : 4
       hdrs.forEach((h, i) => {
-        columnStyles[i] = { minCellWidth: Math.max(10, (h || '').length * 1.8 + 4) }
+        columnStyles[i] = { minCellWidth: Math.max(hdrs.length > 8 ? 6 : 10, (h || '').length * charFactor + padFactor) }
       })
-      if (descIndex >= 0) columnStyles[descIndex] = { ...columnStyles[descIndex], cellWidth: 31 }
-      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { ...columnStyles[fileNameIndex], cellWidth: 30 }
+      if (descIndex >= 0) columnStyles[descIndex] = { ...columnStyles[descIndex], cellWidth: hdrs.length > 8 ? 25 : 31 }
+      if (fileNameIndex >= 0) columnStyles[fileNameIndex] = { ...columnStyles[fileNameIndex], cellWidth: hdrs.length > 8 ? 22 : 30 }
       if (callDirIndex >= 0) columnStyles[callDirIndex] = { ...columnStyles[callDirIndex], cellWidth: 15 }
 
 

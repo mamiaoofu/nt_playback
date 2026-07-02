@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from datetime import datetime, timedelta
+from django.db.models import Q
+from django.conf import settings
 from .models import RetentionTask, RetentionLog, AutoRetentionConfig
 from .serializers import RetentionTaskSerializer, RetentionLogSerializer, AutoRetentionConfigSerializer
 from apps.core.model.audio.models import AudioInfo
@@ -542,7 +544,10 @@ class RetentionViewSet(viewsets.ViewSet):
                 import re
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Running Date : Stopped | Index Count : {task.index_count}"
+            occurrence = _format_occurrence(task=task, config=config)
+            occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
+            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : Stopped | Index Count : {task.index_count}"
             
             create_user_log(
                 user=request.user,
@@ -567,6 +572,17 @@ class RetentionViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def logs(self, request):
+        draw = int(request.GET.get("draw", 1))
+        start = int(request.GET.get("start", 0))
+        length = int(request.GET.get("length", 25))
+        search_value = request.GET.get("search[value]", "").strip()
+        action_filter = request.GET.get("action")
+        running_date = request.GET.get("running_date")
+        from_date = request.GET.get("from_date")
+        to_date = request.GET.get("to_date")
+        sort_field = request.GET.get("sort[0][field]")
+        sort_dir = (request.GET.get("sort[0][dir]", "asc")).lower()
+
         retention_actions = [
             'Save and Run Immediately Retention',
             'Save and Run Schedule Retention',
@@ -582,20 +598,76 @@ class RetentionViewSet(viewsets.ViewSet):
             'Complete Soft Delete Immediately Retention',
         ]
         
-        user_logs = UserLog.objects.filter(
+        # Base query
+        log_list = UserLog.objects.filter(
             action__in=retention_actions
-        ).select_related('user').order_by('-timestamp')
-        
+        ).exclude(status='error').select_related('user')
+
+        # Records total
+        records_total = log_list.count()
+
+        # Apply action filter
+        if action_filter:
+            acts = [a.strip() for a in action_filter.split(',') if a.strip()]
+            if acts:
+                log_list = log_list.filter(action__in=acts)
+
+        # Helper to parse datetime
+        def _parse_datetime(val):
+            if not val:
+                return None
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(val, fmt)
+                    if settings.USE_TZ and dt.tzinfo is None:
+                        dt = timezone.make_aware(dt, timezone.get_current_timezone())
+                    return dt
+                except Exception:
+                    pass
+            return None
+
+        # Apply from_date / to_date filters (against timestamp)
+        if from_date:
+            dt_from = _parse_datetime(from_date)
+            if dt_from:
+                log_list = log_list.filter(timestamp__gte=dt_from)
+        if to_date:
+            dt_to = _parse_datetime(to_date)
+            if dt_to:
+                log_list = log_list.filter(timestamp__lte=dt_to)
+
+        # Apply running_date filter (starts with / icontains)
+        if running_date:
+            log_list = log_list.filter(detail__icontains=f"Running Date : {running_date}")
+
+        # Apply search_value (multi-column)
+        if search_value:
+            tokens = [t.strip() for t in search_value.split(',') if t.strip()]
+            if tokens:
+                q_search = Q()
+                for tok in tokens:
+                    q_tok = (Q(user__username__icontains=tok) |
+                             Q(action__icontains=tok) |
+                             Q(detail__icontains=tok) |
+                             Q(ip_address__icontains=tok) |
+                             Q(client_type__icontains=tok))
+                    q_search &= q_tok
+                log_list = log_list.filter(q_search)
+
+        # Records filtered count
+        records_filtered = log_list.count()
+
+        # Fetch records and build data (parse fields)
         config = AutoRetentionConfig.load()
         data = []
         
-        for log in user_logs:
+        for log in log_list:
             detail_str = log.detail or ''
             retention_id = '-'
             retention_period = '-'
             times = '-'
             delete_option = '-'
-            running_date = '-'
+            running_date_val = '-'
             index_count = '-'
             
             parts = [p.strip() for p in detail_str.split('|')]
@@ -611,17 +683,19 @@ class RetentionViewSet(viewsets.ViewSet):
                 elif p in ['Indexes & Voice Files', 'Indexes', 'Only Indexs', 'Indexs', 'Indexes & Voice Files']:
                     delete_option = p
                 elif p.lower().startswith('running date :'):
-                    running_date = p.split(':', 1)[1].strip()
+                    running_date_val = p.split(':', 1)[1].strip()
                 elif p.lower().startswith('index count :'):
                     index_count = p.split(':', 1)[1].strip()
             
             task_type = '-'
+            task_update_by = None
             
             if retention_id.isdigit():
                 task_id = int(retention_id)
                 try:
                     task = RetentionTask.objects.get(pk=task_id)
                     task_type = 'Schedule' if task.task_type == 'AUTO_EXECUTION' else 'Immediately'
+                    task_update_by = task.update_by or task.user_create
                     
                     if index_count == '-':
                         # Fallback for old logs
@@ -631,12 +705,12 @@ class RetentionViewSet(viewsets.ViewSet):
                         else:
                             index_count = task.index_count
                     
-                    if running_date == '-':
+                    if running_date_val == '-':
                         # Fallback for old logs
                         if task.task_type == 'MANUAL':
-                            running_date = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
+                            running_date_val = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
                         else:
-                            running_date = _calculate_next_run(task, config)
+                            running_date_val = _calculate_next_run(task, config)
                 except RetentionTask.DoesNotExist:
                     pass
             
@@ -647,16 +721,25 @@ class RetentionViewSet(viewsets.ViewSet):
                     task_type = 'Immediately'
                     
             download_url = None
-            if retention_id.isdigit():
-                task_id = int(retention_id)
-                ret_log = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_").first()
-                if ret_log:
-                    download_url = f"/api/v1/retention/logs/{ret_log.id}/download/"
+            if log.action in ['Complete Delete Schedule Retention', 'Complete Delete Immediately Retention']:
+                if retention_id.isdigit():
+                    task_id = int(retention_id)
+                    ret_log = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_").first()
+                    if ret_log:
+                        download_url = f"/api/v1/retention/logs/{ret_log.id}/download/"
             
             ts_str = '-'
             if log.timestamp:
                 ts_str = timezone.localtime(log.timestamp).strftime('%Y-%m-%d %H:%M')
                 
+            created_by_val = log.user.username if log.user else "-"
+            if task_type == 'Schedule' and task_update_by:
+                created_by_val = task_update_by
+
+            client_type_val = log.client_type or "-"
+            if log.action in ['Complete Soft Delete Schedule Retention', 'Change Retention Permanent Delete']:
+                client_type_val = 'Server'
+
             data.append({
                 "id": log.id,
                 "retention_id": retention_id,
@@ -665,16 +748,52 @@ class RetentionViewSet(viewsets.ViewSet):
                 "retention_period": retention_period,
                 "times": times,
                 "index_count": index_count,
-                "running_date": running_date,
-                "created_by": log.user.username if log.user else "-",
+                "running_date": running_date_val,
+                "created_by": created_by_val,
                 "description": _clean_log_detail(log.detail),
                 "ip_address": log.ip_address or "-",
                 "timestamp": ts_str,
-                "client_type": log.client_type or "-",
+                "client_type": client_type_val,
                 "download_url": download_url
             })
-            
-        return Response(data)
+
+        # Python-level Sorting
+        if sort_field and sort_dir:
+            is_desc = sort_dir == 'desc'
+            if sort_field == 'index_count':
+                def _get_index_count(x):
+                    val = x.get('index_count', '-')
+                    if val == '-' or val is None or str(val).strip() == '':
+                        return -1
+                    try:
+                        return int(val)
+                    except ValueError:
+                        return -1
+                data.sort(key=_get_index_count, reverse=is_desc)
+            elif sort_field == 'retention_id':
+                def _get_retention_id(x):
+                    val = x.get('retention_id', '-')
+                    try:
+                        return int(val)
+                    except ValueError:
+                        return -1
+                data.sort(key=_get_retention_id, reverse=is_desc)
+            elif sort_field in ['action', 'retention_type', 'retention_period', 'times', 'running_date', 'created_by', 'description', 'ip_address', 'timestamp', 'client_type']:
+                data.sort(key=lambda x: str(x.get(sort_field, '')).lower(), reverse=is_desc)
+        else:
+            # Default order by timestamp descending
+            data.sort(key=lambda x: str(x.get('timestamp', '')), reverse=True)
+
+        # Python-level Slicing (Pagination)
+        paginated_data = data[start:start + length]
+
+        return Response({
+            "draw": draw,
+            "recordsTotal": records_total,
+            "recordsFiltered": records_filtered,
+            "data": paginated_data
+        })
+
 
     @action(detail=True, methods=['get'])
     def download_log(self, request, pk=None):

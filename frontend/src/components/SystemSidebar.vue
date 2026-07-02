@@ -258,8 +258,9 @@ const toggleRetentionMenu = () => {
   justify-content: center; 
   color: #64748b; 
   width: 100%; 
-  height: 100%; 
+  height: 40px; 
   text-decoration: none;
+  box-sizing: border-box;
 }
 
 .nav-link {

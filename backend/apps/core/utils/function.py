@@ -255,6 +255,7 @@ def create_user_log(
     request=None,
     audiofile_id=None,
     exception=None,       # 👈 เพิ่มพารามิเตอร์สำหรับเก็บ error object
+    ip_address=None,
 ):
     """
     ฟังก์ชันกลางสำหรับสร้าง log การใช้งานระบบ (รองรับทั้ง success และ error)
@@ -277,9 +278,14 @@ def create_user_log(
 
     # ดึง IP ของ client (จาก request)
     try:
-        client_ip = get_client_ip(request)
+        if ip_address:
+            client_ip = ip_address
+        else:
+            client_ip = get_client_ip(request)
+            if client_ip == "unknown":
+                client_ip = None
     except Exception:
-        client_ip = "unknown"
+        client_ip = None
 
     # ถ้ามี Exception ให้แนบ traceback ด้วย
     if exception is not None:

@@ -65,6 +65,18 @@ def execute_auto_retention_job():
     task = RetentionTask.objects.filter(task_type='AUTO_EXECUTION', status__in=['READY', 'RUNNING', 'SUCCESS', 'RESTORED']).first()
     if not task:
         return
+
+    # Check if config or task was activated/saved today after the execution time.
+    # If so, skip today's run to avoid executing immediately (wait for the next cycle).
+    if config.execution_time:
+        if config.updated_at:
+            local_config_update = timezone.localtime(config.updated_at)
+            if local_config_update.date() == now.date() and local_config_update.time() >= config.execution_time:
+                return
+        if task.updated_at:
+            local_task_update = timezone.localtime(task.updated_at)
+            if local_task_update.date() == now.date() and local_task_update.time() >= config.execution_time:
+                return
         
     cutoff_date = None
     time_period_desc = ""
@@ -126,14 +138,16 @@ def execute_auto_retention_job():
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             local_now = timezone.localtime(now)
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
+            occurrence = 'Once' if config.is_once else 'Recurrence'
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | Indexes | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
             
             create_user_log(
                 user=None,
                 action='Complete Soft Delete Schedule Retention',
                 detail=detail_str,
                 status='success',
-                request=None
+                request=None,
+                ip_address='127.0.0.1'
             )
             logger.info(f"Auto Retention UserLog created for task {task.id}. Count: {count}")
         except Exception as e:

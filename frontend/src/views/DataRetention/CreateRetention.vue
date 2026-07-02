@@ -520,7 +520,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 import MainLayout from '../../layouts/MainLayout.vue';
@@ -831,6 +831,8 @@ const isScheduleActive = computed(() => {
   );
 });
 
+let refreshInterval = null;
+
 onMounted(() => {
   if (route.query.tab === 'auto' || route.query.tab === 'manual') {
     activeTab.value = route.query.tab;
@@ -843,6 +845,17 @@ onMounted(() => {
       const el = document.getElementById('taskListSection');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     });
+  }
+
+  // Refresh tasks list every 3 seconds silently
+  refreshInterval = setInterval(() => {
+    fetchTasks(true);
+  }, 3000);
+});
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
   }
 });
 
@@ -886,16 +899,22 @@ const fetchAutoConfig = async () => {
   }
 };
 
-const fetchTasks = async () => {
-  loadingTasks.value = true;
+const fetchTasks = async (silent = false) => {
+  if (!silent) {
+    loadingTasks.value = true;
+  }
   try {
     const res = await axios.get(`${API_BASE}/tasks/`, { withCredentials: true });
     tasks.value = res.data;
   } catch (err) {
     console.error("Failed to fetch tasks", err);
-    showToast("Failed to fetch tasks", "error");
+    if (!silent) {
+      showToast("Failed to fetch tasks", "error");
+    }
   } finally {
-    loadingTasks.value = false;
+    if (!silent) {
+      loadingTasks.value = false;
+    }
   }
 };
 
