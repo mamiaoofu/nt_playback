@@ -3,6 +3,7 @@
 
 This uses the Player's SaveMgr/WaveController flow (.NET C# executable wrapper)
 which matches the NICE Player "Save WAV" output for normal playback.
+It prioritizes using NiceSaveMgrWorker.exe for fast C# conversion.
 """
 
 from __future__ import annotations
@@ -17,7 +18,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SAVE_MGR_WORKER = ROOT / "tools" / "NiceSaveMgrWorker.exe"
 DOTNET_CONVERTER = ROOT / "tools" / "NiceNmfConverter.exe"
+POWERSHELL_32 = Path(r"C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe")
+PS_PLAYER_SAVE_CONVERTER = ROOT / "tools" / "try_nice_player_wave_convert.ps1"
 OLE_DATE_BASE = dt.datetime(1899, 12, 30)
 
 
@@ -153,6 +157,36 @@ def normalize_wav_file(wav_path: Path) -> None:
         print(f"Warning: Failed to normalize WAV file: {e}")
 
 
+def extract_wav_with_player_save(input_nmf: Path, output_wav: Path) -> None:
+    if SAVE_MGR_WORKER.exists():
+        command = [str(SAVE_MGR_WORKER), str(input_nmf), str(output_wav)]
+    elif DOTNET_CONVERTER.exists():
+        command = [str(DOTNET_CONVERTER), str(input_nmf), str(output_wav), "PLAYER_WAV"]
+    else:
+        if not POWERSHELL_32.exists():
+            raise RuntimeError("32-bit Windows PowerShell was not found")
+        if not PS_PLAYER_SAVE_CONVERTER.exists():
+            raise RuntimeError(f"missing helper script: {PS_PLAYER_SAVE_CONVERTER}")
+
+        command = [
+            str(POWERSHELL_32),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(PS_PLAYER_SAVE_CONVERTER),
+            "-InputNmf",
+            str(input_nmf),
+            "-OutputFile",
+            str(output_wav),
+        ]
+    completed = subprocess.run(command, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise RuntimeError((completed.stderr or completed.stdout).strip())
+    if not output_wav.exists() or output_wav.stat().st_size == 0:
+        raise RuntimeError("NICE Player SaveMgr produced an empty WAV")
+
+
 def convert_file(
     input_nmf: Path,
     output_wav: Path,
@@ -162,21 +196,7 @@ def convert_file(
 ) -> None:
     output_wav.parent.mkdir(parents=True, exist_ok=True)
     
-    if not DOTNET_CONVERTER.exists():
-        raise RuntimeError(f"missing .NET helper: {DOTNET_CONVERTER}")
-        
-    command = [
-        str(DOTNET_CONVERTER),
-        str(input_nmf),
-        str(output_wav),
-        "PLAYER_WAV",
-    ]
-
-    completed = subprocess.run(command, capture_output=True, text=True)
-    if completed.returncode != 0:
-        raise RuntimeError((completed.stderr or completed.stdout).strip())
-    if not output_wav.exists() or output_wav.stat().st_size == 0:
-        raise RuntimeError("NICE converter produced an empty WAV file")
+    extract_wav_with_player_save(input_nmf, output_wav)
 
     # Apply volume normalization in-place
     normalize_wav_file(output_wav)
