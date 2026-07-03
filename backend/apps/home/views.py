@@ -218,8 +218,10 @@ def ApiIndexHome(request):
         del request.session['show_toast']
 
     set_audio = SetAudio.objects.filter(user=request.user).first()
-    user_auth_qs = UserAuth.objects.filter(user=request.user, allow=True)
-    # get MainDatabase objects allowed for this user
+    # get active main database IDs from FileStorageConfig
+    active_db_ids = FileStorageConfig.objects.filter(is_active=1, main_db__isnull=False).values_list("main_db_id", flat=True)
+    user_auth_qs = UserAuth.objects.filter(user=request.user, allow=True, maindatabase_id__in=active_db_ids)
+    # get MainDatabase objects allowed for this user and active
     main_db_ids = list(user_auth_qs.values_list('maindatabase_id', flat=True))
     main_db = MainDatabase.objects.filter(id__in=main_db_ids).order_by('database_name')
     favorite_search = FavoriteSearch.objects.filter(user=request.user).first()
@@ -265,7 +267,13 @@ def ApiGetAudioList(request):
     search_value = (request.GET.get("search[value]", "") or "").strip()
 
     set_audio = SetAudio.objects.filter(user=request.user).first()
-    main_db_id = UserAuth.objects.filter(user=request.user, allow=True).values_list("maindatabase_id", flat=True)
+    # Get active main database IDs from FileStorageConfig
+    active_db_ids = FileStorageConfig.objects.filter(is_active=1, main_db__isnull=False).values_list("main_db_id", flat=True)
+    main_db_id = UserAuth.objects.filter(
+        user=request.user, 
+        allow=True,
+        maindatabase_id__in=active_db_ids
+    ).values_list("maindatabase_id", flat=True)
 
     # Check for file_share parameter or ticket user
     is_ticket = UserFileShare.objects.filter(user=request.user, type='ticket').exists()
@@ -273,10 +281,10 @@ def ApiGetAudioList(request):
     share_entries = []
 
     if is_ticket :
-        # Only include active audio records
-        audio_list = AudioInfo.objects.filter(status=True)
+        # Only include active audio records from active main DBs
+        audio_list = AudioInfo.objects.filter(main_db__in=active_db_ids, status=True)
     else :
-        # Only include active audio records from allowed main DBs
+        # Only include active audio records from allowed and active main DBs
         audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(main_db__in=main_db_id, status=True)
 
     # ฟิลเตอร์จาก request.form หรือ request.GET

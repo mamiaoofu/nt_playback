@@ -50,8 +50,12 @@
           </div>
         </div>
 
-        <div class="wave-area-styled">
+        <div class="wave-area-styled" style="position: relative;">
           <canvas ref="canvasRef" class="wave-canvas" @mousedown="onMouseDown"></canvas>
+          <div v-if="isLoading" class="wave-loading-overlay">
+            <i class="fa-solid fa-spinner fa-spin" style="margin-right: 8px; font-size: 16px;"></i>
+            <span>Loading...</span>
+          </div>
         </div>
 
         <div class="progress-section">
@@ -118,6 +122,7 @@ const isDragging = ref(false)
 let dragTimeout = null
 let currentLoadController = null
 const audioUrl = ref(null)
+const isLoading = ref(false)
 
 const authStore = useAuthStore()
 const canDownload = computed(() => authStore.hasPermission('Download Voice File'))
@@ -197,6 +202,12 @@ async function loadAudio() {
     }
   }
 
+  // Clear previous state and show loading
+  audioBuffer.value = null
+  peaks.value = []
+  isLoading.value = true
+  draw()
+
   try {
     if (!audioCtx) {
       const AudioContext = window.AudioContext || window.webkitAudioContext
@@ -233,8 +244,10 @@ async function loadAudio() {
 
     audioBuffer.value = decoded
     processPeaks(decoded)
+    isLoading.value = false
     draw()
   } catch (e) {
+    isLoading.value = false
     if (e.name === 'AbortError') return
     console.error('Failed to load audio waveform', e)
     // Fallback: ถ้าโหลด Blob ไม่ได้ ให้ลองใช้ src เดิม
@@ -286,9 +299,6 @@ function draw() {
   ctx.clearRect(0, 0, width, height)
 
   if (!audioBuffer.value || peaks.value.length === 0) {
-    ctx.fillStyle = "#9ca3af"
-    ctx.font = "12px Arial"
-    ctx.fillText("Loading...", 10, height / 2)
     return
   }
 
@@ -806,6 +816,20 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   padding: 6px;
   border: 1px solid #f3f4f6;
+}
+
+.wave-loading-overlay {
+  position: absolute;
+  inset: 10px 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(222, 239, 255, 0.85);
+  border-radius: 12px;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 14px;
+  pointer-events: none;
 }
 
 /* Progress Bar หนาๆ */

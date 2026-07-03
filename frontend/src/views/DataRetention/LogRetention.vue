@@ -368,7 +368,7 @@ const onExportFormat = async (formatOrFormats) => {
               const res = await exportTableToFormat(fmt, 'Retention Log', {
                 rows: rowsToExport || [],
                 columns: exportColumns,
-                startIndex: 0,
+                startIndex: startIndex.value,
                 fileNamePrefix: 'Retention Log',
                 returnBlob: true
               });
@@ -414,7 +414,7 @@ const onExportFormat = async (formatOrFormats) => {
         const res = await exportTableToFormat(fmt, 'Retention Log', {
           rows: rowsToExport || [],
           columns: exportColumns,
-          startIndex: 0,
+          startIndex: startIndex.value,
           fileNamePrefix: 'Retention Log',
           returnBlob: true
         });

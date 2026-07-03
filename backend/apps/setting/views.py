@@ -239,7 +239,9 @@ def ApiNetworkShareSetting(request):
                 if config:
                     config.is_active = 1 if not config.is_active else 0
                     config.save()
-                    create_user_log(user=request.user, action="Toggle Network Share Active State", detail=f"Toggled active state of storage config: {config.network_path} to {config.is_active}", status="success", request=request)
+                    status_str = "Active" if config.is_active else "Inactive"
+                    detail_str = f"Database ID : {config.main_db_id} to {status_str}"
+                    create_user_log(user=request.user, action="Change Network Share Status", detail=detail_str, status="success", request=request)
                     return JsonResponse({'status': 'success', 'message': 'Network share status updated successfully.'})
                 return JsonResponse({'status': 'error', 'message': 'Configuration not found.'}, status=404)
                 

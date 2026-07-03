@@ -619,6 +619,12 @@ const calculateNextRun = (task, configVal) => {
   if (!configVal) {
     return 'Loading...';
   }
+  if (['SUCCESS', 'FAILED', 'RESTORED', 'STOPPED'].includes(task.status) || !configVal.is_active) {
+    return '-';
+  }
+  if (configVal.is_once && task.executed_at) {
+    return '-';
+  }
   
   const timeStr = configVal.execution_time || '01:00:00';
   const [execHour, execMinute] = timeStr.split(':').map(Number);

@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NICE NMF Integration Guide</title>
+  <style>
+:root {
+  --bg: #eef3f5;
+  --paper: #fffdfa;
+  --ink: #172328;
+  --muted: #65737b;
+  --line: #d8e0dd;
+  --deep: #073a45;
+  --teal: #1f7f91;
+  --amber: #c68a24;
+  --code-bg: #081112;
+  --code-ink: #e8eef0;
+  --soft: #eef8f6;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(90deg, rgba(7,58,69,.055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(7,58,69,.045) 1px, transparent 1px),
+    var(--bg);
+  background-size: 28px 28px;
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  line-height: 1.65;
+}
+a { color: var(--teal); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.layout {
+  width: min(1480px, calc(100vw - 40px));
+  margin: 24px auto;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 18px;
+}
+.sidebar {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px;
+  background: rgba(255,253,250,.96);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(20,36,42,.10);
+}
+.brand { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.eyebrow { margin: 0 0 8px; color: var(--teal); font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.brand h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 34px; line-height: .98; }
+.meta { margin-top: 10px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.toc-title { margin: 0 0 10px; font-size: 13px; font-weight: 900; color: var(--deep); text-transform: uppercase; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar li { margin: 0; }
+.sidebar a { display: block; padding: 6px 0; color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.35; }
+.sidebar ul ul { margin-left: 12px; padding-left: 12px; border-left: 1px solid var(--line); }
+.doc {
+  min-width: 0;
+  padding: 36px 44px;
+  background: rgba(255,253,250,.98);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(20,36,42,.10);
+}
+.doc > h1:first-child { margin-top: 0; }
+h1, h2, h3 { letter-spacing: 0; line-height: 1.2; }
+h1 { margin: 0 0 18px; font-family: Georgia, "Times New Roman", serif; font-size: 46px; }
+h2 { margin: 38px 0 14px; padding-top: 6px; color: var(--deep); font-size: 26px; border-top: 1px solid var(--line); }
+h3 { margin: 28px 0 10px; color: var(--teal); font-size: 19px; }
+p { margin: 12px 0; }
+ul, ol { padding-left: 24px; }
+li { margin: 6px 0; }
+code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--deep);
+  background: var(--soft);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: .92em;
+}
+pre {
+  margin: 14px 0 20px;
+  padding: 16px 18px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+}
+pre code { padding: 0; color: inherit; background: transparent; }
+table {
+  width: 100%;
+  margin: 16px 0 24px;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--line);
+}
+th, td { padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { color: var(--deep); background: var(--soft); font-weight: 900; }
+blockquote { margin: 18px 0; padding: 12px 16px; border-left: 4px solid var(--amber); background: #fff7e8; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 24px; }
+.badge { padding: 6px 10px; border-radius: 999px; background: var(--soft); color: var(--deep); font-size: 12px; font-weight: 900; }
+@media (max-width: 980px) {
+  .layout { width: min(100vw - 24px, 760px); grid-template-columns: 1fr; margin: 12px auto; }
+  .sidebar { position: static; max-height: none; }
+  .doc { padding: 24px 20px; }
+  h1 { font-size: 34px; }
+}
+@media print {
+  body { background: white; }
+  .layout { display: block; width: auto; margin: 0; }
+  .sidebar { display: none; }
+  .doc { box-shadow: none; border: 0; padding: 0; }
+  a { color: inherit; }
+  pre { white-space: pre-wrap; }
+}
+</style>
+</head>
+<body>
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="brand">
+        <p class="eyebrow">NICE .NMF</p>
+        <h1>Integration Guide</h1>
+        <p class="meta">Source: NICE_NMF_INTEGRATION_GUIDE.md<br />Generated: 2026-07-02 15:47</p>
+      </section>
+      <p class="toc-title">Contents</p>
+      <div class="toc">
+<ul>
+<li><a href="#section-4192742252260507769">ภาพรวม</a></li>
+<li><a href="#section-6269335835306728110">โครงสร้างไฟล์สำคัญ</a></li>
+<li><a href="#section-3718800001443611078">Runtime dependency</a></li>
+<li><a href="#section-3755279069260222446">HTTP API</a><ul>
+<li><a href="#section-7673971539230004278">Health check</a></li>
+<li><a href="#section-7829020984346571845">Convert NMF to WAV</a></li>
+</ul>
+</li>
+<li><a href="#section-2765625924600898538">server.py flow</a></li>
+<li><a href="#section-4506955622727813571">nice_nmf_to_wav.py flow</a></li>
+<li><a href="#section-338257308771220250">Timeline handling</a></li>
+<li><a href="#section-4484756584085484305">A-law to PCM</a></li>
+<li><a href="#section-2360738937273600998">PowerShell mode</a></li>
+<li><a href="#section-7635586206403029346">.NET mode</a></li>
+<li><a href="#section-8708942381149735673">ความต่างของ PowerShell mode กับ .NET mode</a></li>
+<li><a href="#section-3582770125195498767">Browser player flow</a></li>
+<li><a href="#section-5849856889095129221">Cache behavior</a></li>
+<li><a href="#section-1166122935952445243">Performance และ scaling</a></li>
+<li><a href="#section-4928444013615254953">Integration options</a><ul>
+<li><a href="#section-6421556347858087576">Option A: integrate ผ่าน HTTP API</a></li>
+<li><a href="#section-7061219945572291465">Option B: integrate โดยเรียก Python function</a></li>
+<li><a href="#section-7006114989233533993">Option C: integrate โดยเรียก CLI</a></li>
+<li><a href="#section-8701396790769744836">Option D: integrate โดยเรียก .NET exe ตรง</a></li>
+</ul>
+</li>
+<li><a href="#section-3870368011670990440">Build และ deploy checklist</a></li>
+<li><a href="#section-5002678070238129073">Known limitations</a></li>
+<li><a href="#section-6942379758344749540">Error cases ที่ควร handle</a></li>
+<li><a href="#section-5924065417542020089">Recommended production design</a></li>
+<li><a href="#section-7313755398745825761">Summary for dev</a></li>
+</ul>
+</div>
+
+    </aside>
+    <article class="doc">
+      <div class="badges">
+        <span class="badge">PowerShell bridge</span>
+        <span class="badge">.NET x86 bridge</span>
+        <span class="badge">NMF to WAV</span>
+        <span class="badge">Dev handoff</span>
+      </div>
+      <h1 id="section-2528538040324451893">NICE NMF Integration Guide</h1>
+<p>เอกสารนี้สรุปการทำงานของระบบแปลงไฟล์เสียง NICE <code>.nmf</code> เป็น <code>.wav</code> ในโปรเจคนี้ สำหรับให้ทีม dev นำไป integrate กับระบบเดิมได้ โดยครอบคลุมทั้งโหมด <code>PowerShell</code> และ <code>.NET</code></p>
+<h2 id="section-4192742252260507769">ภาพรวม</h2>
+<p>ระบบนี้ไม่ได้ถอดรหัส/แปลง <code>.nmf</code> ด้วย algorithm ที่เขียนเองทั้งหมด แต่ใช้ library ของ NICE Player ที่ติดตั้งอยู่บนเครื่อง server เป็นตัวเปิด payload ด้านใน <code>.nmf</code></p>
+<p>ตำแหน่ง NICE runtime ที่ใช้อยู่:</p>
+<pre><code class="language-text">C:\Program Files (x86)\NICE Systems\NICE Player Release 6
+</code></pre>
+<p>flow หลัก:</p>
+<pre><code class="language-text">.nmf
+-&gt; NICE DLL แปลง media payload เป็น A-law raw bytes
+-&gt; Python แปลง A-law เป็น PCM 16-bit
+-&gt; Python เติม timeline silence ถ้าพบ timestamp ใน NMF
+-&gt; Python เขียน/ส่งออกเป็น PCM WAV 8000 Hz mono
+-&gt; Browser เล่น WAV ได้ทันที
+</code></pre>
+<p>ผลลัพธ์สุดท้ายเป็น:</p>
+<pre><code class="language-text">PCM WAV
+Sample rate: 8000 Hz
+Channels: 1
+Sample width: 16-bit
+</code></pre>
+<h2 id="section-6269335835306728110">โครงสร้างไฟล์สำคัญ</h2>
+<pre><code class="language-text">Nice/
+├─ start_nmf_player.bat
+├─ nmf_web_player/
+│  ├─ server.py
+│  ├─ index.html
+│  ├─ app.js
+│  └─ styles.css
+└─ tools/
+   ├─ nice_nmf_to_wav.py
+   ├─ try_nice_nmf_convert.ps1
+   ├─ NiceNmfConverter.cs
+   └─ NiceNmfConverter.exe
+</code></pre>
+<p>หน้าที่แต่ละไฟล์:</p>
+<pre><code class="language-text">start_nmf_player.bat
+</code></pre>
+<p>ใช้เปิด web server ที่ port <code>9797</code> และรันด้วย <code>python -B</code> เพื่อไม่ใช้ bytecode cache เก่า</p>
+<pre><code class="language-text">nmf_web_player/server.py
+</code></pre>
+<p>HTTP server สำหรับหน้าเว็บ และ API <code>/api/convert</code> สำหรับรับ <code>.nmf</code> แล้วส่ง <code>.wav</code> กลับ</p>
+<pre><code class="language-text">nmf_web_player/app.js
+</code></pre>
+<p>ฝั่ง browser: เลือกไฟล์, เลือก mode, ส่งไฟล์ไปแปลง, รับ WAV, วาด waveform, เล่นเสียง, แสดงเวลาแปลง</p>
+<pre><code class="language-text">tools/nice_nmf_to_wav.py
+</code></pre>
+<p>core converter ฝั่ง Python: เรียก engine PowerShell หรือ .NET เพื่อให้ NICE DLL extract เป็น A-law แล้วแปลงต่อเป็น WAV</p>
+<pre><code class="language-text">tools/try_nice_nmf_convert.ps1
+</code></pre>
+<p>PowerShell bridge เดิม ใช้ 32-bit PowerShell โหลด NICE DLL แล้วเรียก <code>MediaFileConverter.NmfToVox</code></p>
+<pre><code class="language-text">tools/NiceNmfConverter.cs
+tools/NiceNmfConverter.exe
+</code></pre>
+<p>.NET bridge ใหม่แบบ x86 เรียก NICE DLL โดยตรง ไม่ผ่าน PowerShell</p>
+<h2 id="section-3718800001443611078">Runtime dependency</h2>
+<p>server ต้องมี NICE Player ติดตั้ง และต้องมีไฟล์ต่อไปนี้ใน runtime folder:</p>
+<pre><code class="language-text">NiceApplications.Playback.Utils.dll
+NiceApplications.Playback.MediaServices.Logic.dll
+NiceApplications.Playback.FileTypes.dll
+NiceApplications.Playback.PlayList.Logic.dll
+NiceApplications.Playback.Streaming.Common.dll
+NiceApplications.Playback.InternalCommon.dll
+Nice.Storage.CommonProjects.NMFClasses.dll
+G72xCodersDll.dll
+ACACVT32.DLL
+</code></pre>
+<p>สำหรับ PowerShell mode ต้องมี:</p>
+<pre><code class="language-text">C:\Windows\SysWOW64\WindowsPowerShell\v1.0\powershell.exe
+</code></pre>
+<p>สำหรับ .NET mode ต้องมี:</p>
+<pre><code class="language-text">Nice\tools\NiceNmfConverter.exe
+</code></pre>
+<p>เหตุผลที่ต้องใช้ 32-bit:</p>
+<pre><code class="language-text">NICE Player Release 6 ติดตั้งใน Program Files (x86)
+และมี native dependency เช่น ACACVT32.DLL / codec DLL แบบ 32-bit
+</code></pre>
+<p>ดังนั้น process ที่โหลด NICE DLL ควรเป็น x86/32-bit ไม่ใช่ x64</p>
+<h2 id="section-3755279069260222446">HTTP API</h2>
+<h3 id="section-7673971539230004278">Health check</h3>
+<pre><code class="language-http">GET /api/health
+</code></pre>
+<p>ตัวอย่าง response:</p>
+<pre><code class="language-json">{
+  &quot;ok&quot;: true,
+  &quot;niceBase&quot;: &quot;C:\\Program Files (x86)\\NICE Systems\\NICE Player Release 6&quot;,
+  &quot;powershell32&quot;: &quot;C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe&quot;,
+  &quot;dotnetConverter&quot;: &quot;C:\\Users\\ZerOBat\\Desktop\\Encrypt\\Nice\\tools\\NiceNmfConverter.exe&quot;,
+  &quot;dotnetReady&quot;: true,
+  &quot;supportedEngines&quot;: [&quot;dotnet&quot;, &quot;powershell&quot;],
+  &quot;requiredFiles&quot;: [
+    {
+      &quot;name&quot;: &quot;NiceApplications.Playback.Utils.dll&quot;,
+      &quot;path&quot;: &quot;...&quot;,
+      &quot;exists&quot;: true
+    }
+  ],
+  &quot;missing&quot;: []
+}
+</code></pre>
+<p>หมายเหตุ:</p>
+<pre><code class="language-text">ok = true
+</code></pre>
+<p>หมายถึง NICE runtime และ 32-bit PowerShell พร้อมใช้งาน แต่ถ้าจะใช้ .NET mode ควรเช็ค <code>dotnetReady=true</code> ด้วย</p>
+<h3 id="section-7829020984346571845">Convert NMF to WAV</h3>
+<pre><code class="language-http">POST /api/convert?name=&lt;filename.nmf&gt;&amp;engine=&lt;powershell|dotnet&gt;
+Content-Type: application/octet-stream
+Body: raw .nmf bytes
+</code></pre>
+<p>ค่าของ <code>engine</code>:</p>
+<pre><code class="language-text">powershell
+dotnet
+.net      -&gt; normalize เป็น dotnet
+net       -&gt; normalize เป็น dotnet
+</code></pre>
+<p>ถ้าไม่ส่ง <code>engine</code> จะ default เป็น:</p>
+<pre><code class="language-text">powershell
+</code></pre>
+<p>ตัวอย่างด้วย curl:</p>
+<pre><code class="language-powershell">curl.exe -D headers.txt -o output.wav `
+  -X POST `
+  -H &quot;Content-Type: application/octet-stream&quot; `
+  --data-binary &quot;@recording.nmf&quot; `
+  &quot;http://127.0.0.1:9797/api/convert?name=recording.nmf&amp;engine=dotnet&quot;
+</code></pre>
+<p>response:</p>
+<pre><code class="language-http">HTTP/1.0 200 OK
+Content-Type: audio/wav
+Content-Length: &lt;wav bytes&gt;
+Cache-Control: no-store
+X-NMF-source-name: recording.nmf
+X-NMF-source-size: 1283916
+X-NMF-sample-rate: 8000
+X-NMF-channels: 1
+X-NMF-bits: 16
+X-NMF-frames: 635680
+X-NMF-duration: 79.460
+X-NMF-timeline: payload
+X-NMF-engine: dotnet
+X-NMF-convert-ms: 1612.7
+X-NMF-cache-status: fresh
+X-NMF-server-ms: 2507.5
+
+&lt;WAV binary&gt;
+</code></pre>
+<p>ถ้า error:</p>
+<pre><code class="language-http">HTTP/1.0 400 Bad Request
+Content-Type: application/json
+</code></pre>
+<pre><code class="language-json">{
+  &quot;error&quot;: &quot;message&quot;
+}
+</code></pre>
+<h2 id="section-2765625924600898538">server.py flow</h2>
+<p>ไฟล์:</p>
+<pre><code class="language-text">Nice\nmf_web_player\server.py
+</code></pre>
+<p>ลำดับการทำงาน:</p>
+<pre><code class="language-text">1. Browser POST .nmf มาที่ /api/convert
+2. server อ่าน query:
+   - name
+   - engine
+3. server อ่าน body เป็น bytes
+4. ตรวจว่ามีไฟล์และนามสกุล .nmf
+5. เรียก convert_nmf(source, source_name, engine)
+6. convert_nmf สร้าง TemporaryDirectory(prefix=&quot;nice_web_&quot;)
+7. เขียน .nmf ลง temp
+8. อ่าน timeline จาก .nmf ด้วย read_timeline()
+9. เรียก convert_file(..., engine=engine)
+10. อ่าน WAV bytes กลับมา
+11. อ่าน metadata จาก WAV ด้วย module wave
+12. ส่ง WAV bytes กลับ browser พร้อม X-NMF-* headers
+13. TemporaryDirectory ถูกลบอัตโนมัติ
+</code></pre>
+<p>สำคัญ:</p>
+<pre><code class="language-text">ไม่มี server-side cache
+</code></pre>
+<p>ทุก request จะ convert ใหม่เสมอ และ <code>X-NMF-cache-status</code> จะเป็น:</p>
+<pre><code class="language-text">fresh
+</code></pre>
+<p>temp file ที่สร้างใน conversion จะถูกลบทิ้งหลัง response เสร็จ เพราะใช้ <code>tempfile.TemporaryDirectory</code></p>
+<h2 id="section-4506955622727813571">nice_nmf_to_wav.py flow</h2>
+<p>ไฟล์:</p>
+<pre><code class="language-text">Nice\tools\nice_nmf_to_wav.py
+</code></pre>
+<p>function หลัก:</p>
+<pre><code class="language-python">convert_file(input_nmf, output_wav, sample_rate=8000, preserve_timeline=True, engine=&quot;powershell&quot;)
+</code></pre>
+<p>ลำดับการทำงาน:</p>
+<pre><code class="language-text">1. สร้าง temp folder prefix nice_nmf_
+2. กำหนด raw_alaw path เช่น &lt;temp&gt;/&lt;name&gt;.alaw
+3. เรียก extract_alaw_with_nice(input_nmf, raw_alaw, engine)
+4. อ่าน raw A-law bytes จาก raw_alaw
+5. แปลง A-law เป็น PCM 16-bit little-endian
+6. ถ้า preserve_timeline=True:
+   - scan packet headers ใน .nmf
+   - หา item start / voice data start / voice end
+   - เติม silence ด้านหน้า/ท้ายให้ความยาวตรง timeline
+7. เขียน PCM เป็น WAV:
+   - channel = 1
+   - sample width = 2 bytes
+   - sample rate = 8000
+</code></pre>
+<h2 id="section-338257308771220250">Timeline handling</h2>
+<p>บางไฟล์ <code>.nmf</code> มีช่วง silence หรือตำแหน่งเวลาใน container ถ้า extract เฉพาะ payload ออกมา ความยาวอาจสั้นกว่าที่ NICE Player แสดง</p>
+<p>ระบบนี้จึงมี <code>read_timeline()</code> และ <code>apply_timeline_padding()</code> เพื่อ preserve timeline</p>
+<p>แนวคิด:</p>
+<pre><code class="language-text">NMF packet headers
+-&gt; packet_type == 1 คือ item/header กลุ่ม metadata
+-&gt; packet_type == 4 และ packet_subtype == 0 คือ voice data
+-&gt; item_start = เวลาเริ่มของ item
+-&gt; payload_start = เวลาเริ่มของ voice payload
+-&gt; target_end = เวลา end ล่าสุดของ voice data
+-&gt; leading silence = payload_start - item_start
+-&gt; total duration = target_end - item_start
+</code></pre>
+<p>จากนั้นเติม:</p>
+<pre><code class="language-text">leading silence
+payload PCM
+trailing silence
+</code></pre>
+<p>ถ้า scan timeline ไม่เจอ:</p>
+<pre><code class="language-text">ใช้ payload PCM ตรง ๆ
+X-NMF-timeline: payload
+</code></pre>
+<p>ถ้า preserve timeline ได้:</p>
+<pre><code class="language-text">X-NMF-timeline: preserved
+</code></pre>
+<h2 id="section-4484756584085484305">A-law to PCM</h2>
+<p>NICE DLL ถูกเรียกให้แปลง NMF เป็น:</p>
+<pre><code class="language-text">PCM_A_LAW
+</code></pre>
+<p>จากนั้น Python decode A-law ด้วย:</p>
+<pre><code class="language-python">decode_alaw_byte(value)
+alaw_to_pcm16_bytes(data)
+</code></pre>
+<p>ผลลัพธ์เป็น signed 16-bit PCM little-endian แล้วเขียนเป็น WAV ด้วย Python <code>wave</code></p>
+<h2 id="section-2360738937273600998">PowerShell mode</h2>
+<p>ไฟล์:</p>
+<pre><code class="language-text">Nice\tools\try_nice_nmf_convert.ps1
+</code></pre>
+<p>ถูกเรียกจาก Python ผ่าน:</p>
+<pre><code class="language-python">subprocess.run([
+    &quot;C:\\Windows\\SysWOW64\\WindowsPowerShell\\v1.0\\powershell.exe&quot;,
+    &quot;-NoProfile&quot;,
+    &quot;-ExecutionPolicy&quot;,
+    &quot;Bypass&quot;,
+    &quot;-File&quot;,
+    &quot;try_nice_nmf_convert.ps1&quot;,
+    &quot;-InputNmf&quot;,
+    &quot;&lt;input.nmf&gt;&quot;,
+    &quot;-OutputFile&quot;,
+    &quot;&lt;output.alaw&gt;&quot;,
+    &quot;-Compression&quot;,
+    &quot;PCM_A_LAW&quot;,
+])
+</code></pre>
+<p>สิ่งที่ PowerShell ทำ:</p>
+<pre><code class="language-powershell">1. กำหนด $niceBase = C:\Program Files (x86)\NICE Systems\NICE Player Release 6
+2. register AssemblyResolve เพื่อหา NICE DLL จาก $niceBase
+3. Set-Location ไปที่ $niceBase
+4. LoadFrom:
+   - NiceApplications.Playback.Utils.dll
+   - NiceApplications.Playback.MediaServices.Logic.dll
+5. หา type:
+   - NiceApplications.Playback.Utils.CompressionType
+6. Parse enum:
+   - PCM_A_LAW
+7. หา type:
+   - NiceApplications.Playback.MediaServices.Logic.MediaFileConverter
+8. หา method:
+   - NmfToVox
+9. Invoke:
+   - NmfToVox(InputNmf, OutputFile, CompressionType.PCM_A_LAW)
+10. OutputFile คือ raw A-law bytes
+</code></pre>
+<p>ข้อดี:</p>
+<pre><code class="language-text">เขียนง่าย
+debug ง่าย
+ใกล้เคียง script ทดลองเดิม
+</code></pre>
+<p>ข้อเสีย:</p>
+<pre><code class="language-text">ช้า เพราะทุก conversion ต้องเปิด 32-bit PowerShell ใหม่
+โหลด .NET runtime / assemblies / reflection ใหม่ทุกครั้ง
+</code></pre>
+<p>ตัวเลขที่เคยวัด:</p>
+<pre><code class="language-text">PowerShell: convert ~6,984 ms, server ~7,059 ms
+</code></pre>
+<p>ขึ้นกับไฟล์และเครื่อง</p>
+<h2 id="section-7635586206403029346">.NET mode</h2>
+<p>ไฟล์ source:</p>
+<pre><code class="language-text">Nice\tools\NiceNmfConverter.cs
+</code></pre>
+<p>ไฟล์ exe:</p>
+<pre><code class="language-text">Nice\tools\NiceNmfConverter.exe
+</code></pre>
+<p>compile เป็น x86:</p>
+<pre><code class="language-powershell">C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe `
+  /nologo `
+  /target:exe `
+  /platform:x86 `
+  /optimize+ `
+  /out:C:\Users\ZerOBat\Desktop\Encrypt\Nice\tools\NiceNmfConverter.exe `
+  C:\Users\ZerOBat\Desktop\Encrypt\Nice\tools\NiceNmfConverter.cs
+</code></pre>
+<p>ถูกเรียกจาก Python ผ่าน:</p>
+<pre><code class="language-python">subprocess.run([
+    &quot;NiceNmfConverter.exe&quot;,
+    &quot;&lt;input.nmf&gt;&quot;,
+    &quot;&lt;output.alaw&gt;&quot;,
+    &quot;PCM_A_LAW&quot;,
+])
+</code></pre>
+<p>สิ่งที่ .NET exe ทำ:</p>
+<pre><code class="language-text">1. รับ args:
+   - input.nmf
+   - output.alaw
+   - compression optional default PCM_A_LAW
+2. ตรวจ input exists
+3. register AppDomain.CurrentDomain.AssemblyResolve
+4. Directory.SetCurrentDirectory(NICE_BASE)
+5. Assembly.LoadFrom:
+   - NiceApplications.Playback.Utils.dll
+   - NiceApplications.Playback.MediaServices.Logic.dll
+6. หา type:
+   - NiceApplications.Playback.Utils.CompressionType
+7. Enum.Parse เป็น PCM_A_LAW
+8. หา type:
+   - NiceApplications.Playback.MediaServices.Logic.MediaFileConverter
+9. หา method:
+   - NmfToVox
+10. Invoke:
+   - NmfToVox(inputNmf, outputFile, compressionValue)
+11. ตรวจ output file exists และ length &gt; 0
+12. stdout:
+   - Output=&lt;path&gt;
+   - Length=&lt;bytes&gt;
+   - Compression=PCM_A_LAW
+</code></pre>
+<p>ข้อดี:</p>
+<pre><code class="language-text">เร็วกว่า PowerShell มาก
+ไม่ต้องเปิด 32-bit PowerShell
+โหลดเฉพาะ .NET exe x86 เล็ก ๆ
+ยังใช้ NICE DLL เดิม จึงลดความเสี่ยงจากการ reimplement format เอง
+</code></pre>
+<p>ข้อจำกัด:</p>
+<pre><code class="language-text">ยังเป็น process ใหม่ต่อ conversion
+ยังต้องพึ่ง NICE DLL และ codec DLL ในเครื่อง server
+ยังไม่ได้เป็น persistent worker/service
+</code></pre>
+<p>ตัวเลขที่เคยวัด:</p>
+<pre><code class="language-text">.NET: convert ~468 ms, server ~543 ms
+</code></pre>
+<p>อีกไฟล์:</p>
+<pre><code class="language-text">.NET: convert ~1,612 ms, server ~2,507 ms
+</code></pre>
+<p>ตัวเลขขึ้นกับขนาดไฟล์/เครื่อง/โหลด ณ ขณะนั้น</p>
+<h2 id="section-8708942381149735673">ความต่างของ PowerShell mode กับ .NET mode</h2>
+<table>
+<thead>
+<tr>
+<th>เรื่อง</th>
+<th style="text-align: right;">PowerShell</th>
+<th style="text-align: right;">.NET</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bridge</td>
+<td style="text-align: right;">32-bit PowerShell script</td>
+<td style="text-align: right;">x86 .NET console exe</td>
+</tr>
+<tr>
+<td>ใช้ NICE DLL</td>
+<td style="text-align: right;">ใช่</td>
+<td style="text-align: right;">ใช่</td>
+</tr>
+<tr>
+<td>เปิด process ใหม่ทุกไฟล์</td>
+<td style="text-align: right;">ใช่</td>
+<td style="text-align: right;">ใช่</td>
+</tr>
+<tr>
+<td>โหลด assembly ทุกไฟล์</td>
+<td style="text-align: right;">ใช่</td>
+<td style="text-align: right;">ใช่</td>
+</tr>
+<tr>
+<td>overhead startup</td>
+<td style="text-align: right;">สูง</td>
+<td style="text-align: right;">ต่ำกว่า</td>
+</tr>
+<tr>
+<td>ความเร็ว</td>
+<td style="text-align: right;">ช้ากว่า</td>
+<td style="text-align: right;">เร็วกว่า</td>
+</tr>
+<tr>
+<td>เหมาะกับ production</td>
+<td style="text-align: right;">ใช้เทียบ/สำรอง</td>
+<td style="text-align: right;">เหมาะกว่า</td>
+</tr>
+</tbody>
+</table>
+<h2 id="section-3582770125195498767">Browser player flow</h2>
+<p>ไฟล์:</p>
+<pre><code class="language-text">Nice\nmf_web_player\app.js
+</code></pre>
+<p>ลำดับ:</p>
+<pre><code class="language-text">1. user เลือกไฟล์หรือ folder .nmf
+2. browser เก็บ File objects ไว้ใน memory
+3. user เลือก Convert mode:
+   - PowerShell
+   - .NET
+4. user click track
+5. clearPlaybackSurface()
+   - stop audio
+   - revoke object URL เก่า
+   - clear waveform
+6. clearConvertedTracks()
+   - ลบ blob/meta ของ track ที่เคยแปลง
+   - ทำให้ทุกครั้งต้อง convert ใหม่
+7. convertTrack()
+   - อ่าน file.arrayBuffer()
+   - POST /api/convert?name=...&amp;engine=...
+8. response.blob() ได้ WAV
+9. อ่าน headers:
+   - X-NMF-duration
+   - X-NMF-engine
+   - X-NMF-convert-ms
+   - X-NMF-server-ms
+10. สร้าง URL.createObjectURL(blob)
+11. audio.src = objectUrl
+12. drawWaveform()
+13. audio.play()
+</code></pre>
+<p>ปัจจุบัน browser ไม่มี cache WAV ข้าม track:</p>
+<pre><code class="language-text">เมื่อเลือกไฟล์ใหม่ จะลบ WAV เดิมออกจาก memory
+เมื่อเลือกไฟล์เดิมซ้ำ ก็แปลงใหม่
+</code></pre>
+<h2 id="section-5849856889095129221">Cache behavior</h2>
+<p>ระบบนี้ถูกตั้งใจให้:</p>
+<pre><code class="language-text">No server cache
+No browser converted WAV cache
+</code></pre>
+<p>เหตุผล:</p>
+<pre><code class="language-text">ผู้ใช้ต้องการทดสอบ conversion ใหม่ทุกครั้ง
+</code></pre>
+<p>ผล:</p>
+<pre><code class="language-text">ทุก request จะเรียก NICE conversion ใหม่
+</code></pre>
+<p>ข้อควรระวัง:</p>
+<pre><code class="language-text">ถ้านำไป production แล้วมีผู้ใช้หลายคน ควรเพิ่ม queue หรือ cache/TTL ตาม policy จริง
+</code></pre>
+<h2 id="section-1166122935952445243">Performance และ scaling</h2>
+<p>ปัจจุบัน <code>.NET mode</code> เร็วกว่า PowerShell มาก แต่ยังเป็น process ต่อ request:</p>
+<pre><code class="language-text">request 1 -&gt; start NiceNmfConverter.exe -&gt; convert -&gt; exit
+request 2 -&gt; start NiceNmfConverter.exe -&gt; convert -&gt; exit
+</code></pre>
+<p>ถ้ามีหลาย user พร้อมกัน:</p>
+<pre><code class="language-text">server จะ spawn หลาย process พร้อมกัน
+CPU / disk / NICE DLL จะถูกใช้งานพร้อมกัน
+อาจทำให้ latency สูงขึ้น
+</code></pre>
+<p>สำหรับ production แนะนำ:</p>
+<pre><code class="language-text">Browser/API
+-&gt; create conversion job
+-&gt; queue
+-&gt; limited workers 1-2 ตัวเริ่มต้น
+-&gt; worker แปลง
+-&gt; result WAV
+-&gt; delete by TTL/session policy
+</code></pre>
+<p>ถ้าต้องเร็วขึ้นอีก:</p>
+<pre><code class="language-text">ทำ persistent x86 .NET worker/service
+โหลด NICE DLL ค้างไว้ครั้งเดียว
+รับงานผ่าน stdin/socket/named pipe/HTTP local
+เรียก NmfToVox ซ้ำใน process เดิม
+</code></pre>
+<p>แบบนี้จะลด overhead การ start process และ LoadFrom assemblies ต่อไฟล์</p>
+<h2 id="section-4928444013615254953">Integration options</h2>
+<h3 id="section-6421556347858087576">Option A: integrate ผ่าน HTTP API</h3>
+<p>เหมาะถ้าระบบเดิมมี backend อยู่แล้ว และอยากแยก NICE converter เป็น service เล็ก ๆ</p>
+<pre><code class="language-text">Existing backend
+-&gt; POST .nmf to http://converter-host:9797/api/convert?engine=dotnet
+-&gt; receive audio/wav
+-&gt; stream to browser / save temp / send to storage
+</code></pre>
+<p>ข้อดี:</p>
+<pre><code class="language-text">แยก concern ชัด
+ไม่ต้อง import Python code เข้า backend เดิม
+เปลี่ยน converter ภายในได้โดยไม่กระทบระบบหลัก
+</code></pre>
+<p>ข้อควรทำก่อน production:</p>
+<pre><code class="language-text">เพิ่ม auth/internal network restriction
+เพิ่ม max upload size
+เพิ่ม queue/concurrency limit
+เพิ่ม cleanup policy
+เพิ่ม structured logging
+</code></pre>
+<h3 id="section-7061219945572291465">Option B: integrate โดยเรียก Python function</h3>
+<p>ถ้าระบบเดิมเป็น Python สามารถ import:</p>
+<pre><code class="language-python">from nice_nmf_to_wav import convert_file
+
+convert_file(
+    input_nmf=Path(&quot;input.nmf&quot;),
+    output_wav=Path(&quot;output.wav&quot;),
+    sample_rate=8000,
+    preserve_timeline=True,
+    engine=&quot;dotnet&quot;,
+)
+</code></pre>
+<p>ต้อง set path ให้ import <code>tools</code> ได้ หรือ package module ใหม่</p>
+<h3 id="section-7006114989233533993">Option C: integrate โดยเรียก CLI</h3>
+<p>ใช้ script:</p>
+<pre><code class="language-powershell">python C:\Users\ZerOBat\Desktop\Encrypt\Nice\tools\nice_nmf_to_wav.py `
+  input.nmf `
+  output.wav `
+  --engine dotnet
+</code></pre>
+<p>หรือ folder:</p>
+<pre><code class="language-powershell">python C:\Users\ZerOBat\Desktop\Encrypt\Nice\tools\nice_nmf_to_wav.py `
+  C:\NMF\InputFolder `
+  C:\NMF\OutputFolder `
+  --engine dotnet
+</code></pre>
+<p>ถ้าไม่ต้อง preserve timeline:</p>
+<pre><code class="language-powershell">python nice_nmf_to_wav.py input.nmf output.wav --engine dotnet --raw-payload
+</code></pre>
+<h3 id="section-8701396790769744836">Option D: integrate โดยเรียก .NET exe ตรง</h3>
+<p>ถ้าระบบเดิมอยากได้เฉพาะ raw A-law จาก NICE DLL:</p>
+<pre><code class="language-powershell">NiceNmfConverter.exe input.nmf output.alaw PCM_A_LAW
+</code></pre>
+<p>จากนั้นระบบเดิมต้อง decode A-law เป็น PCM/WAV เอง</p>
+<p>ถ้าต้องการ WAV playable ทันที แนะนำเรียก Python converter หรือ HTTP API แทน เพราะ Python มีขั้นตอน A-law -&gt; PCM WAV และ timeline padding ครบแล้ว</p>
+<h2 id="section-3870368011670990440">Build และ deploy checklist</h2>
+<ol>
+<li>ติดตั้ง NICE Player Release 6 บน server</li>
+</ol>
+<pre><code class="language-text">C:\Program Files (x86)\NICE Systems\NICE Player Release 6
+</code></pre>
+<ol start="2">
+<li>ตรวจ required DLL:</li>
+</ol>
+<pre><code class="language-text">GET /api/health
+</code></pre>
+<ol start="3">
+<li>compile .NET converter ถ้าจำเป็น:</li>
+</ol>
+<pre><code class="language-powershell">C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe `
+  /nologo `
+  /target:exe `
+  /platform:x86 `
+  /optimize+ `
+  /out:Nice\tools\NiceNmfConverter.exe `
+  Nice\tools\NiceNmfConverter.cs
+</code></pre>
+<ol start="4">
+<li>เปิด server:</li>
+</ol>
+<pre><code class="language-powershell">Nice\start_nmf_player.bat
+</code></pre>
+<p>หรือ:</p>
+<pre><code class="language-powershell">python -B Nice\nmf_web_player\server.py 9797
+</code></pre>
+<ol start="5">
+<li>ทดสอบ:</li>
+</ol>
+<pre><code class="language-powershell">curl.exe -D headers.txt -o output.wav `
+  -X POST `
+  -H &quot;Content-Type: application/octet-stream&quot; `
+  --data-binary &quot;@input.nmf&quot; `
+  &quot;http://127.0.0.1:9797/api/convert?name=input.nmf&amp;engine=dotnet&quot;
+</code></pre>
+<ol start="6">
+<li>ตรวจ headers:</li>
+</ol>
+<pre><code class="language-text">X-NMF-engine: dotnet
+X-NMF-convert-ms: &lt;number&gt;
+X-NMF-server-ms: &lt;number&gt;
+X-NMF-duration: &lt;seconds&gt;
+</code></pre>
+<h2 id="section-5002678070238129073">Known limitations</h2>
+<ol>
+<li>ยังต้องพึ่ง NICE Player DLL</li>
+</ol>
+<pre><code class="language-text">ไม่ได้เป็น pure custom decoder
+</code></pre>
+<ol start="2">
+<li>.NET mode ยังไม่ใช่ persistent worker</li>
+</ol>
+<pre><code class="language-text">เร็วกว่า PowerShell มาก แต่ยังเปิด process ใหม่ทุก conversion
+</code></pre>
+<ol start="3">
+<li>ไม่มี queue/concurrency limit ใน server.py ปัจจุบัน</li>
+</ol>
+<pre><code class="language-text">ThreadingHTTPServer รับหลาย request ได้ แต่ conversion หลายตัวพร้อมกันอาจทำให้เครื่องหนัก
+</code></pre>
+<ol start="4">
+<li>ไม่มี auth</li>
+</ol>
+<pre><code class="language-text">เหมาะกับ local/internal test เท่านั้น ถ้าขึ้น server ต้องเพิ่ม auth/network restriction
+</code></pre>
+<ol start="5">
+<li>ไม่มี upload size limit ในตัวอย่าง server.py</li>
+</ol>
+<pre><code class="language-text">ควรเพิ่มก่อน production
+</code></pre>
+<ol start="6">
+<li>response เป็น WAV ทั้งก้อนใน memory</li>
+</ol>
+<pre><code class="language-text">เหมาะกับไฟล์ขนาดไม่ใหญ่มาก ถ้า production ควรพิจารณา stream/file storage
+</code></pre>
+<h2 id="section-6942379758344749540">Error cases ที่ควร handle</h2>
+<pre><code class="language-text">NICE runtime missing
+.NET converter missing
+unsupported engine
+empty upload
+not .nmf
+NICE DLL throw exception
+NmfToVox output empty
+WAV metadata read fail
+conversion timeout
+concurrent conversion overload
+</code></pre>
+<h2 id="section-5924065417542020089">Recommended production design</h2>
+<p>ถ้าจะนำไป integrate กับระบบจริง แนะนำ architecture:</p>
+<pre><code class="language-text">Main API
+-&gt; upload .nmf
+-&gt; create conversion job
+-&gt; enqueue job
+-&gt; NICE conversion worker pool
+   - worker count เริ่มที่ 1
+   - เพิ่มเป็น 2-4 หลัง load test
+-&gt; write WAV to temp/object storage
+-&gt; return playback URL/status
+-&gt; delete WAV by TTL/session
+</code></pre>
+<p>สำหรับ worker:</p>
+<pre><code class="language-text">Phase 1: ใช้ NiceNmfConverter.exe แบบ subprocess engine=dotnet
+Phase 2: ทำ persistent x86 .NET service/worker เพื่อโหลด DLL ค้างไว้
+</code></pre>
+<h2 id="section-7313755398745825761">Summary for dev</h2>
+<p>ถ้าต้องเลือก mode:</p>
+<pre><code class="language-text">ใช้ dotnet เป็น default สำหรับงานจริง
+เก็บ powershell ไว้เป็น fallback/debug/reference
+</code></pre>
+<p>ถ้าต้อง integrate เร็วที่สุด:</p>
+<pre><code class="language-text">เรียก /api/convert?engine=dotnet
+รับ audio/wav body
+อ่าน timing จาก X-NMF-* headers
+</code></pre>
+<p>ถ้าต้อง integrate แน่นและควบคุมเอง:</p>
+<pre><code class="language-text">เรียก convert_file(..., engine=&quot;dotnet&quot;) จาก Python
+</code></pre>
+<p>ถ้าต้อง optimize ต่อ:</p>
+<pre><code class="language-text">สร้าง persistent x86 .NET worker แทนการ spawn NiceNmfConverter.exe ต่อ request
+</code></pre>
+    </article>
+  </main>
+</body>
+</html>

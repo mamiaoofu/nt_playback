@@ -165,6 +165,10 @@ def _verify_user_password(user, password):
 def _calculate_next_run(task, config):
     if not task or task.task_type == 'MANUAL' or not config:
         return '-'
+    if task.status in ['SUCCESS', 'FAILED', 'RESTORED', 'STOPPED'] or not config.is_active:
+        return '-'
+    if config.is_once and task.executed_at:
+        return '-'
         
     execution_time = config.execution_time or datetime.strptime('01:00:00', '%H:%M:%S').time()
     now = timezone.localtime(timezone.now())
@@ -640,21 +644,7 @@ class RetentionViewSet(viewsets.ViewSet):
         if running_date:
             log_list = log_list.filter(detail__icontains=f"Running Date : {running_date}")
 
-        # Apply search_value (multi-column)
-        if search_value:
-            tokens = [t.strip() for t in search_value.split(',') if t.strip()]
-            if tokens:
-                q_search = Q()
-                for tok in tokens:
-                    q_tok = (Q(user__username__icontains=tok) |
-                             Q(action__icontains=tok) |
-                             Q(detail__icontains=tok) |
-                             Q(ip_address__icontains=tok) |
-                             Q(client_type__icontains=tok))
-                    q_search &= q_tok
-                log_list = log_list.filter(q_search)
-
-        # Records filtered count
+        # Records filtered count (initial database count before Python-level search)
         records_filtered = log_list.count()
 
         # Fetch records and build data (parse fields)
@@ -737,7 +727,7 @@ class RetentionViewSet(viewsets.ViewSet):
                 created_by_val = task_update_by
 
             client_type_val = log.client_type or "-"
-            if log.action in ['Complete Soft Delete Schedule Retention', 'Change Retention Permanent Delete']:
+            if log.action in ['Complete Soft Delete Schedule Retention']:
                 client_type_val = 'Server'
 
             data.append({
@@ -756,6 +746,36 @@ class RetentionViewSet(viewsets.ViewSet):
                 "client_type": client_type_val,
                 "download_url": download_url
             })
+
+        # Python-level search (fully accurate across all parsed fields including resolved created_by)
+        if search_value:
+            tokens = [t.strip().lower() for t in search_value.split(',') if t.strip()]
+            if tokens:
+                filtered_data = []
+                for item in data:
+                    match = True
+                    for tok in tokens:
+                        field_match = (
+                            tok in str(item.get("retention_id", "")).lower() or
+                            tok in str(item.get("action", "")).lower() or
+                            tok in str(item.get("retention_type", "")).lower() or
+                            tok in str(item.get("retention_period", "")).lower() or
+                            tok in str(item.get("times", "")).lower() or
+                            tok in str(item.get("index_count", "")).lower() or
+                            tok in str(item.get("running_date", "")).lower() or
+                            tok in str(item.get("created_by", "")).lower() or
+                            tok in str(item.get("description", "")).lower() or
+                            tok in str(item.get("ip_address", "")).lower() or
+                            tok in str(item.get("timestamp", "")).lower() or
+                            tok in str(item.get("client_type", "")).lower()
+                        )
+                        if not field_match:
+                            match = False
+                            break
+                    if match:
+                        filtered_data.append(item)
+                data = filtered_data
+                records_filtered = len(data)
 
         # Python-level Sorting
         if sort_field and sort_dir:
