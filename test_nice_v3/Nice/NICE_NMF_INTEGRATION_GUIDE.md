@@ -131,7 +131,7 @@ Browser
 
 ### `start_nmf_player.bat`
 
-ใช้เปิด web player ครั้งถัดไปแบบง่ายสำหรับผู้ใช้ทั่วไป หน้าที่หลักคือเข้า folder ที่ถูกต้อง แล้วรัน `server.py` บน port ที่กำหนด เช่น `18797`
+ใช้เปิด web player ครั้งถัดไปแบบง่ายสำหรับผู้ใช้ทั่วไป หน้าที่หลักคือเข้า folder ที่ถูกต้อง แล้วรัน `server.py` บน port ที่กำหนด เช่น `6797`
 
 ใช้เมื่อ:
 
@@ -370,7 +370,7 @@ legacy C# helper สำหรับ path `NmfToVox`
 ### Health check
 
 ```http
-GET http://127.0.0.1:18797/api/health
+GET http://127.0.0.1:6797/api/health
 ```
 
 ตัวอย่าง response:
@@ -392,7 +392,7 @@ GET http://127.0.0.1:18797/api/health
 ### Convert
 
 ```http
-POST http://127.0.0.1:18797/api/convert?name=<filename.nmf>&engine=dotnet
+POST http://127.0.0.1:6797/api/convert?name=<filename.nmf>&engine=dotnet
 Content-Type: application/octet-stream
 
 <raw .nmf bytes>
@@ -401,7 +401,7 @@ Content-Type: application/octet-stream
 เปิด debug:
 
 ```http
-POST http://127.0.0.1:18797/api/convert?name=<filename.nmf>&engine=dotnet&debug=1
+POST http://127.0.0.1:6797/api/convert?name=<filename.nmf>&engine=dotnet&debug=1
 ```
 
 ตัวอย่าง `curl`:
@@ -409,7 +409,7 @@ POST http://127.0.0.1:18797/api/convert?name=<filename.nmf>&engine=dotnet&debug=
 ```powershell
 curl.exe -X POST `
   --data-binary "@C:\audio\input.nmf" `
-  "http://127.0.0.1:18797/api/convert?name=input.nmf&engine=dotnet" `
+  "http://127.0.0.1:6797/api/convert?name=input.nmf&engine=dotnet" `
   -o "C:\audio\output.wav"
 ```
 
@@ -654,7 +654,7 @@ C:\Windows\Microsoft.NET\Framework\v4.0.30319\csc.exe /platform:x86 ...
 เปิด debug ด้วย URL:
 
 ```text
-http://127.0.0.1:18797/?debug=1
+http://127.0.0.1:6797/?debug=1
 ```
 
 ผลที่เปลี่ยน:

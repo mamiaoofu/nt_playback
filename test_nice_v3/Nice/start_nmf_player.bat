@@ -3,7 +3,7 @@ setlocal
 
 cd /d "%~dp0"
 
-set "PORT=18797"
+set "PORT=6797"
 set "URL=http://127.0.0.1:%PORT%/"
 
 echo Starting NICE NMF Browser Player...
