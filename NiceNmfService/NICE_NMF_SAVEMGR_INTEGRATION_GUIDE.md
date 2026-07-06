@@ -18,7 +18,7 @@ flowchart TD
     CheckNmf --ไม่ใช่--> NormalStream[สตรีมไฟล์เสียงแบบปกติ / แปลงฟอร์แมตทั่วไป]
     CheckNmf --ใช่--> CheckEnv{สภาพแวดล้อมที่รัน Django?}
     
-    CheckEnv --Docker (Linux Container)--> CallAPI[ส่งคำขอ POST ไปยัง NiceNmfService ที่เครื่อง Host พอร์ต 8797]
+    CheckEnv --Docker (Linux Container)--> CallAPI[ส่งคำขอ POST ไปยัง NiceNmfService ที่เครื่อง Host พอร์ต 10797]
     CheckEnv --Windows Host (Direct Running)--> RunLocal[รัน NiceNmfConverter.exe บนเครื่องโดยตรง]
     
     CallAPI --> ServiceConvert[NiceNmfService เรียกใช้ NiceNmfConverter.exe]
@@ -53,7 +53,7 @@ graph TD
     end
 
     subgraph WindowsHost ["Windows Host Machine"]
-        Service["NiceNmfService (Python Server, Port 8797)"]
+        Service["NiceNmfService (Python Server, Port 10797)"]
         Converter["NiceNmfConverter.exe (C# 32-bit)"]
         NICE_DLL["NICE Player Release 6 DLLs"]
         LocalFiles["SMB Shared Folder (NMF Files)"]
@@ -148,11 +148,11 @@ sequenceDiagram
 
 ## 🌐 รายละเอียด API บริการ (API Reference)
 
-ตัวบริการรันด้วย Python `ThreadingHTTPServer` ที่พอร์ต **`8797`**
+ตัวบริการรันด้วย Python `ThreadingHTTPServer` ที่พอร์ต **`10797`**
 
 ### 1. ตรวจสอบสถานะการเชื่อมต่อ (Health Check)
 ใช้เพื่อเช็คความพร้อมการโหลดไลบรารีและเวอร์ชันของ NICE DLL
-* **Endpoint**: `GET http://127.0.0.1:8797/api/health`
+* **Endpoint**: `GET http://127.0.0.1:10797/api/health`
 * **Response (JSON)**:
   ```json
   {
@@ -174,7 +174,7 @@ sequenceDiagram
 
 ### 2. แปลงไฟล์เสียง (Convert File)
 ส่งข้อมูล NMF ไบนารีเพื่อรับไฟล์เสียง WAV
-* **Endpoint**: `POST http://127.0.0.1:8797/api/convert?name=recording.nmf&engine=dotnet`
+* **Endpoint**: `POST http://127.0.0.1:10797/api/convert?name=recording.nmf&engine=dotnet`
 * **Request Header**: `Content-Type: application/octet-stream`
 * **Response Body**: ข้อมูลไบนารีไฟล์เสียงมาตรฐาน `audio/wav`
 * **Response Headers (Metadata)**:

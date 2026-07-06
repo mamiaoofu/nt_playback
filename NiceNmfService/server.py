@@ -298,7 +298,7 @@ class NmfApiHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8797
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 10797
     server = ThreadingHTTPServer(("0.0.0.0", port), NmfApiHandler)
     print(f"NICE NMF API Converter running on port {port}...")
     server.serve_forever()

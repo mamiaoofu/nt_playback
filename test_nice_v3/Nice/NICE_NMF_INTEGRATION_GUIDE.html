@@ -296,7 +296,7 @@ ACACVT32.DLL</code></pre>
 
         <h2 id="files">อธิบาย code ทุกไฟล์</h2>
         <h3>start_nmf_player.bat</h3>
-        <p>เปิด web player แบบง่ายสำหรับผู้ใช้ทั่วไป โดยเข้า folder ที่ถูกต้องแล้วรัน <code>server.py</code> บน port ที่กำหนด เช่น <code>18797</code></p>
+        <p>เปิด web player แบบง่ายสำหรับผู้ใช้ทั่วไป โดยเข้า folder ที่ถูกต้องแล้วรัน <code>server.py</code> บน port ที่กำหนด เช่น <code>6797</code></p>
 
         <h3>nmf_web_player/server.py</h3>
         <p>Python HTTP server หลัก ทำหน้าที่ serve frontend, ตรวจ health, รับ upload .nmf, ส่งงานเข้า worker queue, อ่าน WAV metadata และส่ง <code>audio/wav</code> กลับ browser</p>
@@ -343,7 +343,7 @@ ERR&lt;TAB&gt;&lt;elapsed ms&gt;&lt;TAB&gt;&lt;base64 error message&gt;</code></
 
         <h2 id="api">API สำหรับเชื่อมต่อระบบอื่น</h2>
         <h3>Health check</h3>
-        <pre><code>GET http://127.0.0.1:18797/api/health</code></pre>
+        <pre><code>GET http://127.0.0.1:6797/api/health</code></pre>
         <pre><code>{
   "ok": true,
   "niceBase": "C:\\Program Files (x86)\\NICE Systems\\NICE Player Release 6",
@@ -356,13 +356,13 @@ ERR&lt;TAB&gt;&lt;elapsed ms&gt;&lt;TAB&gt;&lt;base64 error message&gt;</code></
 }</code></pre>
 
         <h3>Convert</h3>
-        <pre><code>POST http://127.0.0.1:18797/api/convert?name=&lt;filename.nmf&gt;&amp;engine=dotnet
+        <pre><code>POST http://127.0.0.1:6797/api/convert?name=&lt;filename.nmf&gt;&amp;engine=dotnet
 Content-Type: application/octet-stream
 
 &lt;raw .nmf bytes&gt;</code></pre>
         <pre><code>curl.exe -X POST `
   --data-binary "@C:\audio\input.nmf" `
-  "http://127.0.0.1:18797/api/convert?name=input.nmf&amp;engine=dotnet" `
+  "http://127.0.0.1:6797/api/convert?name=input.nmf&amp;engine=dotnet" `
   -o "C:\audio\output.wav"</code></pre>
         <p>headers สำคัญ:</p>
         <pre><code>X-NMF-sample-rate: 8000
@@ -421,7 +421,7 @@ convert_file(
         </table>
 
         <h2>Debug mode</h2>
-        <pre><code>http://127.0.0.1:18797/?debug=1</code></pre>
+        <pre><code>http://127.0.0.1:6797/?debug=1</code></pre>
         <ul>
           <li>เปิด timeline scan</li>
           <li>แสดง <code>payload</code>/<code>preserved</code></li>

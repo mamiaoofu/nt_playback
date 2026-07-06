@@ -91,7 +91,7 @@ class AudioTranscoder:
                     # Non-Windows (Docker Linux): call host HTTP API
                     import requests
                     
-                    converter_url = "http://host.docker.internal:8797/api/convert"
+                    converter_url = "http://host.docker.internal:10797/api/convert"
                     file_name = os.path.basename(source_path)
                     
                     logger.info(f"Linux/Docker environment detected. Requesting NMF conversion from host API: {converter_url}")

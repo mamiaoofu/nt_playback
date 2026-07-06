@@ -410,7 +410,7 @@ class NmfPlayerHandler(SimpleHTTPRequestHandler):
 
 def main() -> None:
     mimetypes.add_type("text/javascript", ".js")
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 18797
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 6797
     server = ThreadingHTTPServer(("127.0.0.1", port), NmfPlayerHandler)
     print(f"NICE NMF browser player: http://127.0.0.1:{port}/")
     server.serve_forever()
