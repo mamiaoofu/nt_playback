@@ -139,7 +139,8 @@ def execute_auto_retention_job():
                 period_str = period_str.replace(' to ', ' - ')
             local_now = timezone.localtime(now)
             occurrence = 'Once' if config.is_once else 'Recurrence'
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | Indexes | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
+            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
             
             create_user_log(
                 user=None,

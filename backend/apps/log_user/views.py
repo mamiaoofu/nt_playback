@@ -296,7 +296,10 @@ def ApiGetActionOptions(request):
         unique_actions = set()
         for a in actions_qs:
             if a:
-                unique_actions.add(a.strip())
+                val = a.strip()
+                if val == 'Save As Retention Log':
+                    val = 'Save as Retention Log'
+                unique_actions.add(val)
                 
         actions = list(unique_actions)
         actions.sort()

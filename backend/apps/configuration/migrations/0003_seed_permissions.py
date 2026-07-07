@@ -63,7 +63,7 @@ def seed_permissions(apps, schema_editor):
         (19, 'Delete User', 3),
         (20, 'Change User Status', 3),
         (21, 'Reset User Password', 3),
-        (22, 'Save As User Index', 3),
+        (22, 'Save as User Index', 3),
         (23, 'Create Delegate', 2),
         (24, 'Playback Delegate File', 3),
         (25, 'Download Delegate File', 2),
@@ -87,9 +87,9 @@ def seed_permissions(apps, schema_editor):
         (40, 'Change Ticket Status', 6),
         (41, 'Ticket Reset', 6),
         # Logs (42 to 44)
-        (42, 'Save As System Log', 7),
-        (43, 'Save As Audit Log', 7),
-        (44, 'Save As Ticket History', 7),
+        (42, 'Save as System Log', 7),
+        (43, 'Save as Audit Log', 7),
+        (44, 'Save as Ticket History', 7),
         # Setting (45 to 46)
         (45, 'Set Column', 8),
         (46, 'Download Player', 8)

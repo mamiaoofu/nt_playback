@@ -573,7 +573,7 @@ export function useUserManagement() {
         }
 
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
-    const canExport = computed(() => authStore.hasPermission('Save As User Index'))
+    const canExport = computed(() => authStore.hasPermission('Save as User Index'))
     
     const resetExportSelections = () => {
         exportSelections.pdf = false

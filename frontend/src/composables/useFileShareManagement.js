@@ -469,8 +469,8 @@ export function useFileShareManagement() {
     const exportSelections = reactive({ pdf: false, excel: false, csv: false})
 
     const canExport = computed(() => {
-        if (typeUrl.value === 'ticket') return authStore.hasPermission('Save As Ticket Index') && authStore.hasPermission('Ticket Management')
-        if (typeUrl.value === 'delegate') return authStore.hasPermission('Save As Delegate File Index') && authStore.hasPermission('Delegate Management')
+        if (typeUrl.value === 'ticket') return authStore.hasPermission('Save as Ticket Index') && authStore.hasPermission('Ticket Management')
+        if (typeUrl.value === 'delegate') return authStore.hasPermission('Save as Delegate File Index') && authStore.hasPermission('Delegate Management')
         return false
     })
 

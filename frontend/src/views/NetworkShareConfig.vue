@@ -45,22 +45,15 @@
                                             <div v-for="share in shares" :key="share.id" class="group-card-item">
                                                 <div class="group-card-main">
                                                     <div class="group-card-header">
-                                                        <span class="group-card-title">{{ share.networkPath }}</span>
-                                                        <div style="display: inline-flex; align-items: center; gap: 8px;">
-                                                            <span class="group-card-group-badge" style="margin-left: 8px; background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 12px; white-space: nowrap;">
-                                                                Database: {{ share.mainDbName }}
-                                                            </span>
-                                                            <span v-if="share.isActive" class="group-card-group-badge" style="margin-left: 8px; background: #ecfdf5; color: #10b981; border: 1px solid #a7f3d0; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 12px;">
-                                                                Active
-                                                            </span>
-                                                            <span v-else class="group-card-group-badge" style="margin-left: 8px; background: #f3f4f6; color: #6b7280; border: 1px solid #e5e7eb; font-size: 9px; font-weight: 600; padding: 2px 8px; border-radius: 12px;">
-                                                                Inactive
-                                                            </span>
-                                                        </div>
+                                                        <span class="group-card-title" style="font-size: 14px; font-weight: 800; color: #1e293b;">
+                                                            <i class="fas fa-database" style="margin-right: 6px; color: #416fd6;"></i>
+                                                            {{ share.mainDbName }}
+                                                        </span>
                                                     </div>
-                                                    <div class="group-card-desc" style="margin-top: 4px; display: flex; align-items: center; gap: 15px; font-size: 10px; color: #64748b;">
-                                                        <span><i class="fas fa-database" style="margin-right: 4px; font-size: 10px; color: #94a3b8;"></i> Main DB ID: {{ share.mainDbId || '-' }}</span>
+                                                    <div class="group-card-desc" style="margin-top: 6px; display: flex; align-items: center; gap: 15px; font-size: 10px; color: #64748b;">
+                                                        <span><i class="fas fa-hashtag" style="margin-right: 4px; font-size: 10px; color: #94a3b8;"></i> Main DB ID: {{ share.mainDbId || '-' }}</span>
                                                         <span><i class="fas fa-user" style="margin-right: 4px; font-size: 10px; color: #94a3b8;"></i> Username: {{ share.username || '-' }}</span>
+                                                        <span><i class="fas fa-network-wired" style="margin-right: 4px; font-size: 10px; color: #94a3b8;"></i> Network Path: {{ share.networkPath || '-' }}</span>
                                                     </div>
                                                 </div>
 
@@ -136,8 +129,24 @@
                             <!-- Password -->
                             <div class="col-lg-12 mb-3">
                                 <div class="input-group" v-has-value>
-                                    <input required v-model="form.password" type="password" autocomplete="off" class="input" :class="{ 'form-input-modal': errors.password }">
+                                    <input required v-model="form.password" :type="showPassword ? 'text' : 'password'" autocomplete="off" class="input" :class="{ 'form-input-modal': errors.password, 'padding-toggle': !isEdit || isChangingPassword, 'padding-change-btn': isEdit && !isChangingPassword, 'padding-cancel-btn': isEdit && isChangingPassword }" :readonly="isEdit && !isChangingPassword">
                                     <label class="title-label">Password</label>
+                                    
+                                    <!-- Eye toggle: shown in Add mode, or Edit mode when changing password -->
+                                    <span v-if="!isEdit || isChangingPassword" class="password-toggle-icon" @click="showPassword = !showPassword" title="Show/Hide Password">
+                                        <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                    </span>
+                                    
+                                    <!-- "กรอกค่าใหม่" (Change Password) button: shown in Edit mode when NOT changing password -->
+                                    <span v-if="isEdit && !isChangingPassword" class="password-change-btn" @click="startChangePassword">
+                                        กรอกค่าใหม่
+                                    </span>
+                                    
+                                    <!-- Cancel changing password: shown in Edit mode when changing password -->
+                                    <span v-if="isEdit && isChangingPassword" class="password-change-cancel-btn" @click="cancelChangePassword" title="Cancel editing password">
+                                        <i class="fas fa-undo" style="margin-right: 4px;"></i>ยกเลิก
+                                    </span>
+
                                     <div v-show="errors.password" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ errors.password }}</div>
                                 </div>
                             </div>
@@ -186,6 +195,19 @@ const saving = ref(false)
 const showModal = ref(false)
 const isEdit = ref(false)
 const editId = ref(null)
+
+const showPassword = ref(false)
+const isChangingPassword = ref(false)
+
+const startChangePassword = () => {
+    isChangingPassword.value = true
+    form.value.password = ''
+}
+
+const cancelChangePassword = () => {
+    isChangingPassword.value = false
+    form.value.password = '******'
+}
 
 const form = ref({
     networkPath: '',
@@ -255,6 +277,8 @@ const databaseOptions = computed(() => {
 const openCreateModal = () => {
     isEdit.value = false
     editId.value = null
+    showPassword.value = false
+    isChangingPassword.value = false
     form.value = {
         networkPath: '',
         username: '',
@@ -271,6 +295,8 @@ const openCreateModal = () => {
 const openEditModal = (share) => {
     isEdit.value = true
     editId.value = share.id
+    showPassword.value = false
+    isChangingPassword.value = false
     form.value = {
         networkPath: share.networkPath,
         username: share.username,
@@ -286,6 +312,8 @@ const openEditModal = (share) => {
 
 const closeModal = () => {
     showModal.value = false
+    showPassword.value = false
+    isChangingPassword.value = false
 }
 
 const saveChanges = async () => {
@@ -497,6 +525,81 @@ input:checked+.slider_status:after {
 
 .group-card-header:deep {
     gap: 0px;
+}
+
+.password-toggle-icon {
+    position: absolute;
+    right: 12px;
+    top: 16.5px;
+    transform: translateY(-50%);
+    color: #64748b;
+    cursor: pointer;
+    font-size: 13px;
+    z-index: 10;
+}
+
+.password-toggle-icon:hover {
+    color: #416fd6;
+}
+
+.password-change-btn {
+    position: absolute;
+    right: 12px;
+    top: 16.5px;
+    transform: translateY(-50%);
+    background-color: #eff6ff;
+    color: #3b82f6;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 10;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.password-change-btn:hover {
+    background-color: #3b82f6;
+    color: #ffffff;
+    border-color: #3b82f6;
+}
+
+.password-change-cancel-btn {
+    position: absolute;
+    right: 12px;
+    top: 16.5px;
+    transform: translateY(-50%);
+    background-color: #fef2f2;
+    color: #ef4444;
+    border: 1px solid #fee2e2;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 10;
+    white-space: nowrap;
+    transition: all 0.2s;
+}
+
+.password-change-cancel-btn:hover {
+    background-color: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+}
+
+.padding-toggle {
+    padding-right: 35px !important;
+}
+
+.padding-change-btn {
+    padding-right: 85px !important;
+}
+
+.padding-cancel-btn {
+    padding-right: 75px !important;
 }
 </style>
 
