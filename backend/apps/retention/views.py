@@ -463,9 +463,10 @@ class RetentionViewSet(viewsets.ViewSet):
                 period_str = re.sub(r'(?i)older than', 'over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             
+            occurrence = _format_occurrence(task=task, config=config)
             delete_option_desc = _format_delete_option(task.delete_option)
             running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.task_type == 'MANUAL' else _calculate_next_run(task, config)
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
             
             create_user_log(
                 user=request.user,
@@ -848,9 +849,48 @@ class RetentionViewSet(viewsets.ViewSet):
         
         detail_str = f"Retention ID : {retention_id} | Create Date : {create_date_str} | File Name : {file_name}"
         
-        if os.path.exists(log.file_log_path):
+        # Resolve the actual file path on disk dynamically to handle path mismatches (Windows/Linux/Docker)
+        resolved_file_path = log.file_log_path
+        if not os.path.exists(resolved_file_path):
+            # Try mapping host -> container path if running in container
+            try:
+                from apps.home.views import map_host_to_container_path
+                mapped = map_host_to_container_path(resolved_file_path)
+                if mapped and os.path.exists(mapped):
+                    resolved_file_path = mapped
+            except Exception:
+                pass
+                
+        if not os.path.exists(resolved_file_path):
+            # Try building path under settings.MEDIA_ROOT/retention_logs/YYYY-MM/filename
+            try:
+                if len(parts) >= 3:
+                    date_part = parts[2]  # e.g., "20260707"
+                    yyyy_mm = f"{date_part[0:4]}-{date_part[4:6]}"
+                    constructed = os.path.join(settings.MEDIA_ROOT, 'retention_logs', yyyy_mm, file_name)
+                    if os.path.exists(constructed):
+                        resolved_file_path = constructed
+            except Exception:
+                pass
+                
+        if not os.path.exists(resolved_file_path):
+            # Try recursive search inside settings.MEDIA_ROOT/retention_logs/
+            try:
+                ret_logs_dir = os.path.join(settings.MEDIA_ROOT, 'retention_logs')
+                if os.path.exists(ret_logs_dir):
+                    found_path = None
+                    for root, dirs, files in os.walk(ret_logs_dir):
+                        if file_name in files:
+                            found_path = os.path.join(root, file_name)
+                            break
+                    if found_path:
+                        resolved_file_path = found_path
+            except Exception:
+                pass
+
+        if os.path.exists(resolved_file_path):
             create_user_log(user=request.user, action=action_name, detail=detail_str, status='success', request=request)
-            return FileResponse(open(log.file_log_path, 'rb'), as_attachment=True)
+            return FileResponse(open(resolved_file_path, 'rb'), as_attachment=True)
             
         detail_str_err = f"{detail_str} | error=File not found on disk"
         create_user_log(user=request.user, action=action_name, detail=detail_str_err, status='error', request=request)
