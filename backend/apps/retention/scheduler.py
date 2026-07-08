@@ -135,7 +135,7 @@ def execute_auto_retention_job():
             period_str = time_period_desc
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             local_now = timezone.localtime(now)
             occurrence = 'Once' if config.is_once else 'Recurrence'
@@ -292,7 +292,7 @@ def execute_permanent_delete_job():
                 period_str = task_obj.time_period if task_obj and task_obj.time_period else time_period_desc
                 if period_str:
                     import re
-                    period_str = re.sub(r'(?i)older than', 'over', period_str)
+                    period_str = re.sub(r'(?i)older than', 'Over', period_str)
                     period_str = period_str.replace(' to ', ' - ')
 
                 delete_desc = "Indexes & Voice Files" if 'VOICE_AND_INDEX' in delete_options else "Indexes"

@@ -393,7 +393,7 @@ class RetentionViewSet(viewsets.ViewSet):
                     period_str = time_period_desc
                     if period_str:
                         import re
-                        period_str = re.sub(r'(?i)older than', 'over', period_str)
+                        period_str = re.sub(r'(?i)older than', 'Over', period_str)
                         period_str = period_str.replace(' to ', ' - ')
                     
                     occurrence = _format_occurrence(config=config)
@@ -460,7 +460,7 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = task.time_period or ''
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             
             occurrence = _format_occurrence(task=task, config=config)
@@ -507,7 +507,7 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = _format_time_period_detail_from_config(config)
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
@@ -552,7 +552,7 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = _format_time_period_detail_from_config(config)
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
