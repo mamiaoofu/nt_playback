@@ -296,7 +296,7 @@ class RetentionViewSet(viewsets.ViewSet):
 
             delete_option_desc = _format_delete_option(delete_option)
             running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
-            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Once | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
             create_user_log(
                 user=request.user,
                 action=action_name,
