@@ -228,6 +228,7 @@ def delete_audio_file_via_smb(main_db_id, file_path):
 
 
 def execute_permanent_delete_job():
+    print("execute_permanent_delete_job called!")
     config = AutoRetentionConfig.load()
     val = config.permanent_delete_value
     unit = config.permanent_delete_unit
@@ -240,7 +241,9 @@ def execute_permanent_delete_job():
         cutoff_date = now - timedelta(days=val)
         time_period_desc = f"{val} Day{'s' if val > 1 else ''} Expired"
         
+    print(f"execute_permanent_delete_job parameters: now={now}, val={val}, unit={unit}, cutoff_date={cutoff_date}")
     expired_records = AudioInfo.objects.filter(status=False, retention_date__lte=cutoff_date)
+    print(f"execute_permanent_delete_job found expired records count: {expired_records.count()}")
     
     if expired_records.exists():
         # Group expired records by retention_task_id
@@ -439,7 +442,6 @@ def execute_permanent_delete_job():
                 occurrence = 'Once'
                 if task_obj and task_obj.task_type == 'AUTO_EXECUTION':
                     try:
-                        from apps.retention.models import AutoRetentionConfig
                         config_auto = AutoRetentionConfig.load()
                         occurrence = 'Once' if config_auto.is_once else 'Recurrence'
                     except Exception:
