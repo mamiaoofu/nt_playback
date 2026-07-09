@@ -41,11 +41,12 @@
                     <!-- Number Input -->
                     <div class="me-3" style="width: 80px;">
                       <input 
-                        type="number" 
+                        type="text" 
                         class="input-custom" 
-                        v-model="autoOlderThanValue" 
+                        :value="autoOlderThanValue" 
+                        @input="validateOlderThan"
+                        @blur="onOlderThanBlur"
                         placeholder="Num" 
-                        min="1"
                         :disabled="isScheduleActive || auto.retentionType !== 'OLDER_THAN'"
                         style="padding: 6px 12px;"
                       />
@@ -556,6 +557,25 @@ const manualStartInput = ref(null);
 const manualEndInput = ref(null);
 const autoOlderThanValue = ref(1);
 const autoOlderThanUnit = ref('Y');
+
+const validateOlderThan = (event) => {
+  let val = event.target.value;
+  val = val.replace(/\D/g, '');
+  if (val !== '') {
+    let num = parseInt(val, 10);
+    if (num < 1) num = 1;
+    if (num > 365) num = 365;
+    autoOlderThanValue.value = num;
+  } else {
+    autoOlderThanValue.value = '';
+  }
+};
+
+const onOlderThanBlur = () => {
+  if (!autoOlderThanValue.value) {
+    autoOlderThanValue.value = 1;
+  }
+};
 const showPasswordModal = ref(false);
 const confirmPassword = ref('');
 const passwordAction = ref('');
