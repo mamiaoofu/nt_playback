@@ -36,11 +36,11 @@
                 </div>
               </div>
 
-              <div class="button-group mt-4 d-flex justify-content-between">
-                <button class="btn btn-secondary" type="button" @click="resetToDefault" :disabled="saving || loading">
+              <div class="button-group mt-4 d-flex justify-content-start gap-2">
+                <button class="btn-role btn-secondary" type="button" @click="resetToDefault" :disabled="saving || loading">
                   <i class="fas fa-undo"></i> Reset to Default
                 </button>
-                <button class="btn btn-primary" type="button" @click="triggerSave" :disabled="saving || loading" style="margin-top: 0;">
+                <button class="btn-role btn-primary" type="button" @click="triggerSave" :disabled="saving || loading">
                   <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save Settings' }}
                 </button>
               </div>
