@@ -36,8 +36,11 @@
                 </div>
               </div>
 
-              <div class="button-group mt-4">
-                <button class="btn btn-primary" type="button" @click="triggerSave" :disabled="saving || loading">
+              <div class="button-group mt-4 d-flex justify-content-between">
+                <button class="btn btn-secondary" type="button" @click="resetToDefault" :disabled="saving || loading">
+                  <i class="fas fa-undo"></i> Reset to Default
+                </button>
+                <button class="btn btn-primary" type="button" @click="triggerSave" :disabled="saving || loading" style="margin-top: 0;">
                   <i class="fas fa-save"></i> {{ saving ? 'Saving...' : 'Save Settings' }}
                 </button>
               </div>
@@ -120,6 +123,11 @@ const onPermanentDeleteInput = (e) => {
     return;
   }
   form.value.permanent_delete_value = clampPermanentDelete(raw);
+};
+
+const resetToDefault = () => {
+  form.value.permanent_delete_value = 30;
+  form.value.permanent_delete_unit = 'days';
 };
 
 const loadConfig = async () => {

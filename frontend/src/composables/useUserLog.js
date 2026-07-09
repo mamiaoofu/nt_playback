@@ -170,9 +170,10 @@ export function useUserLog() {
         }
     }
 
-    const fetchActions = async () => {
+    const fetchActions = async (logType = '') => {
         try {
-            const res = await fetch(API_GET_LOG_USER_ACTIONS(), { credentials: 'include' })
+            const url = logType ? `${API_GET_LOG_USER_ACTIONS()}?type=${logType}` : API_GET_LOG_USER_ACTIONS()
+            const res = await fetch(url, { credentials: 'include' })
             if (!res.ok) throw new Error('Failed to fetch actions')
             const json = await res.json()
             if (json.status && json.actions) {
@@ -444,7 +445,7 @@ export function useUserLog() {
     onMounted(() => {
         registerRequest(fetchData())
         fetchUsers()
-        fetchActions()
+        fetchActions(type.value)
         document.addEventListener('click', onDocClick)
     })
 

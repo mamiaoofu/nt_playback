@@ -138,10 +138,11 @@ def ApiGetUserLogs(request,type):
 
     if type == 'system':
         log_list = log_list.filter(
-            Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+            Q(status__in=['error', 'failed', 'fail', 'warning', 'ERROR', 'FAILED', 'FAIL', 'WARNING']) |
+            (Q(status__in=['success', 'SUCCESS']) & ~Q(action__in=audit_actions))
         )
     elif type == 'audit':
-        log_list = log_list.filter(status='success', action__in=audit_actions)
+        log_list = log_list.filter(status__in=['success', 'SUCCESS'], action__in=audit_actions)
 
     # total before applying filters (for DataTables recordsTotal)
     records_total = log_list.count()
@@ -278,6 +279,21 @@ def ApiGetUserLogs(request,type):
 
 def ApiGetActionOptions(request):
     try:
+        log_type = request.GET.get('type')
+        
+        audit_actions = {
+            'Login', 'Logout', 'Playback Audio Records', 'Download Audio Records', 'Save as Audio Index',
+            'Create My Favorite', 'Edit My Favorite', 'Delete My Favorite', 'Add Column Audio Records',
+            'Edit Column Audio Records', 'Delete Column Audio Records', 'Enable Column Audio Records',
+            'Disable Column Audio Records', 'Add User', 'Edit User', 'Delete User', 'Change User Status',
+            'Reset User Password', 'Save as User Index', 'Add Group', 'Edit Group', 'Delete Group',
+            'Add Team', 'Edit Team', 'Delete Team', 'Edit Base Role', 'Add Custom Role', 'Edit Custom Role',
+            'Delete Custom Role', 'Save as System Log', 'Save as Audit Log', 'Create Delegate',
+            'Playback Delegate File', 'Download Delegate File', 'Change Delegate Status', 'Create Ticket',
+            'Playback Ticket File', 'Download Ticket File', 'Change Ticket Status', 'Save as Ticket History',
+            'Ticket Resent', 'Ticket Send Mail', 'Ticket Copy Form', 'Download Player', 'User Change Password'
+        }
+        
         excluded_retention_actions = [
             'Save and Run Schedule Retention',
             'Stop Schedule Retention',
@@ -289,9 +305,19 @@ def ApiGetActionOptions(request):
             'Complete Delete Immediately Retention',
             'Restore Data Immediately Retention',
         ]
-        # Fetch distinct actions from UserLog, explicitly ordering by 'action' to override Meta ordering (e.g. '-timestamp') which breaks distinct()
+        
+        # Start with all distinct actions
         actions_qs = UserLog.objects.exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
         
+        # If type is specified, filter actions
+        if log_type == 'audit':
+            actions_qs = actions_qs.filter(action__in=audit_actions)
+        elif log_type == 'system':
+            # System actions are those not in audit_actions or having errors
+            actions_qs = UserLog.objects.filter(
+                Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+            ).exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
+            
         # Use a set to remove any duplicates that might have different leading/trailing whitespaces
         unique_actions = set()
         for a in actions_qs:

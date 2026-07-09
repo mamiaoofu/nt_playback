@@ -331,7 +331,7 @@ class RetentionViewSet(viewsets.ViewSet):
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if there is an active running task
-        if RetentionTask.objects.filter(task_type='AUTO_EXECUTION', status__in=['READY', 'RUNNING']).exists():
+        if RetentionTask.objects.filter(status__in=['READY', 'RUNNING']).exists():
             _create_error_log(request, action_name, 'Cannot edit configuration while a task is active (Ready or Running).')
             return Response({'error': 'Cannot edit configuration while a task is active (Ready or Running).'}, status=status.HTTP_400_BAD_REQUEST)
 

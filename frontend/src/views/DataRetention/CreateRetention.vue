@@ -566,6 +566,7 @@ const validateOlderThan = (event) => {
     if (num < 1) num = 1;
     if (num > 365) num = 365;
     autoOlderThanValue.value = num;
+    event.target.value = num;
   } else {
     autoOlderThanValue.value = '';
   }
