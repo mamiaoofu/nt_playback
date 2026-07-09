@@ -126,7 +126,7 @@ def execute_auto_retention_job():
     if count > 0:
         records.update(
             status=False,
-            retention_date=now,
+            retention_date=timezone.now(),
             retention_task_id=task.id,
             delete_option=config.delete_option
         )
@@ -137,7 +137,7 @@ def execute_auto_retention_job():
                 import re
                 period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
-            local_now = timezone.localtime(now)
+            local_now = timezone.localtime(timezone.now())
             occurrence = 'Once' if config.is_once else 'Recurrence'
             delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
             detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
@@ -157,7 +157,7 @@ def execute_auto_retention_job():
     # Update the single AUTO_EXECUTION task
     task.status = 'RUNNING'
     task.index_count = count
-    task.executed_at = now
+    task.executed_at = timezone.now()
     task.time_period = time_period_desc
     task.save()
     logger.info(f"Auto Retention executed. Task {task.id} updated. Records affected: {count}")
