@@ -604,7 +604,7 @@ const triggerWarning = (msg) => {
 const formatRetentionPeriod = (timePeriod) => {
   if (!timePeriod) return '-';
   if (timePeriod.startsWith('Older than ')) {
-    return timePeriod.replace('Older than ', 'over ');
+    return timePeriod.replace('Older than ', 'Over ');
   }
   return timePeriod;
 };
