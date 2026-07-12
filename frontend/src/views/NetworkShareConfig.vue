@@ -129,22 +129,22 @@
                             <!-- Password -->
                             <div class="col-lg-12 mb-3">
                                 <div class="input-group" v-has-value>
-                                    <input required v-model="form.password" :type="showPassword ? 'text' : 'password'" autocomplete="off" class="input" :class="{ 'form-input-modal': errors.password, 'padding-toggle': !isEdit || isChangingPassword, 'padding-change-btn': isEdit && !isChangingPassword, 'padding-cancel-btn': isEdit && isChangingPassword }" :readonly="isEdit && !isChangingPassword">
+                                    <input required v-model="form.password" :type="showPassword ? 'text' : 'password'" autocomplete="off" class="input" :class="{ 'form-input-modal': errors.password, 'padding-toggle': !isEdit, 'padding-change-btn': isEdit && !isChangingPassword, 'padding-cancel-btn': isEdit && isChangingPassword }" :readonly="isEdit && !isChangingPassword">
                                     <label class="title-label">Password</label>
                                     
                                     <!-- Eye toggle: shown in Add mode, or Edit mode when changing password -->
-                                    <span v-if="!isEdit || isChangingPassword" class="password-toggle-icon" @click="showPassword = !showPassword" title="Show/Hide Password">
-                                        <i :class="showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
-                                    </span>
+                                    <button type="button" class="toggle-visibility" v-if="!isEdit || isChangingPassword" @click="showPassword = !showPassword" title="Show/Hide Password">
+                                        <i :class="showPassword ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye'"></i>
+                                    </button>
                                     
-                                    <!-- "กรอกค่าใหม่" (Change Password) button: shown in Edit mode when NOT changing password -->
+                                    <!-- "Change Password" button: shown in Edit mode when NOT changing password -->
                                     <span v-if="isEdit && !isChangingPassword" class="password-change-btn" @click="startChangePassword">
-                                        กรอกค่าใหม่
+                                        Change Password
                                     </span>
                                     
                                     <!-- Cancel changing password: shown in Edit mode when changing password -->
                                     <span v-if="isEdit && isChangingPassword" class="password-change-cancel-btn" @click="cancelChangePassword" title="Cancel editing password">
-                                        <i class="fas fa-undo" style="margin-right: 4px;"></i>ยกเลิก
+                                        <i class="fas fa-undo" style="margin-right: 4px;"></i>Cancel
                                     </span>
 
                                     <div v-show="errors.password" class="validate"><i class="fa-solid fa-circle-exclamation"></i> {{ errors.password }}</div>
@@ -527,18 +527,24 @@ input:checked+.slider_status:after {
     gap: 0px;
 }
 
-.password-toggle-icon {
+.input-group .toggle-visibility {
     position: absolute;
     right: 12px;
     top: 16.5px;
     transform: translateY(-50%);
-    color: #64748b;
+    background: transparent;
+    border: none;
     cursor: pointer;
-    font-size: 13px;
+    color: #6b7280;
+    font-size: 14px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     z-index: 10;
 }
-
-.password-toggle-icon:hover {
+.input-group .toggle-visibility:focus { outline: none; }
+.input-group .toggle-visibility:hover {
     color: #416fd6;
 }
 
@@ -568,7 +574,7 @@ input:checked+.slider_status:after {
 
 .password-change-cancel-btn {
     position: absolute;
-    right: 12px;
+    right: 44px;
     top: 16.5px;
     transform: translateY(-50%);
     background-color: #fef2f2;
@@ -595,11 +601,11 @@ input:checked+.slider_status:after {
 }
 
 .padding-change-btn {
-    padding-right: 85px !important;
+    padding-right: 125px !important;
 }
 
 .padding-cancel-btn {
-    padding-right: 75px !important;
+    padding-right: 105px !important;
 }
 </style>
 

@@ -557,7 +557,7 @@ class RetentionViewSet(viewsets.ViewSet):
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
             delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : Stopped | Index Count : {task.index_count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : - | Index Count : {task.index_count}"
             
             create_user_log(
                 user=request.user,
@@ -679,7 +679,8 @@ class RetentionViewSet(viewsets.ViewSet):
                 elif p in ['Indexes & Voice Files', 'Indexes', 'Only Indexs', 'Indexs', 'Indexes & Voice Files']:
                     delete_option = p
                 elif p.lower().startswith('running date :'):
-                    running_date_val = p.split(':', 1)[1].strip()
+                    val = p.split(':', 1)[1].strip()
+                    running_date_val = '-' if val == 'Stopped' else val
                 elif p.lower().startswith('index count :'):
                     index_count = p.split(':', 1)[1].strip()
             

@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.db.models import Q, Value
 
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
@@ -84,9 +84,12 @@ def ApiGetUserLogs(request,type):
 
         return dt
 
+    from django.db.models.functions import Concat
     # base queryset and type filter
     # avoid N+1 queries on user access by selecting related user
-    log_list = UserLog.objects.select_related('user').all()
+    log_list = UserLog.objects.select_related('user').annotate(
+        full_name_concat=Concat('user__first_name', Value(' '), 'user__last_name')
+    )
 
     audit_actions = {
         'Login',
@@ -200,10 +203,13 @@ def ApiGetUserLogs(request,type):
                 q_tok = (Q(user__username__icontains=tok) |
                          Q(user__first_name__icontains=tok) |
                          Q(user__last_name__icontains=tok) |
+                         Q(full_name_concat__icontains=tok) |
                          Q(action__icontains=tok) |
                          Q(detail__icontains=tok) |
                          Q(ip_address__icontains=tok) |
-                         Q(client_type__icontains=tok))
+                         Q(client_type__icontains=tok) |
+                         Q(status__icontains=tok) |
+                         Q(timestamp__icontains=tok))
                 q_search &= q_tok
             log_list = log_list.filter(q_search)
 
@@ -294,20 +300,8 @@ def ApiGetActionOptions(request):
             'Ticket Resent', 'Ticket Send Mail', 'Ticket Copy Form', 'Download Player', 'User Change Password'
         }
         
-        excluded_retention_actions = [
-            'Save and Run Schedule Retention',
-            'Stop Schedule Retention',
-            'Run Schedule Retention',
-            'Complete Soft Delete Schedule Retention',
-            'Complete Delete Schedule Retention',
-            'Restore Data Schedule Retention',
-            'Complete Soft Delete Immediately Retention',
-            'Complete Delete Immediately Retention',
-            'Restore Data Immediately Retention',
-        ]
-        
         # Start with all distinct actions
-        actions_qs = UserLog.objects.exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
+        actions_qs = UserLog.objects.values_list('action', flat=True).order_by('action').distinct()
         
         # If type is specified, filter actions
         if log_type == 'audit':
@@ -316,7 +310,7 @@ def ApiGetActionOptions(request):
             # System actions are those not in audit_actions or having errors
             actions_qs = UserLog.objects.filter(
                 Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
-            ).exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
+            ).values_list('action', flat=True).order_by('action').distinct()
             
         # Use a set to remove any duplicates that might have different leading/trailing whitespaces
         unique_actions = set()

@@ -300,7 +300,7 @@ def ApiNetworkShareSetting(request):
                         
                     config.save()
                     
-                log_detail = f"{'Created' if action == 'create' else 'Updated'} Network Share settings: {network_path}"
+                log_detail = f"{'Created' if action == 'create' else 'Updated'} Network Share settings: {network_path} | Database ID : {config.main_db_id}"
                 create_user_log(user=request.user, action="Save Network Share Config", detail=log_detail, status="success", request=request)
                 return JsonResponse({'status': 'success', 'message': 'Network share settings saved successfully.'})
                 

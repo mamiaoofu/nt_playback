@@ -44,6 +44,7 @@
                         type="text" 
                         class="input-custom" 
                         :value="autoOlderThanValue" 
+                        @keypress="preventNonNumeric"
                         @input="validateOlderThan"
                         @blur="onOlderThanBlur"
                         placeholder="Num" 
@@ -558,23 +559,32 @@ const manualEndInput = ref(null);
 const autoOlderThanValue = ref(1);
 const autoOlderThanUnit = ref('Y');
 
-const validateOlderThan = (event) => {
-  let val = event.target.value;
-  val = val.replace(/\D/g, '');
-  if (val !== '') {
-    let num = parseInt(val, 10);
-    if (num < 1) num = 1;
-    if (num > 365) num = 365;
-    autoOlderThanValue.value = num;
-    event.target.value = num;
-  } else {
-    autoOlderThanValue.value = '';
+const preventNonNumeric = (event) => {
+  if (event.key.length === 1 && (event.key < '0' || event.key > '9')) {
+    event.preventDefault();
   }
 };
 
-const onOlderThanBlur = () => {
+const validateOlderThan = (event) => {
+  let val = event.target.value;
+  let cleanVal = val.replace(/\D/g, '');
+  if (cleanVal !== '') {
+    let num = parseInt(cleanVal, 10);
+    if (num < 1) num = 1;
+    if (num > 365) num = 365;
+    autoOlderThanValue.value = num;
+  } else {
+    autoOlderThanValue.value = '';
+  }
+  event.target.value = autoOlderThanValue.value;
+};
+
+const onOlderThanBlur = (event) => {
   if (!autoOlderThanValue.value) {
     autoOlderThanValue.value = 1;
+    if (event && event.target) {
+      event.target.value = 1;
+    }
   }
 };
 const showPasswordModal = ref(false);
