@@ -719,11 +719,23 @@ class RetentionViewSet(viewsets.ViewSet):
                     
             download_url = None
             if log.action in ['Complete Delete Schedule Retention', 'Complete Delete Immediately Retention']:
-                if retention_id.isdigit():
-                    task_id = int(retention_id)
-                    ret_log = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_").first()
-                    if ret_log:
-                        download_url = f"/api/v1/retention/logs/{ret_log.id}/download/"
+                if str(index_count).strip() not in ['0', '', '-']:
+                    if retention_id.isdigit():
+                        task_id = int(retention_id)
+                        ret_logs = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_")
+                        if ret_logs.exists():
+                            def get_time_diff(ret_log_obj):
+                                t1 = ret_log_obj.created_at
+                                t2 = log.timestamp
+                                if timezone.is_aware(t1) != timezone.is_aware(t2):
+                                    if timezone.is_aware(t1):
+                                        t1 = timezone.make_naive(t1)
+                                    else:
+                                        t2 = timezone.make_naive(t2)
+                                return abs((t1 - t2).total_seconds())
+                            
+                            best_ret_log = min(ret_logs, key=get_time_diff)
+                            download_url = f"/api/v1/retention/logs/{best_ret_log.id}/download/"
             
             ts_str = '-'
             if log.timestamp:
@@ -734,7 +746,7 @@ class RetentionViewSet(viewsets.ViewSet):
                 created_by_val = task_update_by
 
             client_type_val = log.client_type or "-"
-            if log.action in ['Complete Soft Delete Schedule Retention']:
+            if log.action in ['Complete Soft Delete Schedule Retention', 'Complete Delete Schedule Retention', 'Complete Delete Immediately Retention']:
                 client_type_val = 'Server'
 
             data.append({
