@@ -5,20 +5,11 @@ services:
     command: sh -c "echo 'Starting Daphne ASGI server' && python -m daphne -b 0.0.0.0 -p 8080 config.asgi:application"
     volumes:
       - ./backend:/app
-      # Mount host recordings directory into container for direct file access
-      - C:\\Recordings\\Music:/recordings:ro
-      #docker Desktop ฝั่ง Windows จะยอมให้ Map เฉพาะไดรฟ์ที่มีอยู่จริงๆ ในเครื่องเท่านั้น 
-      #คำสั่งที่ 1: สร้างโฟลเดอร์สำหรับรองรับไดรฟ์ Z ใน Linux : wsl -d docker-desktop -u root mkdir -p /mnt/z
-      #คำสั่งที่ 2: เชื่อม (Mount) ไดรฟ์ Z: ของ Windows เข้าไปที่โฟลเดอร์นั้น wsl -d docker-desktop -u root mount -t drvfs Z: /mnt/z
-      # Mount the entire WSL2 /mnt folder to access all local and network drives dynamically
-      - /mnt:/host_mnt
     env_file:
       - ./backend/.env
     environment:
       - REDIS_URL=redis://redis:6379/0
       - TZ=Asia/Bangkok
-      # Mapping from Windows host path -> container mount point
-      - HOST_TO_CONTAINER_MAPPINGS={"C:\\Recordings\\Music":"/recordings"}
     ports:
       - "8080:8080"
     restart: always
@@ -27,7 +18,6 @@ services:
 
   frontend:
     build: ./frontend
-    # Run vite via node executable to avoid wrapper/script execution issues on mounted volumes
     command: ["sh", "-c", "node /app/node_modules/vite/bin/vite.js --host"]
     volumes:
       - ./frontend:/app
@@ -41,8 +31,6 @@ services:
   redis:
     image: redis:6-alpine
     restart: unless-stopped
-    # no volumes/networks required for simple dev setup
-
 volumes:
   frontend_node_modules:
   

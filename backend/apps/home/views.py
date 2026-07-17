@@ -285,7 +285,7 @@ def ApiGetAudioList(request):
         audio_list = AudioInfo.objects.filter(main_db__in=active_db_ids, status=True)
     else :
         # Only include active audio records from allowed and active main DBs
-        audio_list = AudioInfo.objects.select_related("audiofile", "agent", "customer").filter(main_db__in=main_db_id, status=True)
+        audio_list = AudioInfo.objects.select_related("audiofile", "agent").filter(main_db__in=main_db_id, status=True)
 
     # ฟิลเตอร์จาก request.form หรือ request.GET
     database_name = request.POST.get("database_name") or request.GET.get("database_name")  
@@ -431,7 +431,7 @@ def ApiGetAudioList(request):
             part = part.strip()
             if part:
                 q_search = (
-                    Q(call_direction__icontains=part) |
+                    Q(call_direction__direction_name__icontains=part) |
                     Q(extension__icontains=part) |
                     Q(agent__first_name__icontains=part) |
                     Q(agent__last_name__icontains=part) |
@@ -508,7 +508,7 @@ def ApiGetAudioList(request):
 
     # Handle duration filter: accept 'HH:MM:SS', 'MM:SS', 'SS' or range 'HH:MM:SS - HH:MM:SS'
     if duration:
-        def parse_duration_to_timedelta(s):
+        def parse_duration_to_seconds(s):
             s = s.strip()
             if not s:
                 return None
@@ -528,23 +528,20 @@ def ApiGetAudioList(request):
                 sec = parts[0]
             else:
                 return None
-            try:
-                return timedelta(hours=h, minutes=m, seconds=sec)
-            except Exception:
-                return None
+            return h * 3600 + m * 60 + sec
 
         dur_str = duration.strip()
         # check for range separator '-' (allow spaces around)
         if "-" in dur_str:
             parts = [p.strip() for p in dur_str.split("-") if p.strip()]
             if len(parts) == 2:
-                start_td = parse_duration_to_timedelta(parts[0])
-                end_td = parse_duration_to_timedelta(parts[1])
-                if start_td is not None and end_td is not None:
+                start_sec = parse_duration_to_seconds(parts[0])
+                end_sec = parse_duration_to_seconds(parts[1])
+                if start_sec is not None and end_sec is not None:
                     # ensure start <= end
-                    if start_td > end_td:
-                        start_td, end_td = end_td, start_td
-                    audio_list = audio_list.filter(audiofile__duration__gte=start_td, audiofile__duration__lte=end_td)
+                    if start_sec > end_sec:
+                        start_sec, end_sec = end_sec, start_sec
+                    audio_list = audio_list.filter(audiofile__duration__gte=start_sec, audiofile__duration__lte=end_sec)
                 else:
                     # fallback to best-effort string match
                     try:
@@ -558,9 +555,9 @@ def ApiGetAudioList(request):
                     pass
         else:
             # single duration value - treat as lower bound (>=)
-            td = parse_duration_to_timedelta(dur_str)
-            if td is not None:
-                audio_list = audio_list.filter(audiofile__duration__gte=td)
+            sec_val = parse_duration_to_seconds(dur_str)
+            if sec_val is not None:
+                audio_list = audio_list.filter(audiofile__duration__gte=sec_val)
             else:
                 try:
                     audio_list = audio_list.filter(audiofile__duration__icontains=duration)
@@ -628,7 +625,10 @@ def ApiGetAudioList(request):
         if parts:
             q = Q()
             for p in parts:
-                q |= Q(call_direction__icontains=p)
+                if p.isdigit():
+                    q |= Q(call_direction__id=int(p))
+                else:
+                    q |= Q(call_direction__direction_name__icontains=p)
             audio_list = audio_list.filter(q)
 
     if agent_name:
@@ -691,7 +691,7 @@ def ApiGetAudioList(request):
             'end_datetime': 'end_datetime',
             'duration': 'audiofile__duration',
             'file_name': 'audiofile__file_name',
-            'call_direction': 'call_direction',
+            'call_direction': 'call_direction__direction_name',
             'customer_number': 'customer_number',
             'extension': 'extension',
             'agent': 'agent__agent_code',
@@ -730,7 +730,7 @@ def ApiGetAudioList(request):
         # Build audio_info_map first so we can sort filtered_share_entries (Python list) by audio fields
         audio_info_map = {
             str(a.audiofile.id): a
-            for a in audio_list.select_related('audiofile', 'agent', 'customer')
+            for a in audio_list.select_related('audiofile', 'agent')
             if getattr(a, 'audiofile', None)
         }
 
@@ -757,7 +757,7 @@ def ApiGetAudioList(request):
             if sort_field == 'file_name':
                 return str(audio.audiofile.file_name) if audio and getattr(audio, 'audiofile', None) else ''
             if sort_field == 'call_direction':
-                return str(getattr(audio, 'call_direction', '') or '') if audio else ''
+                return str(audio.call_direction.direction_name) if audio and audio.call_direction else ''
             if sort_field == 'customer_number':
                 return str(getattr(audio, 'customer_number', '') or '') if audio else ''
             if sort_field == 'extension':
@@ -820,7 +820,19 @@ def ApiGetAudioList(request):
         else:
             end_dt = "-"
         file_name = audio.audiofile.file_name if getattr(audio, 'audiofile', None) else "-"
-        duration_val = str(audio.audiofile.duration) if (getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None)) else "-"
+        duration_val = "-"
+        if getattr(audio, 'audiofile', None) and getattr(audio.audiofile, 'duration', None) is not None:
+            try:
+                sec = int(audio.audiofile.duration)
+                h = sec // 3600
+                m = (sec % 3600) // 60
+                s = sec % 60
+                if h > 0:
+                    duration_val = f"{h:02d}:{m:02d}:{s:02d}"
+                else:
+                    duration_val = f"{m:02d}:{s:02d}"
+            except Exception:
+                duration_val = str(audio.audiofile.duration)
         agent_display = str(audio.agent) if getattr(audio, 'agent', None) else "-"
         full_name = f"{audio.agent.first_name} {audio.agent.last_name}" if getattr(audio, 'agent', None) else "-"
 
@@ -877,7 +889,8 @@ def ApiGetAudioList(request):
             "end_datetime": end_dt,
             "file_name": file_name,
             "duration": duration_val,
-            "call_direction": audio.call_direction,
+            "duration_sec": audio.audiofile.duration if getattr(audio, 'audiofile', None) else 0,
+            "call_direction": audio.call_direction.direction_name if audio.call_direction else "",
             "customer_number": audio.customer_number,
             "extension": audio.extension,
             "agent": agent_display,

@@ -1,12 +1,24 @@
 from django.contrib.auth.models import User
 from django.db import models
 
+class CallDirection(models.Model):
+    direction_name = models.CharField(max_length=50, unique=True, verbose_name='Direction Name')
+    description = models.TextField(blank=True, verbose_name='Description')
+    status = models.BooleanField(default=True, verbose_name='Status')
+
+    class Meta:
+        db_table = 'tb_call_direction'
+        verbose_name = 'Call Direction'
+
+    def __str__(self):
+        return self.direction_name
+
 class AudioFile(models.Model):
     file_path = models.CharField(max_length=512, verbose_name='File Path')
     file_name = models.CharField(max_length=255, verbose_name='File Name')
     file_type = models.CharField(max_length=20, blank=True, verbose_name='File Type')
     file_size = models.IntegerField(default=0, verbose_name='File Size')
-    duration = models.DurationField(null=True, blank=True, verbose_name='Duration')
+    duration = models.IntegerField(help_text="ความยาวหน่วยเป็นวินาที", null=True, blank=True, verbose_name='Duration')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Created At')
     
     
@@ -17,10 +29,9 @@ class AudioFile(models.Model):
 
 class AudioInfo(models.Model):
     main_db = models.ForeignKey('authorize.MainDatabase', on_delete=models.CASCADE,db_column='maindatabase_id', verbose_name='Main Database')
-    customer = models.ForeignKey('customer.CustomerInfo', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Customer')
     audiofile = models.ForeignKey('audio.AudioFile', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Audio File')
     agent = models.ForeignKey('authorize.Agent', on_delete=models.SET_NULL, null=True, blank=True, verbose_name='Agent')
-    call_direction = models.CharField(max_length=20, blank=True, verbose_name='Call Direction')
+    call_direction = models.ForeignKey(CallDirection, on_delete=models.SET_NULL, null=True, blank=True, db_column='call_direction_id', verbose_name='Call Direction')
     extension = models.CharField(max_length=20, blank=True, verbose_name='Extension')
     customer_number = models.CharField(max_length=20, blank=True, verbose_name='Customer Number')
     start_datetime = models.DateTimeField(auto_now_add=True, verbose_name='Start DateTime')
@@ -40,4 +51,6 @@ class AudioInfo(models.Model):
         indexes = [
             models.Index(fields=['agent_id', 'start_datetime']),
         ]
+
+
 

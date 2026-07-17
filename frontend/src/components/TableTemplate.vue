@@ -397,8 +397,11 @@ const callDirectionClass = (dir) => {
   if (!dir) return 'bg-secondary'
   const key = String(dir).toLowerCase()
   if (key === 'internal') return 'badge-warning'
-  if (key === 'inbound') return 'badge-success'
-  if (key === 'outbound') return 'badge-primary'
+  if (key === 'inbound' || key === 'incoming') return 'badge-success'
+  if (key === 'outbound' || key === 'outgoing') return 'badge-primary'
+  if (key === 'block') return 'badge-danger'
+  if (key === 'tandem') return 'badge-info'
+  if (key === 'external') return 'bg-dark text-white'
   return 'bg-secondary'
 }
 

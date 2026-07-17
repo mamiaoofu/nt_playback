@@ -70,17 +70,6 @@ class SetAudio(models.Model):
     def __str__(self):
         return f"{self.audio_path}"
     
-class Department(models.Model):
-    name_th = models.CharField(max_length=255, verbose_name='name_th')
-    name_en = models.CharField(max_length=255, verbose_name='name_en')
-
-    class Meta:
-        db_table = 'tb_department'
-        verbose_name = 'department'
-
-    def __str__(self):
-        return f"{self.name_en}"
-    
 class AgentGroup(models.Model):
     group_name = models.CharField(max_length=255, verbose_name='Agent Group Name')
     description = models.TextField(blank=True, verbose_name='Description')

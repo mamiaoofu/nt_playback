@@ -168,7 +168,8 @@ const currentDuration = computed(() => audioDuration.value || (metadata.value &&
 
 function formatTime(t) {
   if (!t && t !== 0) return '00:00'
-  const sec = Math.floor(t || 0)
+  if (typeof t === 'string' && t.includes(':')) return t
+  const sec = Math.floor(Number(t) || 0)
   const m = Math.floor(sec / 60)
   const s = sec % 60
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`

@@ -64,9 +64,13 @@ export function useHome() {
   const agentOptions = ref([{ label: 'All', value: 'all' }])
   const callDirectionOptions = [
     { label: 'All', value: 'All' },
-    { label: 'Internal', value: 'Internal' },
-    { label: 'Inbound', value: 'Inbound' },
-    { label: 'Outbound', value: 'Outbound' }
+    { label: 'Unknown', value: '0' },
+    { label: 'Incoming', value: '1' },
+    { label: 'Outgoing', value: '2' },
+    { label: 'Internal', value: '3' },
+    { label: 'Block', value: '4' },
+    { label: 'Tandem', value: '5' },
+    { label: 'External', value: '6' }
   ]
 
   const perWrap = ref(null)
@@ -824,7 +828,21 @@ export function useHome() {
               vals = vals.map(x => { const s = String(x).trim(); return /^\d+$/.test(s) ? Number(s) : s })
             }
             if (mf === 'callDirection') {
-              vals = vals.map(x => { const s = String(x || '').trim(); return s ? (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()) : s })
+              const nameToId = {
+                'inbound': '1',
+                'incoming': '1',
+                'outbound': '2',
+                'outgoing': '2',
+                'internal': '3',
+                'unknown': '0',
+                'block': '4',
+                'tandem': '5',
+                'external': '6'
+              }
+              vals = vals.map(x => {
+                const s = String(x || '').trim().toLowerCase()
+                return nameToId[s] || s
+              })
             }
             filters[mf] = vals
           }
@@ -1474,8 +1492,11 @@ export function useHome() {
     if (!dir) return 'bg-secondary'
     const key = String(dir).toLowerCase()
     if (key === 'internal') return 'badge-warning'
-    if (key === 'inbound') return 'badge-success'
-    if (key === 'outbound') return 'badge-primary'
+    if (key === 'inbound' || key === 'incoming') return 'badge-success'
+    if (key === 'outbound' || key === 'outgoing') return 'badge-primary'
+    if (key === 'block') return 'badge-danger'
+    if (key === 'tandem') return 'badge-info'
+    if (key === 'external') return 'bg-dark text-white'
     return 'bg-secondary'
   }
 
@@ -1580,7 +1601,7 @@ export function useHome() {
           audioSrc.value = API_PLAY_AUDIO(fileId)
         }
         audioMetadata.fileName = fileName
-        audioMetadata.duration = row.duration || ''
+        audioMetadata.duration = row.duration_sec || row.duration || ''
         audioMetadata.customerNumber = row.customer_number || row.customerNumber || ''
         audioMetadata.extension = row.extension || ''
         audioMetadata.agent = row.agent || ''

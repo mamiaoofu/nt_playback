@@ -14,7 +14,7 @@ from django.db.models import Q
 import pytz
 
 # models
-from apps.core.model.authorize.models import MainDatabase,UserAuth,UserProfile,Department,MainDatabase,UserGroup,UserTeam,UserLog
+from apps.core.model.authorize.models import MainDatabase,UserAuth,UserProfile,UserGroup,UserTeam,UserLog
 
 
 from apps.configuration.models import UserPermission,UserPermissionDetail
@@ -22,7 +22,7 @@ from apps.core.utils.permissions import require_action, get_user_actions
 from apps.core.utils.permission_ids import PermissionIDs
 
 #serializer
-from apps.core.model.authorize.serializers import UserProfileSerializer,DepartmentSerializer,UserGroupSerializer,UserTeamSerializer
+from apps.core.model.authorize.serializers import UserProfileSerializer,UserGroupSerializer,UserTeamSerializer
 
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken

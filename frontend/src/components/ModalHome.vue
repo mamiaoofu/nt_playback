@@ -114,7 +114,7 @@
 
                     <div class="input-group">
                       <CustomSelect class="select-checkbox" v-model="addForm.callDirection"
-                        :options="[{ label: 'All', value: 'All' }, { label: 'Internal', value: 'Internal' }, { label: 'Inbound', value: 'Inbound' }, { label: 'Outbound', value: 'Outbound' }]"
+                        :options="[{ label: 'All', value: 'All' }, { label: 'Unknown', value: '0' }, { label: 'Incoming', value: '1' }, { label: 'Outgoing', value: '2' }, { label: 'Internal', value: '3' }, { label: 'Block', value: '4' }, { label: 'Tandem', value: '5' }, { label: 'External', value: '6' }]"
                         placeholder="Call Direction" name="callDirectionModal" />
                     </div>
 
@@ -200,7 +200,7 @@
 
                     <div class="input-group">
                       <CustomSelect class="select-checkbox" v-model="editForm.callDirection"
-                        :options="[{ label: 'All', value: 'All' }, { label: 'Internal', value: 'Internal' }, { label: 'Inbound', value: 'Inbound' }, { label: 'Outbound', value: 'Outbound' }]"
+                        :options="[{ label: 'All', value: 'All' }, { label: 'Unknown', value: '0' }, { label: 'Incoming', value: '1' }, { label: 'Outgoing', value: '2' }, { label: 'Internal', value: '3' }, { label: 'Block', value: '4' }, { label: 'Tandem', value: '5' }, { label: 'External', value: '6' }]"
                         placeholder="Call Direction" name="callDirectionEdit" />
                     </div>
 
@@ -389,8 +389,22 @@ function editFavorite(f) {
           vals = vals.map(x => { const s = String(x).trim(); return /^\d+$/.test(s) ? Number(s) : s })
         }
         if (t === 'callDirection') {
-          // normalize to capitalized form (Inbound, Outbound, Internal, All)
-          vals = vals.map(x => { const s = String(x || '').trim(); return s ? (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()) : s })
+          // map legacy string values to IDs, or keep IDs as-is
+          const nameToId = {
+            'inbound': '1',
+            'incoming': '1',
+            'outbound': '2',
+            'outgoing': '2',
+            'internal': '3',
+            'unknown': '0',
+            'block': '4',
+            'tandem': '5',
+            'external': '6'
+          }
+          vals = vals.map(x => {
+            const s = String(x || '').trim().toLowerCase()
+            return nameToId[s] || s
+          })
         }
 
         editForm[t] = vals

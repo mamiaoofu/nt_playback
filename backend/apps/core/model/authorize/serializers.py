@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 import json
-from .models import MainDatabase,UserAuth,UserLog,SetAudio,Department,UserProfile,UserGroup,UserTeam
+from .models import MainDatabase,UserAuth,UserLog,SetAudio,UserProfile,UserGroup,UserTeam
 
 class MainDatabaseSerializer(serializers.ModelSerializer):
     class Meta:
@@ -46,15 +46,8 @@ class UserTeamSerializer(serializers.ModelSerializer):
         names = [m.database_name for m in qs]
         return names
 
-class DepartmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Department
-        fields = ['id', 'name_th', 'name_en']
-
-        
 class UserProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
-    department = DepartmentSerializer(read_only=True)
     team = UserTeamSerializer(read_only=True)
     is_active = serializers.BooleanField(
         source='user.is_active',
@@ -63,7 +56,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ['id', 'user', 'department','team', 'user_code', 'phone', 'create_at', 'update_at', 'is_active', 'ad_account']
+        fields = ['id', 'user', 'team', 'user_code', 'phone', 'create_at', 'update_at', 'is_active', 'ad_account']
 
 
 class UserAuthSerializer(serializers.ModelSerializer):
