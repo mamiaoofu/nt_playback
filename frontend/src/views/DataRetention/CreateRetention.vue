@@ -41,11 +41,13 @@
                     <!-- Number Input -->
                     <div class="me-3" style="width: 80px;">
                       <input 
-                        type="number" 
+                        type="text" 
                         class="input-custom" 
-                        v-model="autoOlderThanValue" 
+                        :value="autoOlderThanValue" 
+                        @keypress="preventNonNumeric"
+                        @input="validateOlderThan"
+                        @blur="onOlderThanBlur"
                         placeholder="Num" 
-                        min="1"
                         :disabled="isScheduleActive || auto.retentionType !== 'OLDER_THAN'"
                         style="padding: 6px 12px;"
                       />
@@ -556,6 +558,35 @@ const manualStartInput = ref(null);
 const manualEndInput = ref(null);
 const autoOlderThanValue = ref(1);
 const autoOlderThanUnit = ref('Y');
+
+const preventNonNumeric = (event) => {
+  if (event.key.length === 1 && (event.key < '0' || event.key > '9')) {
+    event.preventDefault();
+  }
+};
+
+const validateOlderThan = (event) => {
+  let val = event.target.value;
+  let cleanVal = val.replace(/\D/g, '');
+  if (cleanVal !== '') {
+    let num = parseInt(cleanVal, 10);
+    if (num < 1) num = 1;
+    if (num > 365) num = 365;
+    autoOlderThanValue.value = num;
+  } else {
+    autoOlderThanValue.value = '';
+  }
+  event.target.value = autoOlderThanValue.value;
+};
+
+const onOlderThanBlur = (event) => {
+  if (!autoOlderThanValue.value) {
+    autoOlderThanValue.value = 1;
+    if (event && event.target) {
+      event.target.value = 1;
+    }
+  }
+};
 const showPasswordModal = ref(false);
 const confirmPassword = ref('');
 const passwordAction = ref('');
@@ -583,7 +614,7 @@ const triggerWarning = (msg) => {
 const formatRetentionPeriod = (timePeriod) => {
   if (!timePeriod) return '-';
   if (timePeriod.startsWith('Older than ')) {
-    return timePeriod.replace('Older than ', 'over ');
+    return timePeriod.replace('Older than ', 'Over ');
   }
   return timePeriod;
 };

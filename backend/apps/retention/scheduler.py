@@ -126,7 +126,7 @@ def execute_auto_retention_job():
     if count > 0:
         records.update(
             status=False,
-            retention_date=now,
+            retention_date=timezone.now(),
             retention_task_id=task.id,
             delete_option=config.delete_option
         )
@@ -135,11 +135,12 @@ def execute_auto_retention_job():
             period_str = time_period_desc
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
-            local_now = timezone.localtime(now)
+            local_now = timezone.localtime(timezone.now())
             occurrence = 'Once' if config.is_once else 'Recurrence'
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | Indexes | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
+            delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {count}"
             
             create_user_log(
                 user=None,
@@ -156,7 +157,7 @@ def execute_auto_retention_job():
     # Update the single AUTO_EXECUTION task
     task.status = 'RUNNING'
     task.index_count = count
-    task.executed_at = now
+    task.executed_at = timezone.now()
     task.time_period = time_period_desc
     task.save()
     logger.info(f"Auto Retention executed. Task {task.id} updated. Records affected: {count}")
@@ -167,7 +168,67 @@ def execute_auto_retention_job():
         config.save()
         logger.info("Schedule Retention set to Once has executed. Auto config disabled.")
 
+def delete_audio_file_via_smb(main_db_id, file_path):
+    from apps.home.models import FileStorageConfig
+    from apps.home.views import parse_network_path, get_smb_relative_path
+    from smb.SMBConnection import SMBConnection
+    import socket
+    
+    def resolve_smb_host(hostname):
+        try:
+            return socket.gethostbyname(hostname)
+        except Exception:
+            return hostname
+
+    config = None
+    if main_db_id:
+        config = FileStorageConfig.objects.filter(main_db_id=main_db_id, is_active=True).first()
+    if not config:
+        config = FileStorageConfig.objects.filter(is_active=True).first()
+        
+    if not config:
+        logger.warning("No active storage configuration found for SMB deletion.")
+        return False, "No active storage configuration found."
+        
+    parsed = parse_network_path(config.network_path)
+    server = parsed['host']
+    share = parsed['share']
+    base_path = parsed['base_path']
+    smb_user = config.smb_username
+    smb_pass = config.get_password()
+    
+    if not server or not share:
+        return False, f"Invalid network path parsed: Host={server}, Share={share}"
+        
+    rel_path = get_smb_relative_path(file_path, base_path)
+    clean_path = '/' + rel_path.replace('\\', '/').lstrip('/')
+    
+    logger.info(f"Connecting to SMB to delete: {server}/{share}{clean_path} as user {smb_user}")
+    
+    client_name = 'nt_playback_scheduler'
+    conn = None
+    try:
+        conn = SMBConnection(smb_user, smb_pass, client_name, server, use_ntlm_v2=True, is_direct_tcp=True)
+        connected = conn.connect(resolve_smb_host(server), 445, timeout=10)
+        if not connected:
+            return False, f"Failed to connect to SMB server {server}"
+            
+        conn.deleteFiles(share, clean_path)
+        logger.info(f"Successfully deleted file via SMB: {share}{clean_path}")
+        return True, None
+    except Exception as e:
+        logger.error(f"SMB deletion error for {share}{clean_path}: {e}")
+        return False, str(e)
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def execute_permanent_delete_job():
+    print("execute_permanent_delete_job called!")
     config = AutoRetentionConfig.load()
     val = config.permanent_delete_value
     unit = config.permanent_delete_unit
@@ -180,7 +241,9 @@ def execute_permanent_delete_job():
         cutoff_date = now - timedelta(days=val)
         time_period_desc = f"{val} Day{'s' if val > 1 else ''} Expired"
         
+    print(f"execute_permanent_delete_job parameters: now={now}, val={val}, unit={unit}, cutoff_date={cutoff_date}")
     expired_records = AudioInfo.objects.filter(status=False, retention_date__lte=cutoff_date)
+    print(f"execute_permanent_delete_job found expired records count: {expired_records.count()}")
     
     if expired_records.exists():
         # Group expired records by retention_task_id
@@ -202,18 +265,41 @@ def execute_permanent_delete_job():
             
             task_types = set()
             delete_options = set()
-            deleted_by_db = {}
+            
+            # success_by_db: db_name -> list of file_name
+            success_by_db = {}
+            # unsuccess_by_db: db_name -> list of (file_name, error_reason)
+            unsuccess_by_db = {}
+            
+            total_attempted = len(records)
+            success_indexes = 0
+            success_voice = 0
             
             for record in records:
                 db_name = record.main_db.database_name if record.main_db else 'Unknown'
+                if db_name not in success_by_db:
+                    success_by_db[db_name] = []
+                if db_name not in unsuccess_by_db:
+                    unsuccess_by_db[db_name] = []
+                    
+                if record.retention_task:
+                    task_types.add(record.retention_task.task_type)
+                if record.delete_option:
+                    delete_options.add(record.delete_option)
+                    
+                file_name = record.audiofile.file_name if record.audiofile else "Unknown_File"
+                
                 try:
-                    with transaction.atomic():
-                        # 1. Delete physical file first (if chosen)
-                        if record.delete_option == 'VOICE_AND_INDEX' and record.audiofile and record.audiofile.file_path:
+                    if record.delete_option == 'VOICE_AND_INDEX':
+                        host_file_path = record.audiofile.file_path if record.audiofile else None
+                        
+                        deleted_voice = False
+                        error_reason = None
+                        
+                        if not host_file_path:
+                            error_reason = "No file path in database"
+                        else:
                             from apps.home.views import map_host_to_container_path
-                            host_file_path = record.audiofile.file_path
-                            file_name = record.audiofile.file_name or ""
-                            
                             # Combine host path and file name if host_file_path doesn't end with file_name
                             if file_name and not host_file_path.replace('/', '\\').rstrip('\\').lower().endswith(file_name.lower()):
                                 separator = '\\' if '\\' in host_file_path or ':' in host_file_path else '/'
@@ -222,93 +308,201 @@ def execute_permanent_delete_job():
                                 combined_host_path = host_file_path
                                 
                             container_file_path = map_host_to_container_path(combined_host_path)
-                            container_dir_path = os.path.dirname(container_file_path)
                             
-                            # Check if the parent directory is accessible to detect offline storage
-                            if container_dir_path and not os.path.exists(container_dir_path):
-                                raise OSError(f"Storage directory {container_dir_path} is unreachable (offline).")
+                            # First attempt: Try deleting locally (if local directory is mounted/accessible)
+                            if container_file_path:
+                                container_dir_path = os.path.dirname(container_file_path)
+                                if container_dir_path and os.path.exists(container_dir_path):
+                                    if os.path.exists(container_file_path):
+                                        try:
+                                            os.remove(container_file_path)
+                                            logger.info(f"Successfully deleted physical file locally: {container_file_path}")
+                                            deleted_voice = True
+                                        except Exception as e:
+                                            logger.warning(f"Failed to delete file locally {container_file_path}, will try SMB fallback: {e}")
+                                            error_reason = f"Local delete failed: {str(e)}"
+                                    else:
+                                        # File doesn't exist locally, but directory exists. Let SMB handle it.
+                                        pass
+                            
+                            # Second attempt: If not deleted locally, try deleting via SMB
+                            if not deleted_voice:
+                                main_db_id = record.main_db_id if record.main_db else None
+                                success, err_msg = delete_audio_file_via_smb(main_db_id, combined_host_path)
+                                if success:
+                                    deleted_voice = True
+                                else:
+                                    error_reason = err_msg or "Unknown SMB error"
+                                    
+                        # Handle results of VOICE_AND_INDEX
+                        if deleted_voice:
+                            success_voice += 1
+                            with transaction.atomic():
+                                if record.audiofile:
+                                    record.audiofile.delete()
+                                record.delete()
+                            success_indexes += 1
+                            success_by_db[db_name].append(file_name)
+                        else:
+                            # It failed to delete physical file.
+                            # Check if the error is "File not found" (which means the file is already gone)
+                            is_file_not_found = False
+                            if error_reason and any(x in error_reason for x in ["0xC0000034", "STATUS_NO_SUCH_FILE", "File not found", "does not exist", "No file path"]):
+                                is_file_not_found = True
                                 
-                            if os.path.exists(container_file_path):
+                            if is_file_not_found:
+                                # File doesn't exist on disk, so we delete DB record anyway to avoid infinite loop
                                 try:
-                                    os.remove(container_file_path)
-                                    logger.info(f"Successfully deleted physical file: {container_file_path}")
-                                except Exception as e:
-                                    raise OSError(f"Failed to delete physical file {container_file_path}: {e}")
+                                    with transaction.atomic():
+                                        if record.audiofile:
+                                            record.audiofile.delete()
+                                        record.delete()
+                                    success_indexes += 1
+                                    unsuccess_by_db[db_name].append((file_name, error_reason))
+                                except Exception as db_err:
+                                    logger.error(f"Failed to delete DB record for missing file: {db_err}")
+                            else:
+                                # It's a real connection/permission error! We do NOT delete DB record so it will retry.
+                                unsuccess_by_db[db_name].append((file_name, error_reason))
+                                
+                    else:
+                        # INDEX_ONLY
+                        with transaction.atomic():
+                            if record.audiofile:
+                                record.audiofile.delete()
+                            record.delete()
+                        success_indexes += 1
+                        success_by_db[db_name].append(file_name)
                         
-                        # 2. Delete from DB (tb_audiofile and tb_audioinfo)
-                        file_name = record.audiofile.file_name if record.audiofile else "Unknown_File"
-                        if record.audiofile:
-                            record.audiofile.delete()
-                        record.delete()
-                    
-                    # Transaction succeeded!
-                    if db_name not in deleted_by_db:
-                        deleted_by_db[db_name] = []
-                    deleted_by_db[db_name].append(file_name)
-                    
-                    if record.retention_task:
-                        task_types.add(record.retention_task.task_type)
-                    if record.delete_option:
-                        delete_options.add(record.delete_option)
                 except Exception as e:
                     logger.error(f"Failed to permanently delete record {record.id}: {e}")
             
-            # Only write log file and save log entry if we actually deleted something
-            if deleted_by_db:
+            # Count actual successes and unsuccesses
+            total_success = sum(len(files) for files in success_by_db.values())
+            total_unsuccess = sum(len(files) for files in unsuccess_by_db.values())
+            
+            # Only write log file and save log entry if we actually processed something
+            if total_success > 0 or total_unsuccess > 0:
                 with open(log_file, 'w', encoding='utf-8') as f:
                     f.write(f"# Execute Date: {local_now.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    blocks = []
-                    for db_name, file_names in deleted_by_db.items():
-                        block = f"# Source Storage: {db_name}\n" + "".join(f"{name}\n" for name in file_names)
-                        blocks.append(block)
-                    f.write("\n".join(blocks))
+                    if 'VOICE_AND_INDEX' in delete_options:
+                        f.write(f"# Indexes & Voice Files - Complete {success_voice}/{total_attempted}\n")
+                        f.write(f"# Indexes - {success_indexes}/{total_attempted}\n")
+                        f.write(f"# Voice Files - {success_voice}/{total_attempted}\n\n\n")
+                    else:
+                        f.write(f"# Indexes - Complete {success_indexes}/{total_attempted}\n\n\n")
+                        
+                    f.write(f"# SUCCESS - {total_success}\n")
+                    for db_name, files in success_by_db.items():
+                        if files:
+                            f.write(f"# Source Storage: {db_name}\n")
+                            for name in files:
+                                f.write(f"{name}\n")
+                            f.write("\n")
+                            
+                    f.write("\n")
+                    f.write(f"# UNSUCCESS - {total_unsuccess}\n")
+                    for db_name, files in unsuccess_by_db.items():
+                        if files:
+                            f.write(f"# Source Storage: {db_name}\n")
+                            for name, err in files:
+                                f.write(f"{name} (Error: {err})\n")
+                            f.write("\n")
                 
-                total_deleted = sum(len(names) for names in deleted_by_db.values())
                 RetentionLog.objects.create(
                     task_type=",".join(task_types) if task_types else "SYSTEM",
                     delete_option=",".join(delete_options) if delete_options else "UNKNOWN",
-                    index_count=total_deleted,
+                    index_count=success_indexes,
                     time_period=time_period_desc,
                     user_create="scheduler",
                     file_log_path=log_file,
                     status="SUCCESS"
                 )
-                logger.info(f"Permanent delete finished for task {task_id}. Records: {total_deleted}. Log: {log_file}")
-
-                # Create user log for permanent deletion
+                logger.info(f"Permanent delete finished for task {task_id}. Succeeded: {total_success}, Failed: {total_unsuccess}. Log: {log_file}")
+                
+                # Create user logs
                 task_obj = None
                 if task_id:
                     try:
                         task_obj = RetentionTask.objects.get(pk=task_id)
                     except Exception:
                         pass
-
+                        
                 if task_obj and task_obj.task_type == 'AUTO_EXECUTION':
                     action_name = 'Complete Delete Schedule Retention'
                 else:
                     action_name = 'Complete Delete Immediately Retention'
-
+                    
                 period_str = task_obj.time_period if task_obj and task_obj.time_period else time_period_desc
                 if period_str:
                     import re
-                    period_str = re.sub(r'(?i)older than', 'over', period_str)
+                    period_str = re.sub(r'(?i)older than', 'Over', period_str)
                     period_str = period_str.replace(' to ', ' - ')
-
-                delete_desc = "Indexes & Voice Files" if 'VOICE_AND_INDEX' in delete_options else "Indexes"
-                local_now = timezone.localtime(now)
-                detail_str = f"Retention ID : {task_id} | Retention Period : {period_str} | {delete_desc} | Running Date : {local_now.strftime('%Y-%m-%d %H:%M')} | Index Count : {total_deleted}"
+                    
+                occurrence = 'Once'
+                if task_obj and task_obj.task_type == 'AUTO_EXECUTION':
+                    try:
+                        config_auto = AutoRetentionConfig.load()
+                        occurrence = 'Once' if config_auto.is_once else 'Recurrence'
+                    except Exception:
+                        occurrence = 'Recurrence'
+                        
+                # Format delete_option_desc with success counts
+                if 'VOICE_AND_INDEX' in delete_options:
+                    delete_desc = f"Indexes & Voice Files ({success_voice}/{total_attempted})"
+                else:
+                    delete_desc = f"Indexes ({success_indexes}/{total_attempted})"
+                    
+                local_now_task = timezone.localtime(now)
+                detail_str = f"Retention ID : {task_id} | Retention Period : {period_str} | {occurrence} | {delete_desc} | Running Date : {local_now_task.strftime('%Y-%m-%d %H:%M')} | Index Count : {success_indexes}"
+                
                 try:
                     from apps.core.utils.function import create_user_log
+                    # 1. Log SUCCESS / summary log
                     create_user_log(
                         user=None,
                         action=action_name,
                         detail=detail_str,
                         status='success',
-                        request=None
+                        request=None,
+                        ip_address='127.0.0.1'
                     )
-                    logger.info(f"UserLog created for permanent delete: {action_name} - {detail_str}")
-                except Exception as log_err:
-                    logger.error(f"Failed to create UserLog for permanent delete: {log_err}")
+                    
+                    # 2. Log grouped ERRORS (if any unsuccesses occur)
+                    if total_unsuccess > 0:
+                        error_groups = {}
+                        for db_name, files in unsuccess_by_db.items():
+                            for name, err in files:
+                                cat = "System Bug / Database Error"
+                                if err:
+                                    err_lower = err.lower()
+                                    if any(x in err_lower for x in ["0xc0000034", "status_no_such_file", "file not found", "does not exist", "unreachable", "no file path"]):
+                                        cat = "ไฟล์เสียงไม่พบในโฟลเดอร์ (File not found)"
+                                    elif any(x in err_lower for x in ["permission denied", "access denied", "0xc0000022"]):
+                                        cat = "ไม่มีสิทธิ์เข้าถึงโฟลเดอร์ หรือที่อยู่ผิด (Permission denied)"
+                                    elif any(x in err_lower for x in ["timeout", "timed out", "connection refused", "cannot connect"]):
+                                        cat = "การเชื่อมต่อขัดข้อง (Connection timeout / refused)"
+                                    else:
+                                        cat = f"ข้อผิดพลาดจากระบบ: {err}"
+                                if cat not in error_groups:
+                                    error_groups[cat] = []
+                                error_groups[cat].append(name)
+                                
+                        detail_parts = [f"Retention ID : {task_id}"]
+                        for cat, file_list in error_groups.items():
+                            detail_parts.append(f"มี {len(file_list)} ไฟล์เกิดข้อผิดพลาด: {cat}")
+                        detail_str_err = " | ".join(detail_parts)
+                        
+                        create_user_log(
+                            user=None,
+                            action=action_name,
+                            detail=detail_str_err,
+                            status='error',
+                            request=None,
+                            ip_address='127.0.0.1'
+                        )
+                except Exception as log_ex:
+                    logger.error(f"Failed to create UserLog for permanent delete: {log_ex}")
         
     running_tasks = RetentionTask.objects.filter(status='RUNNING')
     for task in running_tasks:

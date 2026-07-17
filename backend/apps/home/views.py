@@ -1529,7 +1529,7 @@ def ApiProxyAudio(request):
             except Exception: pass
 
         bio.seek(0)
-        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
+        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm', '.nmf')
         base_name, ext = os.path.splitext(base)
         is_wav_download = _is_download_intent(request) and ext.lower() in download_exts
         download_name = base
@@ -1559,7 +1559,7 @@ def ApiProxyAudio(request):
             response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
 
         if _is_download_intent(request):
-            _log_voice_download(request, download_name, status='success')
+            _log_voice_download(request, base, status='success')
         return response
     except Exception as e:
         if _is_download_intent(request):
@@ -1650,29 +1650,28 @@ def ApiPlayAudio(request, file_id=None):
 
         target_path = resolved_path
 
-        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm')
+        download_exts = ('.wav', '.mp3', '.ogg', '.flac', '.m4a', '.aac', '.gsm', '.nmf')
         original_ext = os.path.splitext(file_name)[1].lower()
         is_wav_download = _is_download_intent(request) and original_ext in download_exts
         download_name = file_name
 
-        if not (_is_download_intent(request) and file_name.lower().endswith('.nmf')):
-            if is_wav_download and original_ext != '.wav':
-                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
-                if err:
-                    pass
-                else:
-                    target_path = transcoded_path
-                    temp_files.append(transcoded_path)
+        if is_wav_download and original_ext != '.wav':
+            transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+            if err:
+                pass
+            else:
+                target_path = transcoded_path
+                temp_files.append(transcoded_path)
+                download_name = f"{os.path.splitext(file_name)[0]}.wav"
+        elif not AudioTranscoder.is_browser_compatible(target_path):
+            transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
+            if err:
+                pass
+            else:
+                target_path = transcoded_path
+                temp_files.append(transcoded_path)
+                if is_wav_download:
                     download_name = f"{os.path.splitext(file_name)[0]}.wav"
-            elif not AudioTranscoder.is_browser_compatible(target_path):
-                transcoded_path, err = AudioTranscoder.transcode_to_wav(target_path)
-                if err:
-                    pass
-                else:
-                    target_path = transcoded_path
-                    temp_files.append(transcoded_path)
-                    if is_wav_download:
-                        download_name = f"{os.path.splitext(file_name)[0]}.wav"
 
         if is_wav_download and original_ext == '.wav':
             download_name = f"{os.path.splitext(file_name)[0]}.wav"
@@ -1687,7 +1686,7 @@ def ApiPlayAudio(request, file_id=None):
         response['Content-Disposition'] = f'{disposition}; filename="{download_name}"'
         response['Accept-Ranges'] = 'bytes'
         if _is_download_intent(request):
-            _log_voice_download(request, download_name, status='success')
+            _log_voice_download(request, file_name, status='success')
         return response
 
     except Exception as e:

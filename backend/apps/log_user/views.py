@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 from django.contrib.auth.models import User
-from django.db.models import Q
+from django.db.models import Q, Value
 
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
@@ -84,9 +84,12 @@ def ApiGetUserLogs(request,type):
 
         return dt
 
+    from django.db.models.functions import Concat
     # base queryset and type filter
     # avoid N+1 queries on user access by selecting related user
-    log_list = UserLog.objects.select_related('user').all()
+    log_list = UserLog.objects.select_related('user').annotate(
+        full_name_concat=Concat('user__first_name', Value(' '), 'user__last_name')
+    )
 
     audit_actions = {
         'Login',
@@ -138,10 +141,11 @@ def ApiGetUserLogs(request,type):
 
     if type == 'system':
         log_list = log_list.filter(
-            Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+            Q(status__in=['error', 'failed', 'fail', 'warning', 'ERROR', 'FAILED', 'FAIL', 'WARNING']) |
+            (Q(status__in=['success', 'SUCCESS']) & ~Q(action__in=audit_actions))
         )
     elif type == 'audit':
-        log_list = log_list.filter(status='success', action__in=audit_actions)
+        log_list = log_list.filter(status__in=['success', 'SUCCESS'], action__in=audit_actions)
 
     # total before applying filters (for DataTables recordsTotal)
     records_total = log_list.count()
@@ -199,10 +203,13 @@ def ApiGetUserLogs(request,type):
                 q_tok = (Q(user__username__icontains=tok) |
                          Q(user__first_name__icontains=tok) |
                          Q(user__last_name__icontains=tok) |
+                         Q(full_name_concat__icontains=tok) |
                          Q(action__icontains=tok) |
                          Q(detail__icontains=tok) |
                          Q(ip_address__icontains=tok) |
-                         Q(client_type__icontains=tok))
+                         Q(client_type__icontains=tok) |
+                         Q(status__icontains=tok) |
+                         Q(timestamp__icontains=tok))
                 q_search &= q_tok
             log_list = log_list.filter(q_search)
 
@@ -278,25 +285,41 @@ def ApiGetUserLogs(request,type):
 
 def ApiGetActionOptions(request):
     try:
-        excluded_retention_actions = [
-            'Save and Run Schedule Retention',
-            'Stop Schedule Retention',
-            'Run Schedule Retention',
-            'Complete Soft Delete Schedule Retention',
-            'Complete Delete Schedule Retention',
-            'Restore Data Schedule Retention',
-            'Complete Soft Delete Immediately Retention',
-            'Complete Delete Immediately Retention',
-            'Restore Data Immediately Retention',
-        ]
-        # Fetch distinct actions from UserLog, explicitly ordering by 'action' to override Meta ordering (e.g. '-timestamp') which breaks distinct()
-        actions_qs = UserLog.objects.exclude(action__in=excluded_retention_actions).values_list('action', flat=True).order_by('action').distinct()
+        log_type = request.GET.get('type')
         
+        audit_actions = {
+            'Login', 'Logout', 'Playback Audio Records', 'Download Audio Records', 'Save as Audio Index',
+            'Create My Favorite', 'Edit My Favorite', 'Delete My Favorite', 'Add Column Audio Records',
+            'Edit Column Audio Records', 'Delete Column Audio Records', 'Enable Column Audio Records',
+            'Disable Column Audio Records', 'Add User', 'Edit User', 'Delete User', 'Change User Status',
+            'Reset User Password', 'Save as User Index', 'Add Group', 'Edit Group', 'Delete Group',
+            'Add Team', 'Edit Team', 'Delete Team', 'Edit Base Role', 'Add Custom Role', 'Edit Custom Role',
+            'Delete Custom Role', 'Save as System Log', 'Save as Audit Log', 'Create Delegate',
+            'Playback Delegate File', 'Download Delegate File', 'Change Delegate Status', 'Create Ticket',
+            'Playback Ticket File', 'Download Ticket File', 'Change Ticket Status', 'Save as Ticket History',
+            'Ticket Resent', 'Ticket Send Mail', 'Ticket Copy Form', 'Download Player', 'User Change Password'
+        }
+        
+        # Start with all distinct actions
+        actions_qs = UserLog.objects.values_list('action', flat=True).order_by('action').distinct()
+        
+        # If type is specified, filter actions
+        if log_type == 'audit':
+            actions_qs = actions_qs.filter(action__in=audit_actions)
+        elif log_type == 'system':
+            # System actions are those not in audit_actions or having errors
+            actions_qs = UserLog.objects.filter(
+                Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+            ).values_list('action', flat=True).order_by('action').distinct()
+            
         # Use a set to remove any duplicates that might have different leading/trailing whitespaces
         unique_actions = set()
         for a in actions_qs:
             if a:
-                unique_actions.add(a.strip())
+                val = a.strip()
+                if val == 'Save As Retention Log':
+                    val = 'Save as Retention Log'
+                unique_actions.add(val)
                 
         actions = list(unique_actions)
         actions.sort()

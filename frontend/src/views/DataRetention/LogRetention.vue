@@ -253,7 +253,7 @@ const downloadProgress = ref(0);
 const downloadSpeed = ref('0 MB/s');
 const downloadRemaining = ref('');
 
-const requiredExportPermission = computed(() => 'Save As Retention Log');
+const requiredExportPermission = computed(() => 'Save as Retention Log');
 const canExport = computed(() => authStore.hasPermission(requiredExportPermission.value));
 
 const toggleExport = () => {
@@ -372,6 +372,7 @@ const onExportFormat = async (formatOrFormats) => {
                 fileNamePrefix: 'Retention Log',
                 returnBlob: true
               });
+              const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF');
               if (res && res.blob) {
                 const extMap = { excel: 'xls', csv: 'csv', pdf: 'pdf' };
                 const ext = extMap[fmt] || fmt;
@@ -379,16 +380,18 @@ const onExportFormat = async (formatOrFormats) => {
                 zip.file(name, res.blob);
                 try { markTaskDone(res.blob.size); } catch (e) {}
 
-                const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF');
-                logUserAction('Save As Retention Log', `File Name : ${name}, ${fmtLabel}`, 'success');
+                logUserAction('Save as Retention Log', `File Name : ${name}, ${fmtLabel}`, 'success');
               } else {
                 anyFailed = true;
                 try { markTaskDone(); } catch (e) {}
+                logUserAction('Save as Retention Log', `File Name : Retention Log ${timestampForName}, ${fmtLabel}, error=Failed to generate blob`, 'error');
               }
             } catch (e) {
               anyFailed = true;
               console.error('export into zip failed', e);
               try { markTaskDone(); } catch (er) {}
+              const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF');
+              logUserAction('Save as Retention Log', `File Name : Retention Log ${timestampForName}, ${fmtLabel}, error=${e?.message || e}`, 'error');
             }
           }
           const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -410,6 +413,7 @@ const onExportFormat = async (formatOrFormats) => {
     }
 
     for (const fmt of formats) {
+      const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF');
       try {
         const res = await exportTableToFormat(fmt, 'Retention Log', {
           rows: rowsToExport || [],
@@ -433,15 +437,16 @@ const onExportFormat = async (formatOrFormats) => {
           }
           try { markTaskDone(res.blob.size); } catch (e) {}
 
-          const fmtLabel = fmt === 'excel' ? 'Excel' : (fmt === 'csv' ? 'CSV' : 'PDF');
           const filenameStr = res.fileName || `Retention Log ${timestampForName}`;
-          logUserAction('Save As Retention Log', `File Name : ${filenameStr}, ${fmtLabel}`, 'success');
+          logUserAction('Save as Retention Log', `File Name : ${filenameStr}, ${fmtLabel}`, 'success');
         } else {
           try { markTaskDone(); } catch (e) {}
+          logUserAction('Save as Retention Log', `File Name : Retention Log ${timestampForName}, ${fmtLabel}, error=Failed to generate blob`, 'error');
         }
       } catch (e) {
         console.error('export failed', fmt, e);
         try { if (typeof showToast === 'function') showToast(`Export ${fmt} failed`, 'error'); } catch (er) {}
+        logUserAction('Save as Retention Log', `File Name : Retention Log ${timestampForName}, ${fmtLabel}, error=${e?.message || e}`, 'error');
       }
     }
 

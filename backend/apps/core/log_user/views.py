@@ -144,10 +144,11 @@ def get_log(request,type):
 
     if type == 'system':
         log_list = log_list.filter(
-            Q(status='error') | (Q(status='success') & ~Q(action__in=audit_actions))
+            Q(status__in=['error', 'failed', 'fail', 'warning', 'ERROR', 'FAILED', 'FAIL', 'WARNING']) |
+            (Q(status__in=['success', 'SUCCESS']) & ~Q(action__in=audit_actions))
         )
     elif type == 'audit':
-        log_list = log_list.filter(status='success', action__in=audit_actions)
+        log_list = log_list.filter(status__in=['success', 'SUCCESS'], action__in=audit_actions)
 
     # total before applying filters (for DataTables recordsTotal)
     records_total = log_list.count()

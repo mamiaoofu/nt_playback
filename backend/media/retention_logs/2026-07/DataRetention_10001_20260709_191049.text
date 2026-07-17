@@ -1,0 +1,25 @@
+# Execute Date: 2026-07-09 19:10:49
+
+# Indexes & Voice Files - Complete 0/7
+# Indexes - 0/7
+# Voice Files - 0/7
+
+
+# SUCCESS - 0
+
+# UNSUCCESS - 7
+# Source Storage: Nice Perform 4.1
+test-data-retention-12.mp3 (Error: [Errno -2] Name or service not known)
+test-data-retention-13.mp3 (Error: [Errno -2] Name or service not known)
+test-data-retention-14.mp3 (Error: [Errno -2] Name or service not known)
+test-data-retention-15.mp3 (Error: [Errno -2] Name or service not known)
+
+# Source Storage: Nice Engage 6.15
+test-data-retention-10.mp3 (Error: [Errno -2] Name or service not known)
+
+# Source Storage: Nice Engage 7.3
+test-data-retention-11.mp3 (Error: [Errno -2] Name or service not known)
+
+# Source Storage: Nice Engage 6.10
+test-data-retention-16.mp3 (Error: [Errno -2] Name or service not known)
+

@@ -272,9 +272,13 @@ def create_user_log(
 
     # ดึงข้อมูล client OS / browser
     try:
-        info = get_user_os_browser_architecture(request) if request else {"os": "-", "browser": "-"}
+        if request:
+            info = get_user_os_browser_architecture(request)
+            client_type_val = f"{info['os']} / {info['browser']}"
+        else:
+            client_type_val = "Server"
     except Exception:
-        info = {"os": "-", "browser": "-"}
+        client_type_val = "-"
 
     # ดึง IP ของ client (จาก request)
     try:
@@ -302,7 +306,7 @@ def create_user_log(
             detail=detail,
             ip_address=client_ip,
             # audiofile_id=audiofile_id,
-            client_type=f"{info['os']} / {info['browser']}",
+            client_type=client_type_val,
             status=status,
         )
         

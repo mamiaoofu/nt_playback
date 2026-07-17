@@ -58,7 +58,10 @@ def _format_occurrence(task=None, config=None):
 def _build_log_detail(task_id, time_period, occurrence=None, delete_option=None, restore=False, running_date=None, index_count=None):
     detail_parts = [f"Retention ID : {task_id}", f"Retention Period : {time_period}"]
     if restore:
-        detail_parts.append('Indexes')
+        if delete_option:
+            detail_parts.append(_format_delete_option(delete_option))
+        else:
+            detail_parts.append('Indexes')
     else:
         if occurrence:
             detail_parts.append(occurrence)
@@ -291,8 +294,9 @@ class RetentionViewSet(viewsets.ViewSet):
             task.index_count = count
             task.save()
 
+            delete_option_desc = _format_delete_option(delete_option)
             running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.created_at else '-'
-            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Indexes | Running Date : {running_date_str} | Index Count : {count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {task.time_period} | Once | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
             create_user_log(
                 user=request.user,
                 action=action_name,
@@ -327,7 +331,7 @@ class RetentionViewSet(viewsets.ViewSet):
             return Response({'error': 'Invalid password'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if there is an active running task
-        if RetentionTask.objects.filter(task_type='AUTO_EXECUTION', status__in=['READY', 'RUNNING']).exists():
+        if RetentionTask.objects.filter(status__in=['READY', 'RUNNING']).exists():
             _create_error_log(request, action_name, 'Cannot edit configuration while a task is active (Ready or Running).')
             return Response({'error': 'Cannot edit configuration while a task is active (Ready or Running).'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -389,7 +393,7 @@ class RetentionViewSet(viewsets.ViewSet):
                     period_str = time_period_desc
                     if period_str:
                         import re
-                        period_str = re.sub(r'(?i)older than', 'over', period_str)
+                        period_str = re.sub(r'(?i)older than', 'Over', period_str)
                         period_str = period_str.replace(' to ', ' - ')
                     
                     occurrence = _format_occurrence(config=config)
@@ -456,11 +460,13 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = task.time_period or ''
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             
+            occurrence = _format_occurrence(task=task, config=config)
+            delete_option_desc = _format_delete_option(task.delete_option)
             running_date_str = timezone.localtime(task.created_at).strftime('%Y-%m-%d %H:%M') if task.task_type == 'MANUAL' else _calculate_next_run(task, config)
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | Indexes | Running Date : {running_date_str} | Index Count : {count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : {running_date_str} | Index Count : {count}"
             
             create_user_log(
                 user=request.user,
@@ -501,7 +507,7 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = _format_time_period_detail_from_config(config)
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
@@ -546,12 +552,12 @@ class RetentionViewSet(viewsets.ViewSet):
             period_str = _format_time_period_detail_from_config(config)
             if period_str:
                 import re
-                period_str = re.sub(r'(?i)older than', 'over', period_str)
+                period_str = re.sub(r'(?i)older than', 'Over', period_str)
                 period_str = period_str.replace(' to ', ' - ')
             occurrence = _format_occurrence(task=task, config=config)
             occurrence = 'Once' if occurrence == 'Once' else 'Recurrence'
             delete_option_desc = "Indexes & Voice Files" if config.delete_option == 'VOICE_AND_INDEX' else "Indexes"
-            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : Stopped | Index Count : {task.index_count}"
+            detail_str = f"Retention ID : {task.id} | Retention Period : {period_str} | {occurrence} | {delete_option_desc} | Running Date : - | Index Count : {task.index_count}"
             
             create_user_log(
                 user=request.user,
@@ -673,7 +679,8 @@ class RetentionViewSet(viewsets.ViewSet):
                 elif p in ['Indexes & Voice Files', 'Indexes', 'Only Indexs', 'Indexs', 'Indexes & Voice Files']:
                     delete_option = p
                 elif p.lower().startswith('running date :'):
-                    running_date_val = p.split(':', 1)[1].strip()
+                    val = p.split(':', 1)[1].strip()
+                    running_date_val = '-' if val == 'Stopped' else val
                 elif p.lower().startswith('index count :'):
                     index_count = p.split(':', 1)[1].strip()
             
@@ -712,11 +719,23 @@ class RetentionViewSet(viewsets.ViewSet):
                     
             download_url = None
             if log.action in ['Complete Delete Schedule Retention', 'Complete Delete Immediately Retention']:
-                if retention_id.isdigit():
-                    task_id = int(retention_id)
-                    ret_log = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_").first()
-                    if ret_log:
-                        download_url = f"/api/v1/retention/logs/{ret_log.id}/download/"
+                if str(index_count).strip() not in ['0', '', '-']:
+                    if retention_id.isdigit():
+                        task_id = int(retention_id)
+                        ret_logs = RetentionLog.objects.filter(file_log_path__icontains=f"DataRetention_{task_id}_")
+                        if ret_logs.exists():
+                            def get_time_diff(ret_log_obj):
+                                t1 = ret_log_obj.created_at
+                                t2 = log.timestamp
+                                if timezone.is_aware(t1) != timezone.is_aware(t2):
+                                    if timezone.is_aware(t1):
+                                        t1 = timezone.make_naive(t1)
+                                    else:
+                                        t2 = timezone.make_naive(t2)
+                                return abs((t1 - t2).total_seconds())
+                            
+                            best_ret_log = min(ret_logs, key=get_time_diff)
+                            download_url = f"/api/v1/retention/logs/{best_ret_log.id}/download/"
             
             ts_str = '-'
             if log.timestamp:
@@ -727,7 +746,7 @@ class RetentionViewSet(viewsets.ViewSet):
                 created_by_val = task_update_by
 
             client_type_val = log.client_type or "-"
-            if log.action in ['Complete Soft Delete Schedule Retention']:
+            if log.action in ['Complete Soft Delete Schedule Retention', 'Complete Delete Schedule Retention', 'Complete Delete Immediately Retention']:
                 client_type_val = 'Server'
 
             data.append({
@@ -817,16 +836,75 @@ class RetentionViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['get'])
     def download_log(self, request, pk=None):
+        action_name = "Download Retention Audio File List"
         try:
             log = RetentionLog.objects.get(pk=pk)
         except RetentionLog.DoesNotExist:
+            detail_str = "Retention ID : - | Create Date : - | File Name : - | error=Log not found"
+            create_user_log(user=request.user, action=action_name, detail=detail_str, status='error', request=request)
             return Response({'error': 'Log not found'}, status=status.HTTP_404_NOT_FOUND)
         
         if not log.file_log_path:
+            detail_str = "Retention ID : - | Create Date : - | File Name : - | error=File path is empty"
+            create_user_log(user=request.user, action=action_name, detail=detail_str, status='error', request=request)
             return Response({'error': 'File path is empty'}, status=status.HTTP_400_BAD_REQUEST)
             
         import os
         from django.http import FileResponse
-        if os.path.exists(log.file_log_path):
-            return FileResponse(open(log.file_log_path, 'rb'), as_attachment=True)
+        file_name = os.path.basename(log.file_log_path)
+        
+        # Parse retention ID (task ID) from filename
+        parts = file_name.split('_')
+        retention_id = parts[1] if len(parts) > 1 else '-'
+        
+        # Create Date formatted
+        create_date_str = timezone.localtime(log.created_at).strftime('%Y-%m-%d %H:%M') if log.created_at else '-'
+        
+        detail_str = f"Retention ID : {retention_id} | Create Date : {create_date_str} | File Name : {file_name}"
+        
+        # Resolve the actual file path on disk dynamically to handle path mismatches (Windows/Linux/Docker)
+        resolved_file_path = log.file_log_path
+        if not os.path.exists(resolved_file_path):
+            # Try mapping host -> container path if running in container
+            try:
+                from apps.home.views import map_host_to_container_path
+                mapped = map_host_to_container_path(resolved_file_path)
+                if mapped and os.path.exists(mapped):
+                    resolved_file_path = mapped
+            except Exception:
+                pass
+                
+        if not os.path.exists(resolved_file_path):
+            # Try building path under settings.MEDIA_ROOT/retention_logs/YYYY-MM/filename
+            try:
+                if len(parts) >= 3:
+                    date_part = parts[2]  # e.g., "20260707"
+                    yyyy_mm = f"{date_part[0:4]}-{date_part[4:6]}"
+                    constructed = os.path.join(settings.MEDIA_ROOT, 'retention_logs', yyyy_mm, file_name)
+                    if os.path.exists(constructed):
+                        resolved_file_path = constructed
+            except Exception:
+                pass
+                
+        if not os.path.exists(resolved_file_path):
+            # Try recursive search inside settings.MEDIA_ROOT/retention_logs/
+            try:
+                ret_logs_dir = os.path.join(settings.MEDIA_ROOT, 'retention_logs')
+                if os.path.exists(ret_logs_dir):
+                    found_path = None
+                    for root, dirs, files in os.walk(ret_logs_dir):
+                        if file_name in files:
+                            found_path = os.path.join(root, file_name)
+                            break
+                    if found_path:
+                        resolved_file_path = found_path
+            except Exception:
+                pass
+
+        if os.path.exists(resolved_file_path):
+            create_user_log(user=request.user, action=action_name, detail=detail_str, status='success', request=request)
+            return FileResponse(open(resolved_file_path, 'rb'), as_attachment=True)
+            
+        detail_str_err = f"{detail_str} | error=File not found on disk"
+        create_user_log(user=request.user, action=action_name, detail=detail_str_err, status='error', request=request)
         return Response({'error': 'File not found on disk'}, status=status.HTTP_404_NOT_FOUND)
